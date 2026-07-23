@@ -44,16 +44,19 @@ html, body {
    地图为主视图(默认入口):全屏底图 + 光点标记 + 双指缩放/拖动平移
    ============================================================ */
 body.view-pano #mapView { opacity: 0; pointer-events: none; }
-body.view-pano .map-hint { opacity: 0; pointer-events: none; }
+body.view-pano .map-hint,
+body.view-pano #filmBtn { opacity: 0; pointer-events: none; }
 body.view-map #panorama,
 body.view-map #miniMapWrap,
 body.view-map #drawer,
-body.view-map .hint { opacity: 0; pointer-events: none; }
+body.view-map .hint,
+body.view-map #gyroBtn { opacity: 0; pointer-events: none; }
 body.view-pano #miniMapWrap,
 body.view-pano #drawer,
-body.view-pano .hint { opacity: 1; pointer-events: auto; }
+body.view-pano .hint,
+body.view-pano #gyroBtn { opacity: 1; pointer-events: auto; }
 
-#panorama, #miniMapWrap, #drawer, .hint { transition: opacity .4s ease; }
+#panorama, #miniMapWrap, #drawer, .hint, #gyroBtn, #filmBtn { transition: opacity .4s ease; }
 
 #mapView {
   position: fixed; inset: 0; z-index: 2; overflow: hidden;
@@ -187,6 +190,91 @@ body.view-pano .hint { opacity: 1; pointer-events: auto; }
   50% { transform: scale(1.14); opacity: .78; }
 }
 
+/* 街景式导航热点(scene 跳转箭头)：白底圆形 chip + 红色向上 chevron + 下方常驻标签，
+   替代 pannellum 默认的 hover-only 提示条。cssClass 会让 pannellum 跳过默认的
+   pnlm-hotspot/pnlm-sprite/pnlm-scene 样式，但 sceneId 跳转的 onclick/ontouchend
+   绑定与 cssClass 无关（见内联 pannellum La() 函数），点击跳场景照常生效。 */
+.psm-nav-hotspot {
+  width: 44px; height: 44px;
+  cursor: pointer;
+}
+.psm-nav-hotspot::before {
+  content: "";
+  position: absolute; left: 2px; top: 2px;
+  width: 40px; height: 40px; border-radius: 50%;
+  background: #fff url('data:image/svg+xml,%3Csvg%20xmlns%3D%22http://www.w3.org/2000/svg%22%20viewBox%3D%220%200%2024%2024%22%3E%3Cpath%20d%3D%22M6%2015l6-6%206%206%22%20fill%3D%22none%22%20stroke%3D%22%23c0392b%22%20stroke-width%3D%223%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22/%3E%3C/svg%3E') no-repeat center / 18px 18px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.35), 0 0 0 1px rgba(0,0,0,.05);
+  animation: psm-nav-breathe 2.4s ease-in-out infinite;
+  transform-origin: center;
+}
+.psm-nav-hotspot span {
+  /* visibility 用 inherit（不是 visible）：跟着 pannellum 对 f.style.visibility 的开关走，
+     热点转到背面/屏幕外时标签跟着一起隐，不会残留悬空文字。 */
+  visibility: inherit !important;
+  position: absolute !important;
+  left: 50% !important; top: 48px !important; margin: 0 !important;
+  transform: translateX(-50%);
+  width: auto !important; max-width: 130px; white-space: nowrap; text-align: center;
+  background: rgba(0,0,0,.55) !important; color: #fff;
+  font-size: 11px; line-height: 1.4;
+  padding: 3px 9px !important; border-radius: 10px !important;
+  pointer-events: none;
+}
+@keyframes psm-nav-breathe {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.08); }
+}
+
+/* 陀螺仪环视按钮（全景视图右下角，与迷你地图同一层级高度） */
+.gyro-btn {
+  position: fixed; z-index: 4; cursor: pointer;
+  right: calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(96px + env(safe-area-inset-bottom, 0px) + 14px);
+  width: 44px; height: 44px; border-radius: 50%;
+  background: rgba(255,255,255,.9); border: none; padding: 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,.28);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.gyro-btn.active { background: #c0392b; box-shadow: 0 4px 16px rgba(192,57,43,.5); }
+.gyro-btn.denied { opacity: .4; }
+
+/* 「看那天的影片」入口（地图视图左下角）+ 占位模态框 */
+.film-btn {
+  position: fixed; z-index: 4; cursor: pointer;
+  left: calc(14px + env(safe-area-inset-left, 0px));
+  bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 6px;
+  background: #c0392b; color: #fff; border: none;
+  font-size: 12.5px; font-weight: 600; letter-spacing: .2px;
+  padding: 0 15px; height: 40px; border-radius: 20px;
+  box-shadow: 0 4px 14px rgba(192,57,43,.4);
+  -webkit-tap-highlight-color: transparent;
+}
+.film-btn:active { transform: scale(.96); }
+.film-modal {
+  position: fixed; inset: 0; z-index: 32; background: rgba(0,0,0,.55);
+  display: none; align-items: center; justify-content: center; padding: 24px;
+}
+.film-modal.on { display: flex; }
+.film-modal-card {
+  background: #fff; border-radius: 16px; padding: 26px 22px 22px;
+  max-width: 300px; width: 100%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.film-modal-card .fm-icon {
+  width: 46px; height: 46px; border-radius: 50%; margin: 0 auto 14px;
+  background: #c0392b; color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 18px;
+}
+.film-modal-card h3 { margin: 0 0 8px; font-size: 16px; color: #1a1a1a; font-weight: 700; }
+.film-modal-card p { margin: 0 0 20px; font-size: 12.5px; color: #777; line-height: 1.5; }
+.film-modal-card .fm-close {
+  border: none; background: #f4f4f7; color: #333; font-size: 13px; font-weight: 600;
+  padding: 0; width: 100%; height: 44px; border-radius: 10px; cursor: pointer;
+}
+
 /* 灯箱：照片大图 + caption + 置信度徽章 */
 .lightbox {
   position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.88);
@@ -237,8 +325,10 @@ body.view-pano .hint { opacity: 1; pointer-events: auto; }
   </div>
 </div>
 <div class="map-hint" id="mapHint">👆 拖动平移 · 双指缩放 · 点亮点进入</div>
+<button class="film-btn" id="filmBtn" type="button">▶ 看那天的影片</button>
 
 <div id="miniMapWrap"><canvas id="miniMap" width="108" height="81"></canvas></div>
+<button class="gyro-btn" id="gyroBtn" type="button" aria-label="陀螺仪环视" title="陀螺仪环视">🧭</button>
 
 <div class="hint" id="hint">👆 拖动环视 · 点亮点看照片</div>
 
@@ -258,6 +348,15 @@ body.view-pano .hint { opacity: 1; pointer-events: auto; }
   <img id="lbImg" alt="">
   <div class="lbBadge" id="lbBadge"></div>
   <div class="lbCap" id="lbCap"></div>
+</div>
+
+<div class="film-modal" id="filmModal">
+  <div class="film-modal-card">
+    <div class="fm-icon">▶</div>
+    <h3>回忆影片</h3>
+    <p>影像轨成片将接入这里 · 敬请期待</p>
+    <button class="fm-close" id="filmModalClose" type="button">知道了</button>
+  </div>
 </div>
 
 <script src="../tour.js"></script>
@@ -434,9 +533,12 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   TOUR.nodes.forEach(function (node, nodeIndex) {
     var hotSpots = [];
 
-    // 旅程模式(TOUR.journey)下,「下一站」由 nodes 数组顺序推出,不是简单转述 target.name,
+    // 旅程模式(TOUR.journey)下,「下一站/上一站」由 nodes 数组顺序推出,不是简单转述 target.name,
     // 这样即便以后 links 里混入非顺序的辅助跳转,文案也不会乱说"下一站"。
+    // 反向 links（回上一站那条跳转边）目前 tour.js 可能还没数据，这里只按"顺序位置"判断
+    // 文案，不依赖 link 是否已经存在——数据一补上，文案自动就对，不用再改 viewer。
     var journeyNextNode = TOUR.journey ? TOUR.nodes[nodeIndex + 1] : null;
+    var journeyPrevNode = TOUR.journey ? TOUR.nodes[nodeIndex - 1] : null;
 
     (TOUR.links || []).forEach(function (link) {
       if (link.from !== node.id) return;
@@ -444,13 +546,16 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
       var label = target ? target.name : link.to;
       if (journeyNextNode && target && target.id === journeyNextNode.id) {
         label = "去下一站:" + target.name;
+      } else if (journeyPrevNode && target && target.id === journeyPrevNode.id) {
+        label = "回上一站:" + target.name;
       }
       hotSpots.push({
         pitch: NAV_PITCH,
         yaw: link.yaw,
         type: "scene",
         text: label,
-        sceneId: link.to
+        sceneId: link.to,
+        cssClass: "psm-nav-hotspot" // 街景式圆形箭头 chip，见 <style> 里的 .psm-nav-hotspot
       });
     });
 
@@ -718,6 +823,19 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   });
 
   // ============================================================
+  // 「看那天的影片」占位入口：地图视图左下角小按钮 + 居中模态框（纯占位，无播放逻辑）
+  // ============================================================
+  var filmBtn = document.getElementById("filmBtn");
+  var filmModal = document.getElementById("filmModal");
+  var filmModalClose = document.getElementById("filmModalClose");
+  filmBtn.addEventListener("click", function () { filmModal.classList.add("on"); });
+  filmModalClose.addEventListener("click", closeFilmModal);
+  filmModal.addEventListener("click", function (e) {
+    if (e.target.id === "filmModal") closeFilmModal();
+  });
+  function closeFilmModal() { filmModal.classList.remove("on"); }
+
+  // ============================================================
   // 迷你地图（全景视图左下角）：canvas 画节点 + 当前位置蓝点 + 朝向扇形
   // ============================================================
   var miniMapWrap = document.getElementById("miniMapWrap");
@@ -770,6 +888,94 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   }
 
   miniMapWrap.addEventListener("click", backToMap);
+
+  // ============================================================
+  // 陀螺仪环视：拖手指之外，另给一个"转手机看四周"的入口。
+  // 实测确认内联 pannellum 是有公开方法的
+  // (isOrientationSupported/startOrientation/stopOrientation/isOrientationActive，
+  // 见源码 this.startOrientation=function(){Xa&&Ra()})，但 Xa 这个开关在初始化时
+  // 被写死为 E.DeviceOrientationEvent && "https:"==location.protocol && userAgent
+  // 含"mobi" 这三个条件的与——离线演示是 a-Shell 起本地服务器、Safari 访问
+  // http://127.0.0.1:8080（见 dist/DEMO-PHONE.md），protocol 永远是 http:，Xa 永远
+  // 是 false，官方 API 在这套演示环境里必然是死代码。所以这里不调官方 API，自己监听
+  // deviceorientation，指数平滑做阻尼后直接喂给 viewer.setYaw/setPitch（duration=0
+  // 立即生效，平滑已经在 JS 里做过，不需要再叠一层 pannellum 自己的过渡动画）。
+  var gyroBtn = document.getElementById("gyroBtn");
+  var GYRO_SUPPORTED = typeof window.DeviceOrientationEvent !== "undefined";
+  var gyroActive = false;
+  var gyroBase = null;       // 开启瞬间的校准基准 { yaw, pitch, viewYaw, viewPitch }
+  var gyroSmoothYaw = 0, gyroSmoothPitch = 0;
+  var GYRO_DAMPING = 0.18;   // 阻尼系数：越小越迟钝平滑，越大越跟手越抖
+  var gyroDeniedHinted = false;
+
+  if (!GYRO_SUPPORTED) {
+    gyroBtn.style.display = "none"; // 没有 DeviceOrientationEvent：桌面端等按钮完全不出现
+  } else {
+    gyroBtn.addEventListener("click", function () {
+      if (gyroActive) { stopGyro(); return; }
+      if (typeof DeviceOrientationEvent.requestPermission === "function") {
+        // iOS 13+：必须在用户手势回调里同步发起，不能异步之后再调
+        DeviceOrientationEvent.requestPermission().then(function (state) {
+          if (state === "granted") startGyro(); else denyGyro();
+        }).catch(function () { denyGyro(); });
+      } else {
+        startGyro(); // 非 iOS 13+（或已经在系统层授过权）：不需要显式请求
+      }
+    });
+  }
+
+  function startGyro() {
+    gyroActive = true;
+    gyroBase = null; // 下一帧 deviceorientation 事件会重新校准基准点
+    gyroBtn.classList.remove("denied");
+    gyroBtn.classList.add("active");
+    window.addEventListener("deviceorientation", onDeviceOrientation, true);
+  }
+
+  function stopGyro() {
+    gyroActive = false;
+    gyroBtn.classList.remove("active");
+    window.removeEventListener("deviceorientation", onDeviceOrientation, true);
+  }
+
+  function denyGyro() {
+    gyroActive = false;
+    gyroBtn.classList.remove("active");
+    gyroBtn.classList.add("denied");
+    if (!gyroDeniedHinted) { // 只弹一次，别每次点击都刷提示
+      gyroDeniedHinted = true;
+      hintEl.textContent = "环视权限被拒绝，可在 Safari 设置里重新开启";
+      flashHint(hintEl);
+    }
+  }
+
+  function onDeviceOrientation(e) {
+    if (e.alpha === null || e.beta === null) return;
+    var screenAngle = (screen.orientation && typeof screen.orientation.angle === "number")
+      ? screen.orientation.angle
+      : (typeof window.orientation === "number" ? window.orientation : 0);
+    var rawYaw = -(e.alpha + screenAngle);
+    var rawPitch = (e.beta || 0) - 90; // 手机竖直举在眼前时 beta≈90，此时视角应水平(pitch=0)
+    if (!gyroBase) {
+      // 第一帧只校准、不转视角：把"此刻的手机朝向"和"此刻的镜头朝向"绑成基准点，
+      // 之后只跟踪手机相对这个基准转了多少，不依赖罗盘的绝对精度。
+      gyroBase = { yaw: rawYaw, pitch: rawPitch, viewYaw: viewer.getYaw(), viewPitch: viewer.getPitch() };
+      gyroSmoothYaw = rawYaw;
+      gyroSmoothPitch = rawPitch;
+      return;
+    }
+    // 阻尼：指数平滑，压掉传感器抖动（yaw 跨 -180/180 边界要按最短路径平滑）
+    var dy = rawYaw - gyroSmoothYaw;
+    while (dy > 180) dy -= 360;
+    while (dy < -180) dy += 360;
+    gyroSmoothYaw += dy * GYRO_DAMPING;
+    gyroSmoothPitch += (rawPitch - gyroSmoothPitch) * GYRO_DAMPING;
+
+    var targetYaw = gyroBase.viewYaw + (gyroSmoothYaw - gyroBase.yaw);
+    var targetPitch = Math.max(-90, Math.min(90, gyroBase.viewPitch + (gyroSmoothPitch - gyroBase.pitch)));
+    viewer.setYaw(targetYaw, 0);
+    viewer.setPitch(targetPitch, 0);
+  }
 
   // ============================================================
   // 底部抽屉：筛选 chips + 照片卡片列表 + 拖拽展开/收起
@@ -942,6 +1148,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     if (transitioning) return;
     transitioning = true;
     stopMiniMapLoop();
+    if (gyroActive) stopGyro(); // 离开全景视图关掉陀螺仪，避免监听残留到地图视图
     setView("map");
     refreshHudForMapView();
     fitMapToViewport(true);

@@ -616,6 +616,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   var amapPolyline = null;
   var overlays = []; // 路线+全部 marker,resize 后重新 fitView 用(必须模块级,resize handler 要读)
   var amapInited = false;
+  var MAP_DEFAULT_PITCH = 48; // 3D 默认俯仰角；坠入式转场把 pitch 拉到 65 后，回地图要复位到它
 
   function buildMarkerContent(node, isCurrent) {
     var maxPhotos = 1;
@@ -640,20 +641,63 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     });
   }
 
-  function focusMapOnNode(node) {
+  // 坠入式转场：进全景前先做一段"俯冲"——地图拉近+压低视角，
+  // 模拟苹果地图那种扎进街景的观感，播完（约 700ms）再走原本的进全景流程。
+  function diveIntoNode(node) {
     if (!amap || !node.geo) return;
-    amap.setZoomAndCenter(17, [node.geo.lng, node.geo.lat], false);
+    amap.setZoomAndCenter(17.5, [node.geo.lng, node.geo.lat], false, 650);
+    if (typeof amap.setPitch === "function") {
+      try { amap.setPitch(65); } catch (err) { /* 2D 降级地图没有俯仰角，忽略 */ }
+    }
+  }
+
+  // 3D 建图；3D 初始化抛异常（如设备/浏览器不支持 WebGL）就地清空容器，
+  // 用原来的 2D 参数重建一次——降级路径不许死。
+  // ⚠️初始 center 必须显式给:不给的话高德先走 IP 定位再初始化视图,3D 模式下定位
+  // 没结果前 lngLatToContainer 一直是 NaN(境外/弱网直接永远悬着,7/24 凌晨实测定位)。
+  function initialMapCenter() {
+    if (Array.isArray(TOUR.geoRoute) && TOUR.geoRoute.length) {
+      var mid = TOUR.geoRoute[Math.floor(TOUR.geoRoute.length / 2)];
+      return [mid[0], mid[1]];
+    }
+    for (var i = 0; i < TOUR.nodes.length; i++) {
+      if (TOUR.nodes[i].geo) return [TOUR.nodes[i].geo.lng, TOUR.nodes[i].geo.lat];
+    }
+    return [120.03, 30.27]; // 兜底:杭州西溪一带
+  }
+
+  function createAmapInstance() {
+    var container = document.getElementById("amapContainer");
+    var center = initialMapCenter();
+    try {
+      return new AMap.Map(container, {
+        viewMode: "3D",
+        pitch: MAP_DEFAULT_PITCH,
+        rotateEnable: true,
+        showBuildingBlock: true,
+        skyColor: "#f6f4ef", // 米白婚礼风，天空色跟着页面基调走
+        mapStyle: "amap://styles/whitesmoke",
+        zoom: 15,
+        center: center
+      });
+    } catch (err) {
+      console.warn("psm: 3D 地图初始化失败，降级为 2D", err);
+      if (container) container.innerHTML = "";
+      return new AMap.Map(container, {
+        viewMode: "2D",
+        mapStyle: "amap://styles/whitesmoke",
+        zoom: 15,
+        center: center
+      });
+    }
   }
 
   function initAmap() {
     if (amapInited || !window.AMap) return;
     amapInited = true;
 
-    amap = new AMap.Map("amapContainer", {
-      viewMode: "2D",
-      mapStyle: "amap://styles/whitesmoke",
-      zoom: 15
-    });
+    amap = createAmapInstance();
+    window.__psmAmap = amap; // 调试出口(同离线版 __psmViewer 先例,不影响功能)
 
     overlays = []; // 重建时清空(声明在模块级)
 
@@ -671,8 +715,21 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
       overlays.push(amapPolyline);
     }
 
+    // ⚠️ DOM 型 marker 必须等地图 complete 事件后再加:3D 模式下首次渲染完成前
+    // lngLatToContainer 会算出 NaN,AMap.Marker.add 直接抛 "Invalid Object: Pixel(NaN,0)"
+    // 把整个 initAmap 炸断(7/24 凌晨实测定位;2D 是纯数学投影没这问题,矢量 Polyline 也不受影响)。
+    amap.on("complete", addAmapNodeMarkers);
+    // 兜底:慢网下 complete 可能几分钟不来(瓦片没到齐),每 3 秒重试直到 marker 全部落位
+    // (幂等:已加过的节点会被 addAmapNodeMarkers 里的 amapMarkers 守卫跳过;失败静默等下一轮)
+    var markerRetry = setInterval(function () {
+      if (Object.keys(amapMarkers).length >= TOUR.nodes.length) { clearInterval(markerRetry); return; }
+      try { addAmapNodeMarkers(); } catch (err) { /* 投影仍未就绪,下一轮再试 */ }
+    }, 3000);
+  }
+
+  function addAmapNodeMarkers() {
     TOUR.nodes.forEach(function (node) {
-      if (!node.geo) return;
+      if (!node.geo || amapMarkers[node.id]) return;
       var marker = new AMap.Marker({
         position: [node.geo.lng, node.geo.lat],
         content: buildMarkerContent(node, node.id === currentNodeId),
@@ -883,7 +940,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
       var tries = 0;
       var wait = setInterval(function () {
         tries++;
-        if ((!transitioning && currentNodeId === nodeId) || tries > 40) {
+        if ((!transitioning && currentNodeId === nodeId) || tries > 80) { // 俯冲转场+大图加载最坏可超 3.2s,窗口放宽到 6.4s
           clearInterval(wait);
           if (currentNodeId === nodeId) turn();
         }
@@ -903,9 +960,14 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     if (!node) return;
     if (currentView === "pano" && currentNodeId === id) return;
 
-    transitioning = true;
-    focusMapOnNode(node);
+    transitioning = true; // 转场锁：俯冲 + 进全景是同一次转场，中途不许被连点打断
+    diveIntoNode(node);
 
+    // 俯冲播完（约 700ms）再走原本的进全景流程
+    setTimeout(function () { enterNodeScene(id); }, 700);
+  }
+
+  function enterNodeScene(id) {
     var needLoad = !viewerReady || viewer.getScene() !== id;
 
     function finishEnter() {
@@ -938,7 +1000,13 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     stopMiniMapLoop();
     setView("map");
     refreshHudForMapView();
-    if (amap) amap.setFitView(); // 回地图视图时把镜头收回整条路线
+    if (amap) {
+      // 俯冲时把 pitch 拉到了 65，回地图要复位回默认 3D 俯仰角，否则地图会一直停在贴地视角
+      if (typeof amap.setPitch === "function") {
+        try { amap.setPitch(MAP_DEFAULT_PITCH); } catch (err) { /* 2D 降级地图没有俯仰角，忽略 */ }
+      }
+      amap.setFitView(); // 回地图视图时把镜头收回整条路线
+    }
     flashHint(mapHintEl);
     setTimeout(function () { transitioning = false; }, 460);
   }

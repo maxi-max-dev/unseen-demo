@@ -1,13 +1,37 @@
 #!/usr/bin/env python3
 """校验 dist/offline.html 里没有残留的外链/相对路径图片引用，全是 data: 内联，
-且内联图片计数对得上预期(3 全景 + 12 照片 + 1 地图底图 = 16)。"""
+且内联图片计数对得上预期(全景数 + 照片数 + 1 张地图底图，从 tour.js 动态推算，不再硬编码)。"""
+import json
+import os
 import re
 import sys
 
-# 全景(4) + 照片(16) + 地图底图(1)；7/23 婚礼旅程改版后从 16 变成 21
-# (AdventureX 版是 3 全景 + 12 照片 + 1 地图 = 16)。
-# 改 tour.js 里的节点/照片数量或加减地图底图时要跟着改这个数。
-EXPECTED_DATA_URI_COUNT = 21
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TOUR_JS = os.path.join(ROOT, "tour.js")
+
+
+def load_tour(path=TOUR_JS):
+    """跟 match.py 的 apply_matches() 用同一种解法读 tour.js: 定位 "window.TOUR = " 标记,
+    去掉结尾的 ";", 剩下的部分就是合法 JSON。"""
+    text = open(path, encoding="utf-8").read()
+    marker = "window.TOUR = "
+    idx = text.index(marker)
+    body = text[idx + len(marker):].rstrip()
+    if body.endswith(";"):
+        body = body[:-1]
+    return json.loads(body)
+
+
+def expected_data_uri_count(tour):
+    """全景(nodes[].panorama 去重后的张数) + 照片(nodes[].photos 之和) + 1 张地图底图。
+    改 tour.js 里的节点/照片数量或加减地图底图时, 这个数会自动跟着变, 不用再手改。"""
+    panorama_count = len({n["panorama"] for n in tour["nodes"] if n.get("panorama")})
+    photo_count = sum(len(n.get("photos", [])) for n in tour["nodes"])
+    map_count = 1 if tour.get("map", {}).get("image") else 0
+    return panorama_count + photo_count + map_count
+
+
+EXPECTED_DATA_URI_COUNT = expected_data_uri_count(load_tour())
 
 path = sys.argv[1] if len(sys.argv) > 1 else "dist/offline.html"
 html = open(path, encoding="utf-8").read()
