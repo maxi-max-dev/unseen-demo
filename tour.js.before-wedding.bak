@@ -1,0 +1,149 @@
+// tour.js -- 空间记忆 tour 数据契约(冻结版)。
+// 用 <script> 标签加载,挂到 window.TOUR,绕开 file:// 下的 XHR/fetch 限制。
+// 本文件当前内容 = 合成测试素材(tools/fixtures.py 生成),真实影石全景到位后替换 assets 图片
+// 并用真实照片重新填 photos 数组即可,结构不变。
+window.TOUR = {
+  "meta": {
+    "title": "空间记忆",
+    "version": 1
+  },
+  "map": {
+    "image": "assets/map/venue.jpg",
+    "width": 2048,
+    "height": 1536
+  },
+  "nodes": [
+    {
+      "id": "stage",
+      "name": "开幕式主舞台",
+      "sub": "AdventureX·湖畔",
+      "panorama": "assets/panos/stage.jpg",
+      "map": { "x": 0.30, "y": 0.62 },
+      "photos": [
+        {
+          "src": "assets/photos/p001.jpg",
+          "yaw": 15,
+          "pitch": 0,
+          "confidence": 1.0,
+          "by": "manual",
+          "caption": "开场人群"
+        },
+        {
+          "src": "assets/photos/p002.jpg",
+          "yaw": 105,
+          "pitch": 5,
+          "confidence": 1.0,
+          "by": "manual",
+          "caption": "舞台侧翼"
+        },
+        {
+          "src": "assets/photos/p003.jpg",
+          "yaw": 225.0,
+          "pitch": 0,
+          "confidence": 0.8968,
+          "by": "auto"
+        },
+        {
+          "src": "assets/photos/p004.jpg",
+          "yaw": 75.1,
+          "pitch": 0,
+          "confidence": 0.8403,
+          "by": "auto"
+        }
+      ]
+    },
+    {
+      "id": "lakeside",
+      "name": "湖畔休息区",
+      "sub": "AdventureX·湖畔",
+      "panorama": "assets/panos/lakeside.jpg",
+      "map": { "x": 0.50, "y": 0.45 },
+      "photos": [
+        {
+          "src": "assets/photos/p005.jpg",
+          "yaw": 30,
+          "pitch": 0,
+          "confidence": 1.0,
+          "by": "manual",
+          "caption": "湖边合影"
+        },
+        {
+          "src": "assets/photos/p006.jpg",
+          "yaw": 75.0,
+          "pitch": 0,
+          "confidence": 0.8675,
+          "by": "auto"
+        },
+        {
+          "src": "assets/photos/p007.jpg",
+          "yaw": 255.3,
+          "pitch": 0,
+          "confidence": 0.8537,
+          "by": "auto"
+        },
+        {
+          "src": "assets/photos/p008.jpg",
+          "yaw": 315.2,
+          "pitch": 0,
+          "confidence": 0.9136,
+          "by": "auto"
+        }
+      ]
+    },
+    {
+      "id": "expo",
+      "name": "展区",
+      "sub": "AdventureX·展馆",
+      "panorama": "assets/panos/expo.jpg",
+      "map": { "x": 0.79, "y": 0.23 },
+      "photos": [
+        {
+          "src": "assets/photos/p009.jpg",
+          "yaw": 10,
+          "pitch": 5,
+          "confidence": 1.0,
+          "by": "manual",
+          "caption": "展位打卡"
+        },
+        {
+          "src": "assets/photos/p010.jpg",
+          "yaw": 104.9,
+          "pitch": 0,
+          "confidence": 0.9468,
+          "by": "auto"
+        },
+        {
+          "src": "assets/photos/p011.jpg",
+          "yaw": 75.2,
+          "pitch": 0,
+          "confidence": 0.9161,
+          "by": "auto"
+        },
+        {
+          "src": "assets/photos/p012.jpg",
+          "yaw": 314.9,
+          "pitch": 0,
+          "confidence": 0.8231,
+          "by": "auto"
+        }
+      ]
+    }
+  ],
+  "links": [
+    {
+      "from": "stage",
+      "to": "lakeside",
+      "yaw": 200
+    },
+    {
+      "from": "lakeside",
+      "to": "expo",
+      "yaw": 100
+    },
+    {
+      "from": "expo",
+      "to": "stage",
+      "yaw": 300
+    }
+  ]
+};

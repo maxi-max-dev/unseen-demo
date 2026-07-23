@@ -1,0 +1,114 @@
+[
+  {
+    "file": "w001.jpg",
+    "node": "jieqin",
+    "yaw": 15,
+    "pitch": 0,
+    "fov": 70
+  },
+  {
+    "file": "w002.jpg",
+    "node": "jieqin",
+    "yaw": 105,
+    "pitch": 5,
+    "fov": 70
+  },
+  {
+    "file": "w003.jpg",
+    "node": "jieqin",
+    "yaw": 200,
+    "pitch": -5,
+    "fov": 70
+  },
+  {
+    "file": "w004.jpg",
+    "node": "jieqin",
+    "yaw": 320,
+    "pitch": 10,
+    "fov": 70
+  },
+  {
+    "file": "w005.jpg",
+    "node": "chufa",
+    "yaw": 30,
+    "pitch": 0,
+    "fov": 70
+  },
+  {
+    "file": "w006.jpg",
+    "node": "chufa",
+    "yaw": 140,
+    "pitch": -10,
+    "fov": 70
+  },
+  {
+    "file": "w007.jpg",
+    "node": "chufa",
+    "yaw": 250,
+    "pitch": 5,
+    "fov": 70
+  },
+  {
+    "file": "w008.jpg",
+    "node": "chufa",
+    "yaw": 340,
+    "pitch": 0,
+    "fov": 70
+  },
+  {
+    "file": "w009.jpg",
+    "node": "yishi",
+    "yaw": 10,
+    "pitch": 5,
+    "fov": 70
+  },
+  {
+    "file": "w010.jpg",
+    "node": "yishi",
+    "yaw": 95,
+    "pitch": 0,
+    "fov": 70
+  },
+  {
+    "file": "w011.jpg",
+    "node": "yishi",
+    "yaw": 190,
+    "pitch": -5,
+    "fov": 70
+  },
+  {
+    "file": "w012.jpg",
+    "node": "yishi",
+    "yaw": 300,
+    "pitch": 10,
+    "fov": 70
+  },
+  {
+    "file": "w013.jpg",
+    "node": "yanxi",
+    "yaw": 25,
+    "pitch": 0,
+    "fov": 70
+  },
+  {
+    "file": "w014.jpg",
+    "node": "yanxi",
+    "yaw": 115,
+    "pitch": -5,
+    "fov": 70
+  },
+  {
+    "file": "w015.jpg",
+    "node": "yanxi",
+    "yaw": 205,
+    "pitch": 5,
+    "fov": 70
+  },
+  {
+    "file": "w016.jpg",
+    "node": "yanxi",
+    "yaw": 325,
+    "pitch": 10,
+    "fov": 70
+  }
+]

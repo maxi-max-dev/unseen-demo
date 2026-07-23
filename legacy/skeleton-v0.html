@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>空间记忆 · 骨架 demo</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { height:100%; overflow:hidden; background:#000; font-family:-apple-system,"PingFang SC",system-ui,sans-serif; }
+  #gl { display:block; width:100vw; height:100vh; touch-action:none; }
+  .hud { position:fixed; left:0; right:0; pointer-events:none; z-index:5; }
+  .top { top:0; padding:14px 16px; background:linear-gradient(#000a,transparent); color:#fff; }
+  .top h1 { font-size:15px; font-weight:600; letter-spacing:.5px; }
+  .top p { font-size:12px; opacity:.7; margin-top:2px; }
+  .nodebar { bottom:0; padding:16px; display:flex; gap:10px; justify-content:center; background:linear-gradient(transparent,#000a); }
+  .nodebar button { pointer-events:auto; border:1px solid #fff5; background:#0006; color:#fff; padding:9px 16px; border-radius:22px; font-size:13px; backdrop-filter:blur(6px); }
+  .nodebar button.active { background:#fff; color:#000; border-color:#fff; }
+  /* photo hotspot markers are DOM overlays positioned each frame */
+  .spot { position:fixed; z-index:4; width:44px; height:44px; margin:-22px 0 0 -22px; border-radius:50%;
+          border:2px solid #fff; background:#fff3; backdrop-filter:blur(2px); cursor:pointer;
+          display:flex; align-items:center; justify-content:center; transition:transform .1s; }
+  .spot:active { transform:scale(.9); }
+  .spot.auto { border-style:dashed; border-color:#ffd54a; }
+  .spot .dot { width:8px; height:8px; border-radius:50%; background:#fff; }
+  .spot.auto .dot { background:#ffd54a; }
+  .lightbox { position:fixed; inset:0; z-index:20; background:#000d; display:none; align-items:center; justify-content:center; flex-direction:column; }
+  .lightbox.on { display:flex; }
+  .lightbox img { max-width:92vw; max-height:74vh; border-radius:8px; box-shadow:0 8px 40px #000; }
+  .lightbox .cap { color:#fff; margin-top:14px; font-size:13px; text-align:center; opacity:.85; }
+  .lightbox .cap b { color:#ffd54a; }
+  .lightbox .close { position:absolute; top:16px; right:20px; color:#fff; font-size:26px; pointer-events:auto; }
+  .hint { position:fixed; bottom:80px; left:0; right:0; text-align:center; color:#fff; font-size:12px; opacity:.55; z-index:3; pointer-events:none; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div class="hud top"><h1 id="nodeName">空间记忆</h1><p id="nodeSub">拖动环视 · 点开光点看照片</p></div>
+<div class="hud nodebar" id="nodebar"></div>
+<div class="hint" id="hint">👆 拖动屏幕环顾四周</div>
+<div class="lightbox" id="lightbox">
+  <span class="close" id="lbClose">×</span>
+  <img id="lbImg" alt="">
+  <div class="cap" id="lbCap"></div>
+</div>
+
+<script>
+/* ============================================================
+   空间记忆 · 单文件全景 viewer 骨架（零依赖，离线可跑）
+   真影石素材到了：把 TOUR.nodes[].panorama 换成真 equirectangular 图 URL / dataURI
+   AI 定位到了：往 photos[] 写 { yaw, pitch, confidence, by }
+   ============================================================ */
+
+// ---------- tour.json（第六节的数据协议，这里内联，真数据时改成 fetch('tour.json')） ----------
+const TOUR = {
+  nodes: [
+    {
+      id:'stage', name:'开幕式主舞台', sub:'AdventureX · 湖畔', tint:[18,26,54],
+      photos:[
+        { yaw:20,  pitch:-4, confidence:0.86, by:'auto',   caption:'开场时的人群' },
+        { yaw:110, pitch:2,  confidence:1.0,  by:'manual', caption:'主舞台大屏' },
+        { yaw:200, pitch:-8, confidence:0.72, by:'auto',   caption:'后排的朋友们' },
+        { yaw:300, pitch:0,  confidence:0.91, by:'auto',   caption:'入口签到处' },
+      ]
+    },
+    {
+      id:'lakeside', name:'湖畔通道', sub:'去学术交流中心的路上', tint:[12,40,36],
+      photos:[
+        { yaw:60,  pitch:-2, confidence:0.78, by:'auto',   caption:'湖边的黄昏' },
+        { yaw:150, pitch:5,  confidence:1.0,  by:'manual', caption:'队友合影' },
+        { yaw:250, pitch:-6, confidence:0.65, by:'auto',   caption:'路边的展位' },
+      ]
+    }
+  ]
+};
+
+// ---------- 占位全景生成器（运行时画一张带方位标记的 equirectangular 图，证明引擎；真图直接替换） ----------
+function makePlaceholderPano(tint){
+  const w=2048, h=1024, c=document.createElement('canvas'); c.width=w; c.height=h;
+  const g=c.getContext('2d');
+  // sky/ground gradient
+  const grad=g.createLinearGradient(0,0,0,h);
+  const [r,gg,b]=tint;
+  grad.addColorStop(0,`rgb(${r+30},${gg+38},${b+60})`);
+  grad.addColorStop(0.5,`rgb(${r},${gg},${b})`);
+  grad.addColorStop(0.5,`rgb(${Math.max(0,r-8)},${Math.max(0,gg-6)},${Math.max(0,b-8)})`);
+  grad.addColorStop(1,`rgb(${Math.max(0,r-18)},${Math.max(0,gg-14)},${Math.max(0,b-18)})`);
+  g.fillStyle=grad; g.fillRect(0,0,w,h);
+  // horizon line
+  g.strokeStyle='#ffffff22'; g.lineWidth=2; g.beginPath(); g.moveTo(0,h/2); g.lineTo(w,h/2); g.stroke();
+  // compass labels every 90deg (yaw 0 = center of image)
+  const marks=[['北',0],['东',90],['南',180],['西',270]];
+  g.textAlign='center'; g.textBaseline='middle';
+  for(const [label,yaw] of marks){
+    const x=((yaw/360)*w + w/2)%w;
+    g.fillStyle='#ffffff55'; g.font='bold 60px sans-serif';
+    g.fillText(label, x, h/2-70);
+    g.fillStyle='#ffffff22'; g.font='28px sans-serif';
+    g.fillText(yaw+'°', x, h/2+60);
+    g.strokeStyle='#ffffff18'; g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke();
+  }
+  // faint vertical grid every 30deg for depth
+  for(let d=0; d<360; d+=30){ const x=((d/360)*w+w/2)%w; g.strokeStyle='#ffffff0c'; g.beginPath(); g.moveTo(x,0); g.lineTo(x,h); g.stroke(); }
+  return c;
+}
+
+// ---------- 极简 WebGL 全景球 ----------
+const canvas=document.getElementById('gl');
+const gl=canvas.getContext('webgl',{antialias:true});
+const VERT=`attribute vec3 p; uniform mat4 mvp; varying vec3 v; void main(){ v=p; gl_Position=mvp*vec4(p,1.0); }`;
+const FRAG=`precision mediump float; varying vec3 v; uniform sampler2D tex;
+const float PI=3.141592653589793;
+void main(){ vec3 d=normalize(v);
+  float u=atan(d.z,d.x)/(2.0*PI)+0.5; float t=asin(clamp(d.y,-1.0,1.0))/PI+0.5;
+  gl_FragColor=texture2D(tex, vec2(u,1.0-t)); }`;
+function sh(t,s){const o=gl.createShader(t);gl.shaderSource(o,s);gl.compileShader(o);return o;}
+const prog=gl.createProgram();
+gl.attachShader(prog,sh(gl.VERTEX_SHADER,VERT)); gl.attachShader(prog,sh(gl.FRAGMENT_SHADER,FRAG));
+gl.linkProgram(prog); gl.useProgram(prog);
+
+// sphere geometry
+function sphere(seg){
+  const pos=[],idx=[];
+  for(let y=0;y<=seg;y++){ const th=y/seg*Math.PI; for(let x=0;x<=seg;x++){ const ph=x/seg*2*Math.PI;
+    pos.push(Math.sin(th)*Math.cos(ph), Math.cos(th), Math.sin(th)*Math.sin(ph)); } }
+  for(let y=0;y<seg;y++)for(let x=0;x<seg;x++){ const a=y*(seg+1)+x,b=a+seg+1;
+    idx.push(a,b,a+1, b,b+1,a+1); }
+  return {pos:new Float32Array(pos),idx:new Uint16Array(idx)};
+}
+const S=sphere(40);
+const pb=gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER,pb); gl.bufferData(gl.ARRAY_BUFFER,S.pos,gl.STATIC_DRAW);
+const ib=gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,S.idx,gl.STATIC_DRAW);
+const pl=gl.getAttribLocation(prog,'p'); gl.enableVertexAttribArray(pl); gl.vertexAttribPointer(pl,3,gl.FLOAT,false,0,0);
+const mvpL=gl.getUniformLocation(prog,'mvp');
+const tex=gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D,tex);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+
+function loadPano(imgOrCanvas){
+  gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.texImage2D(gl.TEXTURE_2D,0,gl.RGB,gl.RGB,gl.UNSIGNED_BYTE,imgOrCanvas);
+}
+
+// ---------- 相机 & 矩阵 ----------
+let yaw=0, pitch=0, fov=75;
+function mat(){
+  const a=canvas.width/canvas.height, f=1/Math.tan(fov*Math.PI/360), zn=0.1,zf=10;
+  const proj=[f/a,0,0,0, 0,f,0,0, 0,0,(zf+zn)/(zn-zf),-1, 0,0,2*zf*zn/(zn-zf),0];
+  const cy=Math.cos(yaw),sy=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);
+  // view rotation (yaw around Y, pitch around X)
+  const view=[cy,sp*sy,-cp*sy,0, 0,cp,sp,0, sy,-sp*cy,cp*cy,0, 0,0,0,1];
+  // proj*view
+  const m=new Float32Array(16);
+  for(let i=0;i<4;i++)for(let j=0;j<4;j++){let s=0;for(let k=0;k<4;k++)s+=proj[i*4+k]*view[k*4+j];m[i*4+j]=s;}
+  return m;
+}
+// project a direction (yaw,pitch in deg) to screen px; returns null if behind
+function project(yawDeg,pitchDeg){
+  const ry=yawDeg*Math.PI/180, rp=pitchDeg*Math.PI/180;
+  const d=[Math.sin(ry)*Math.cos(rp), Math.sin(rp), -Math.cos(ry)*Math.cos(rp)]; // world dir
+  const m=mat();
+  const cx=m[0]*d[0]+m[4]*d[1]+m[8]*d[2];
+  const cy=m[1]*d[0]+m[5]*d[1]+m[9]*d[2];
+  const cw=m[3]*d[0]+m[7]*d[1]+m[11]*d[2];
+  if(cw<=0) return null;
+  return { x:(cx/cw*0.5+0.5)*window.innerWidth, y:(-cy/cw*0.5+0.5)*window.innerHeight };
+}
+
+function resize(){ const dpr=Math.min(devicePixelRatio||1,2);
+  canvas.width=innerWidth*dpr; canvas.height=innerHeight*dpr; gl.viewport(0,0,canvas.width,canvas.height); }
+addEventListener('resize',resize); resize();
+
+// ---------- 状态 & 渲染 ----------
+let cur=0; const spots=[];
+function setNode(i){
+  cur=i; const n=TOUR.nodes[i];
+  loadPano(makePlaceholderPano(n.tint));
+  document.getElementById('nodeName').textContent=n.name;
+  document.getElementById('nodeSub').textContent=n.sub;
+  yaw=0; pitch=0;
+  buildSpots();
+  document.querySelectorAll('.nodebar button').forEach((b,bi)=>b.classList.toggle('active',bi===i));
+}
+function buildSpots(){
+  spots.forEach(s=>s.el.remove()); spots.length=0;
+  const n=TOUR.nodes[cur];
+  n.photos.forEach(ph=>{
+    const el=document.createElement('div');
+    el.className='spot'+(ph.by==='auto'?' auto':'');
+    el.innerHTML='<div class="dot"></div>';
+    el.onclick=()=>openPhoto(ph);
+    document.body.appendChild(el);
+    spots.push({el,ph});
+  });
+}
+function openPhoto(ph){
+  const lb=document.getElementById('lightbox');
+  // 占位：真照片时 img.src=ph.src；这里画一张带 caption 的占位图
+  const c=document.createElement('canvas'); c.width=800;c.height=560; const g=c.getContext('2d');
+  g.fillStyle='#1a1d2b'; g.fillRect(0,0,800,560);
+  g.fillStyle='#ffffff10'; for(let i=0;i<40;i++){g.fillRect(Math.random()*800,Math.random()*560,3,3);}
+  g.fillStyle='#ffd54a'; g.font='bold 30px sans-serif'; g.textAlign='center';
+  g.fillText('📷 '+ph.caption, 400, 280);
+  g.fillStyle='#fff6'; g.font='16px sans-serif';
+  g.fillText('（真照片到了这里显示原图）', 400, 320);
+  document.getElementById('lbImg').src=c.toDataURL();
+  const who = ph.by==='auto' ? `AI 自动放置 · 置信度 ${(ph.confidence*100|0)}%` : '人工校正 ✓';
+  document.getElementById('lbCap').innerHTML=`朝向 yaw ${ph.yaw}° · <b>${who}</b>`;
+  lb.classList.add('on');
+}
+document.getElementById('lbClose').onclick=()=>document.getElementById('lightbox').classList.remove('on');
+document.getElementById('lightbox').onclick=e=>{ if(e.target.id==='lightbox') e.currentTarget.classList.remove('on'); };
+
+// node buttons
+const nb=document.getElementById('nodebar');
+TOUR.nodes.forEach((n,i)=>{ const b=document.createElement('button'); b.textContent=n.name; b.onclick=()=>setNode(i); nb.appendChild(b); });
+
+// ---------- 拖动交互 ----------
+let drag=false, lx=0, ly=0, moved=false;
+function down(x,y){ drag=true; lx=x; ly=y; moved=false; document.getElementById('hint').style.opacity=0; }
+function move(x,y){ if(!drag)return; const dx=x-lx, dy=y-ly; if(Math.abs(dx)+Math.abs(dy)>4)moved=true;
+  yaw-=dx*0.0032*(fov/75); pitch+=dy*0.0032*(fov/75);
+  pitch=Math.max(-1.3,Math.min(1.3,pitch)); lx=x; ly=y; }
+function up(){ drag=false; }
+canvas.addEventListener('mousedown',e=>down(e.clientX,e.clientY));
+addEventListener('mousemove',e=>move(e.clientX,e.clientY));
+addEventListener('mouseup',up);
+canvas.addEventListener('touchstart',e=>{const t=e.touches[0];down(t.clientX,t.clientY);},{passive:true});
+canvas.addEventListener('touchmove',e=>{const t=e.touches[0];move(t.clientX,t.clientY);},{passive:true});
+canvas.addEventListener('touchend',up);
+
+// ---------- 主循环 ----------
+function frame(){
+  gl.clearColor(0,0,0,1); gl.clear(gl.COLOR_BUFFER_BIT);
+  gl.uniformMatrix4fv(mvpL,false,mat());
+  gl.bindTexture(gl.TEXTURE_2D,tex);
+  gl.drawElements(gl.TRIANGLES,S.idx.length,gl.UNSIGNED_SHORT,0);
+  // position DOM hotspots at their absolute world yaw/pitch; mat() already carries the camera rotation
+  for(const s of spots){
+    const rel=project(s.ph.yaw, s.ph.pitch);
+    if(rel){ s.el.style.display='flex'; s.el.style.left=rel.x+'px'; s.el.style.top=rel.y+'px'; }
+    else s.el.style.display='none';
+  }
+  requestAnimationFrame(frame);
+}
+setNode(0); frame();
+</script>
+</body>
+</html>

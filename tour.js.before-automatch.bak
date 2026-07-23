@@ -1,0 +1,42 @@
+// tour.js -- 空间记忆 tour 数据契约(冻结版)。
+// 用 <script> 标签加载,挂到 window.TOUR,绕开 file:// 下的 XHR/fetch 限制。
+// 本文件当前内容 = 合成测试素材(tools/fixtures.py 生成),真实影石全景到位后替换 assets 图片
+// 并用真实照片重新填 photos 数组即可,结构不变。
+window.TOUR = {
+  "meta": { "title": "空间记忆", "version": 1 },
+  "nodes": [
+    {
+      "id": "stage",
+      "name": "开幕式主舞台",
+      "sub": "AdventureX·湖畔",
+      "panorama": "assets/panos/stage.jpg",
+      "photos": [
+        { "src": "assets/photos/p001.jpg", "yaw": 15, "pitch": 0, "confidence": 1.0, "by": "manual", "caption": "开场人群" },
+        { "src": "assets/photos/p002.jpg", "yaw": 105, "pitch": 5, "confidence": 1.0, "by": "manual", "caption": "舞台侧翼" }
+      ]
+    },
+    {
+      "id": "lakeside",
+      "name": "湖畔休息区",
+      "sub": "AdventureX·湖畔",
+      "panorama": "assets/panos/lakeside.jpg",
+      "photos": [
+        { "src": "assets/photos/p005.jpg", "yaw": 30, "pitch": 0, "confidence": 1.0, "by": "manual", "caption": "湖边合影" }
+      ]
+    },
+    {
+      "id": "expo",
+      "name": "展区",
+      "sub": "AdventureX·展馆",
+      "panorama": "assets/panos/expo.jpg",
+      "photos": [
+        { "src": "assets/photos/p009.jpg", "yaw": 10, "pitch": 5, "confidence": 1.0, "by": "manual", "caption": "展位打卡" }
+      ]
+    }
+  ],
+  "links": [
+    { "from": "stage", "to": "lakeside", "yaw": 200 },
+    { "from": "lakeside", "to": "expo", "yaw": 100 },
+    { "from": "expo", "to": "stage", "yaw": 300 }
+  ]
+};
