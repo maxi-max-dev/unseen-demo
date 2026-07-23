@@ -1,0 +1,14 @@
+{
+  "min": 0.0015398183604702353,
+  "max": 0.011793109588325024,
+  "width": 1024,
+  "height": 512,
+  "model": "DAP",
+  "convention": "near_small",
+  "source_image": "assets/panos/yishi.jpg",
+  "source_resolution": [
+    4096,
+    2048
+  ],
+  "device": "mps"
+}

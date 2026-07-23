@@ -1,0 +1,14 @@
+{
+  "min": 0.002383689396083355,
+  "max": 0.009142334572970867,
+  "width": 1024,
+  "height": 512,
+  "model": "DAP",
+  "convention": "near_small",
+  "source_image": "assets/panos/chufa.jpg",
+  "source_resolution": [
+    4096,
+    2048
+  ],
+  "device": "mps"
+}

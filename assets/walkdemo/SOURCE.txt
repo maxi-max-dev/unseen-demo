@@ -1,0 +1,15 @@
+demo-pano.jpg
+=============
+
+Source: Poly Haven — "Aerodynamics Workshop" HDRI
+Asset page: https://polyhaven.com/a/aerodynamics_workshop
+Direct download (tonemapped JPG, original full-res, ~17K source):
+  https://dl.polyhaven.org/file/ph-assets/HDRIs/extra/Tonemapped%20JPG/aerodynamics_workshop.jpg
+Authors: Oliksiy Yakovlyev (Photography/Processing), via Poly Haven
+License: CC0 1.0 Universal (public domain, no attribution required)
+License reference: https://polyhaven.com/license
+
+Processing done locally: downloaded the full-resolution tonemapped JPG
+(8192x4096) and downscaled with Lanczos resampling to 4096x2048
+(equirectangular 2:1) for use as a real-world indoor panorama test image
+for the DAP depth model. No other edits.

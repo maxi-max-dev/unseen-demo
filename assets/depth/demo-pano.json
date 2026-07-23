@@ -1,0 +1,14 @@
+{
+  "min": 0.008918444626033306,
+  "max": 0.12723399698734283,
+  "width": 1024,
+  "height": 512,
+  "model": "DAP",
+  "convention": "near_small",
+  "source_image": "assets/walkdemo/demo-pano.jpg",
+  "source_resolution": [
+    4096,
+    2048
+  ],
+  "device": "mps"
+}

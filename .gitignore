@@ -1,4 +1,6 @@
 .venv/
+.venv-dap/
+vendor/DAP/
 tools/cache/
 __pycache__/
 *.pyc

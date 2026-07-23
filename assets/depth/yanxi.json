@@ -1,0 +1,14 @@
+{
+  "min": 0.003459068015217781,
+  "max": 0.014060691930353642,
+  "width": 1024,
+  "height": 512,
+  "model": "DAP",
+  "convention": "near_small",
+  "source_image": "assets/panos/yanxi.jpg",
+  "source_resolution": [
+    4096,
+    2048
+  ],
+  "device": "mps"
+}

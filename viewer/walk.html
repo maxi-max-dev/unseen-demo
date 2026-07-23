@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>空间记忆 · 走进全景</title>
+<style>
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body {
+  height: 100%; margin: 0; padding: 0; overflow: hidden;
+  background: #000;
+  font-family: -apple-system, "PingFang SC", system-ui, sans-serif;
+}
+#stage { position: fixed; inset: 0; touch-action: none; cursor: default; }
+#stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#stage.grabbable { cursor: grab; }
+
+/* ---------------- 顶部 HUD：节点名 + 深度状态 ---------------- */
+.hud-top {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+  padding: 14px 16px 20px;
+  padding-top: calc(14px + env(safe-area-inset-top, 0px));
+  background: linear-gradient(#000a, transparent);
+  color: #fff; pointer-events: none;
+}
+.hud-top h1 { font-size: 15px; font-weight: 600; letter-spacing: .5px; margin: 0; }
+.hud-top .depth-warn {
+  display: inline-flex; align-items: center; gap: 4px; margin-top: 7px;
+  font-size: 10.5px; font-weight: 600; padding: 3px 10px; border-radius: 8px;
+  background: #fff3d1; color: #8a6300;
+}
+.hud-top .depth-warn.hide { display: none; }
+
+/* ---------------- 右上角来源徽章 ---------------- */
+.hud-badge {
+  position: fixed; z-index: 5; pointer-events: none;
+  top: calc(14px + env(safe-area-inset-top, 0px));
+  right: calc(14px + env(safe-area-inset-right, 0px));
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(246,244,239,.92); color: #4a4a46;
+  font-size: 10px; font-weight: 600; letter-spacing: .1px;
+  padding: 5px 11px; border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.24);
+}
+.hud-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: #c0392b; flex: none; }
+
+/* ---------------- 左下返回 ---------------- */
+.back-link {
+  position: fixed; z-index: 6; cursor: pointer;
+  left: calc(14px + env(safe-area-inset-left, 0px));
+  bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(246,244,239,.94); color: #333; text-decoration: none;
+  font-size: 12.5px; font-weight: 600; letter-spacing: .1px;
+  padding: 0 15px; height: 38px; border-radius: 19px;
+  box-shadow: 0 3px 12px rgba(0,0,0,.28);
+  -webkit-tap-highlight-color: transparent;
+}
+.back-link:active { transform: scale(.96); }
+.back-link .chev { color: #c0392b; font-weight: 700; }
+
+/* ---------------- 移动端提示 toast ---------------- */
+.mobile-hint {
+  position: fixed; left: 0; right: 0; z-index: 6; pointer-events: none;
+  top: calc(72px + env(safe-area-inset-top, 0px));
+  text-align: center; opacity: 0; transition: opacity .5s ease;
+}
+.mobile-hint.show { opacity: 1; }
+.mobile-hint span {
+  display: inline-block; background: rgba(0,0,0,.55); color: #fff;
+  font-size: 12px; padding: 7px 14px; border-radius: 14px;
+}
+
+/* ---------------- 虚拟摇杆（移动端左下角，行走用） ---------------- */
+.joystick-outer {
+  position: fixed; z-index: 6; display: none;
+  left: calc(22px + env(safe-area-inset-left, 0px));
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  width: 108px; height: 108px; border-radius: 50%;
+  background: rgba(255,255,255,.14); border: 2px solid rgba(255,255,255,.38);
+  touch-action: none;
+}
+.joystick-outer.on { display: block; }
+.joystick-knob {
+  position: absolute; left: 50%; top: 50%; width: 46px; height: 46px;
+  margin: -23px 0 0 -23px; border-radius: 50%;
+  background: rgba(255,255,255,.88); box-shadow: 0 2px 10px rgba(0,0,0,.3);
+  transition: transform .12s ease-out;
+}
+.joystick-outer.dragging .joystick-knob { transition: none; }
+
+/* ---------------- 居中卡片：加载中 / 点击锁定 / 报错 共用 ---------------- */
+.center-card {
+  position: fixed; inset: 0; z-index: 20; display: none;
+  align-items: center; justify-content: center; padding: 24px;
+  background: rgba(0,0,0,.5);
+}
+.center-card.on { display: flex; }
+.center-card .card-body {
+  background: #f6f4ef; border-radius: 16px; padding: 26px 24px;
+  max-width: 300px; width: 100%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,.4);
+}
+.center-card .card-body p { margin: 0 0 6px; font-size: 13.5px; color: #333; line-height: 1.6; }
+.center-card .card-body p.sub { font-size: 11.5px; color: #999; margin-bottom: 18px; word-break: break-all; }
+.center-card .card-body .spin {
+  width: 30px; height: 30px; margin: 0 auto 14px;
+  border-radius: 50%; border: 3px solid #e7e3da; border-top-color: #c0392b;
+  animation: spin 0.9s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.center-card .card-body .go-back {
+  display: inline-flex; align-items: center; gap: 5px; margin-top: 4px;
+  background: #c0392b; color: #fff; text-decoration: none;
+  font-size: 12.5px; font-weight: 600; padding: 0 18px; height: 40px;
+  border-radius: 20px; box-shadow: 0 4px 14px rgba(192,57,43,.4);
+}
+.center-card .card-body .go-back:active { transform: scale(.96); }
+.center-card .card-body .relock-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #c0392b; color: #fff; border: none; cursor: pointer;
+  font-size: 12.5px; font-weight: 600; padding: 0 18px; height: 40px;
+  border-radius: 20px; box-shadow: 0 4px 14px rgba(192,57,43,.4);
+}
+</style>
+</head>
+<body>
+
+<div id="stage"></div>
+
+<div class="hud-top">
+  <h1 id="hudTitle">加载中…</h1>
+  <span class="depth-warn hide" id="hudDepthWarn">深度未生成，当前为普通全景</span>
+</div>
+
+<div class="hud-badge"><span class="dot"></span>深度由影石研究院 DAP 模型计算</div>
+<div id="licLine" style="position:fixed;right:14px;bottom:12px;z-index:5;font-size:10px;color:rgba(255,255,255,.45);text-shadow:0 1px 2px rgba(0,0,0,.5);pointer-events:none">DAP © Insta360 Research · CC BY-NC 4.0</div>
+
+<a class="back-link" id="backLink" href="index.html"><span class="chev">‹</span>返回</a>
+
+<div class="mobile-hint" id="mobileHint"><span>拖动环视 · 左下摇杆行走</span></div>
+
+<div class="joystick-outer" id="joystickOuter">
+  <div class="joystick-knob" id="joystickKnob"></div>
+</div>
+
+<!-- 加载中 -->
+<div class="center-card on" id="cardLoading">
+  <div class="card-body">
+    <div class="spin"></div>
+    <p>加载全景中…</p>
+  </div>
+</div>
+
+<!-- 报错（WebGL 不支持 / 资源加载失败 / 节点不存在），共用一套结构 -->
+<div class="center-card" id="cardError">
+  <div class="card-body">
+    <p id="errMsg">出错了</p>
+    <p class="sub" id="errSub"></p>
+    <a class="go-back" id="errBack" href="index.html"><span>‹</span>返回</a>
+  </div>
+</div>
+
+<!-- 桌面端：点击锁定鼠标 / 已退出提示 -->
+<div class="center-card" id="cardLock">
+  <div class="card-body">
+    <p id="lockMsg">点击画面开始漫游</p>
+    <p class="sub">WASD 移动 · 鼠标环视 · Shift 加速 · ESC 退出</p>
+    <button class="relock-btn" id="lockBtn" type="button">点击锁定视角</button>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // 常量
+  // ============================================================
+  var EYE_HEIGHT = 1.4;          // 相机人眼高度（米）
+  var FOV = 75;
+  var FLAT_RADIUS = 3.0;         // 深度缺失时的降级球体半径（米）
+  var DEPTH_CLAMP_MIN = 0.4;     // 深度顶点位移下限（米）
+  var DEPTH_CLAMP_MAX = 10.0;    // 深度顶点位移上限（米）
+  var MAX_WALK_RADIUS = 2.5;     // 行走范围硬上限（米）
+  var WALK_DEPTH_FACTOR = 0.55;  // 行走范围 = min(2.5, 0.55×当前方向深度)
+  var BASE_SPEED = 1.6;          // 步行速度 米/秒
+  var SPRINT_MULT = 2.2;         // Shift 加速倍数
+  var PITCH_LIMIT = 89 * Math.PI / 180;
+  var MOUSE_SENS = 0.0022;
+  var TOUCH_LOOK_SENS = 0.0034;
+  var JOYSTICK_MAX_PX = 40;      // 摇杆最大可拖拽半径（屏幕像素）
+
+  // 经度偏移（弧度）：把全景图「正前方」对齐到 three 世界坐标 -Z。
+  // 基础公式(不加offset)让"图像水平中点(u=0.5)"对应 -Z，但实测 + 对照
+  // tools/fixtures.py 的注释("yaw_deg 与 tour.js 同一约定：0=全景第0列方向，
+  // 明确不用居中偏移，用过居中偏移实测会正好差 180°")确认本项目全线(tour.js
+  // 热点 yaw、合成测试图的扇区标注)都是"列0=yaw0"，不是"图像中点=yaw0"。
+  // 所以这里要把 -Z 对准列0，即在基础公式上再转 180°。用一张自带角度标注的
+  // 测试全景实测过：offset=0 时 -Z 方向对着标注"180°"的扇区，改成 Math.PI
+  // 后正好对齐到标注"0°/360°"边界，与 fixtures.py 的约定吻合。
+  var YAW_OFFSET = Math.PI;
+
+  // ============================================================
+  // 小工具
+  // ============================================================
+  function qs(name) { return new URLSearchParams(location.search).get(name); }
+  function frac(x) { return x - Math.floor(x); }
+  function isTouchDevice() {
+    return ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  }
+  function $(id) { return document.getElementById(id); }
+
+  function showError(msg, sub, backHref) {
+    $("cardLoading").classList.remove("on");
+    $("cardLock").classList.remove("on");
+    $("errMsg").textContent = msg;
+    $("errSub").textContent = sub || "";
+    $("errBack").href = backHref || "index.html";
+    $("cardError").classList.add("on");
+  }
+
+  // ============================================================
+  // 数据契约解析：?node=<id> 或 ?demo=1（缺省按 demo 处理）
+  // ============================================================
+  function loadTourScript(cb) {
+    var s = document.createElement("script");
+    s.src = "../tour.js";
+    s.onload = function () { cb(window.TOUR || null); };
+    s.onerror = function () { cb(null); };
+    document.head.appendChild(s);
+  }
+
+  function boot() {
+    var nodeId = qs("node");
+    if (nodeId) {
+      loadTourScript(function (tour) {
+        if (!tour || !tour.nodes) {
+          showError("导览数据加载失败", "tour.js 无法读取", "index.html");
+          return;
+        }
+        var node = null;
+        for (var i = 0; i < tour.nodes.length; i++) {
+          if (tour.nodes[i].id === nodeId) { node = tour.nodes[i]; break; }
+        }
+        if (!node) {
+          showError("找不到节点 “" + nodeId + "”", "", "index.html");
+          return;
+        }
+        var title = node.chapter || node.name || "";
+        if (node.time) title += " · " + node.time;
+        startWalk({
+          panoUrl: "../" + node.panorama,
+          depthPngUrl: "../assets/depth/" + node.id + ".png",
+          depthJsonUrl: "../assets/depth/" + node.id + ".json",
+          title: title || "空间记忆",
+          backHref: "index.html"
+        });
+      });
+    } else {
+      // 演示全景来自 Poly Haven(CC0),署名只在 demo 模式追加
+      $("licLine").textContent += " · 演示全景 Poly Haven CC0";
+      startWalk({
+        panoUrl: "../assets/walkdemo/demo-pano.jpg",
+        depthPngUrl: "../assets/depth/demo-pano.png",
+        depthJsonUrl: "../assets/depth/demo-pano.json",
+        title: "真实全景演示",
+        backHref: "../index.html"
+      });
+    }
+  }
+
+  // ============================================================
+  // 主流程
+  // ============================================================
+  function startWalk(opts) {
+    $("hudTitle").textContent = opts.title;
+    $("backLink").href = opts.backHref;
+    $("errBack").href = opts.backHref;
+
+    if (!detectWebGL()) {
+      showError("当前设备/浏览器不支持 WebGL", "无法进入 3D 行走查看器", opts.backHref);
+      return;
+    }
+
+    var stage = $("stage");
+    var renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+    } catch (e) {
+      showError("WebGL 初始化失败", String(e && e.message || e), opts.backHref);
+      return;
+    }
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    stage.appendChild(renderer.domElement);
+
+    var scene = new THREE.Scene();
+    var camera = new THREE.PerspectiveCamera(FOV, window.innerWidth / window.innerHeight, 0.05, 100);
+    camera.position.set(0, EYE_HEIGHT, 0);
+
+    var yaw = 0, pitch = 0;
+
+    // ---------------- 纹理加载：全景 + 深度（深度失败=静默降级）----------------
+    var loader = new THREE.TextureLoader();
+    var panoTex = null, depthTex = null, depthCPU = null;
+    var hasDepth = false;
+    var panoFailed = false;
+
+    function tryBuildScene() {
+      if (!panoTex) return; // 全景还没到
+      if (panoFailed) return;
+      // 深度是否就绪：要么明确 hasDepth=true(纹理+meta 都到)，要么已经确认失败过
+      buildSphere();
+    }
+
+    loader.load(opts.panoUrl, function (tex) {
+      panoTex = tex;
+      panoTex.minFilter = THREE.LinearFilter;
+      panoTex.magFilter = THREE.LinearFilter;
+      panoTex.generateMipmaps = false;
+      panoTex.wrapS = THREE.RepeatWrapping; // 片元 UV 不 fract,靠环绕采样让 0/1 接缝滤波连续
+      panoTex.wrapT = THREE.ClampToEdgeWrapping;
+      depthStageMaybeReady();
+    }, undefined, function () {
+      panoFailed = true;
+      showError("全景图加载失败", opts.panoUrl, opts.backHref);
+    });
+
+    var depthDone = false;
+    function depthStageMaybeReady() {
+      if (panoTex && depthDone) tryBuildScene();
+    }
+
+    // 深度 JSON + PNG 必须都成功才算「有深度」，任一失败都静默降级为平球体。
+    // ⚠️ tools/depth.py 生成的 JSON 里 min/max 不是米——是 DAP 模型 sigmoid 头
+    // 输出的原始 [0,1] 相对深度范围（该脚本注释原话："NOT metric meters...
+    // not a verified metric calibration"），实测例如 yishi.json 是
+    // min=0.0015 max=0.0118 这种量级。16-bit PNG 已经是「每张图各自的
+    // min~max 线性拉伸到 0~65535」，所以像素值本身就是该图内的相对远近，
+    // 不需要也不能拿 JSON 的 min/max 当米数插值（那样会让所有像素在
+    // clamp(0.4,10) 下全部收敛到 0.4 米，房间形状直接消失）。这里只用
+    // JSON 存在与否 + 字段是否完整来判断"这个节点有没有深度"，真正的米数
+    // 插值统一映射到 DEPTH_CLAMP_MIN~DEPTH_CLAMP_MAX 这个固定量程
+    // （见下方 shader 与 sampleDepthMeters）。
+    fetchJSON(opts.depthJsonUrl, function (meta) {
+      if (!meta || typeof meta.min !== "number" || typeof meta.max !== "number") {
+        depthDone = true; depthStageMaybeReady(); return;
+      }
+      loader.load(opts.depthPngUrl, function (tex) {
+        depthTex = tex;
+        depthTex.minFilter = THREE.LinearFilter;
+        depthTex.magFilter = THREE.LinearFilter;
+        depthTex.generateMipmaps = false;
+        depthTex.wrapS = THREE.ClampToEdgeWrapping;
+        depthTex.wrapT = THREE.ClampToEdgeWrapping;
+        hasDepth = true;
+        buildDepthCPU(tex.image);
+        depthDone = true; depthStageMaybeReady();
+      }, undefined, function () {
+        depthDone = true; depthStageMaybeReady();
+      });
+    }, function () {
+      depthDone = true; depthStageMaybeReady();
+    });
+
+    function fetchJSON(url, ok, fail) {
+      try {
+        fetch(url, { cache: "no-store" }).then(function (r) {
+          if (!r.ok) throw new Error("http " + r.status);
+          return r.json();
+        }).then(ok).catch(fail);
+      } catch (e) { fail(); }
+    }
+
+    // 用 canvas 把深度图读成 CPU 可查的像素数组，供行走范围限制实时取样
+    // （8bit 读回会损失 16bit PNG 的部分精度，房间尺度的碰撞限制够用）
+    function buildDepthCPU(img) {
+      try {
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+        var c = document.createElement("canvas");
+        c.width = w; c.height = h;
+        var ctx = c.getContext("2d");
+        ctx.drawImage(img, 0, 0, w, h);
+        var data = ctx.getImageData(0, 0, w, h).data;
+        depthCPU = { width: w, height: h, data: data };
+      } catch (e) {
+        depthCPU = null; // 画布读取失败（极少见）也不影响渲染，只是行走限制退化为固定半径
+      }
+    }
+
+    // 把归一化像素值(0=该图最近点,1=该图最远点)线性映射到固定米量程
+    // [DEPTH_CLAMP_MIN, DEPTH_CLAMP_MAX]，理由见上面 fetchJSON 回调里的注释：
+    // depth.py 的 JSON min/max 不是米，不能直接当插值端点用。
+    function sampleDepthMeters(dir) {
+      if (!depthCPU) return FLAT_RADIUS;
+      var lon = Math.atan2(dir.x, -dir.z) + YAW_OFFSET;
+      var lat = Math.max(-1, Math.min(1, dir.y));
+      var u = frac(0.5 + lon / (2 * Math.PI));
+      var v = Math.max(0, Math.min(1, 0.5 + Math.asin(lat) / Math.PI));
+      var px = Math.min(depthCPU.width - 1, Math.floor(u * depthCPU.width));
+      var py = Math.min(depthCPU.height - 1, Math.floor(v * depthCPU.height));
+      var idx = (py * depthCPU.width + px) * 4;
+      var t = depthCPU.data[idx] / 255;
+      var r = DEPTH_CLAMP_MIN + t * (DEPTH_CLAMP_MAX - DEPTH_CLAMP_MIN);
+      return Math.max(DEPTH_CLAMP_MIN, Math.min(DEPTH_CLAMP_MAX, r));
+    }
+
+    // ---------------- Shader 球体：顶点按深度置换 ----------------
+    // 颜色 UV 不在顶点算:fract() 的 0↔1 跳变会被三角形插值抹成一条竖向彩色接缝
+    // (7/24 验收实拍可见)。改为把方向向量传给片元、片元里逐像素现算 UV,
+    // 配合 panoTex.wrapS=RepeatWrapping,接缝彻底消失。顶点侧只为深度采样保留 equirectUv。
+    var VERT_COMMON =
+      "varying vec3 vDir;\n" +
+      "uniform float yawOffset;\n" +
+      "const float PI = 3.14159265359;\n" +
+      "const float TWO_PI = 6.28318530718;\n" +
+      "vec2 equirectUv(vec3 dir) {\n" +
+      "  float lon = atan(dir.x, -dir.z) + yawOffset;\n" +
+      "  float lat = clamp(dir.y, -1.0, 1.0);\n" +
+      "  float u = fract(0.5 + lon / TWO_PI);\n" +
+      "  float v = clamp(0.5 + asin(lat) / PI, 0.0, 1.0);\n" +
+      "  return vec2(u, v);\n" +
+      "}\n";
+
+    // depthMap 里的像素值是「归一化到该图自身 min~max」的相对远近(0=最近,1=最远)，
+    // 不是米数——tools/depth.py 的模型输出本身就不是米制标定(见上面 fetchJSON
+    // 回调注释)。这里直接把归一化值线性映射到固定米量程 [MIN,MAX]，
+    // 而不是去读一个假装是米的 JSON min/max。
+    var VERT_DEPTH = VERT_COMMON +
+      "uniform sampler2D depthMap;\n" +
+      "void main() {\n" +
+      "  vec3 dir = normalize(position);\n" +
+      "  vDir = dir;\n" +
+      "  float t = texture2D(depthMap, equirectUv(dir)).r;\n" +
+      "  float radius = clamp(" + DEPTH_CLAMP_MIN.toFixed(2) + " + t * (" +
+           DEPTH_CLAMP_MAX.toFixed(2) + " - " + DEPTH_CLAMP_MIN.toFixed(2) + "), " +
+           DEPTH_CLAMP_MIN.toFixed(2) + ", " + DEPTH_CLAMP_MAX.toFixed(2) + ");\n" +
+      "  vec3 displaced = dir * radius;\n" +
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);\n" +
+      "}\n";
+
+    var VERT_FLAT = VERT_COMMON +
+      "void main() {\n" +
+      "  vec3 dir = normalize(position);\n" +
+      "  vDir = dir;\n" +
+      "  vec3 displaced = dir * " + FLAT_RADIUS.toFixed(2) + ";\n" +
+      "  gl_Position = projectionMatrix * modelViewMatrix * vec4(displaced, 1.0);\n" +
+      "}\n";
+
+    var FRAG =
+      "uniform sampler2D panoMap;\n" +
+      "varying vec3 vDir;\n" +
+      "uniform float yawOffset;\n" +
+      "const float PI = 3.14159265359;\n" +
+      "const float TWO_PI = 6.28318530718;\n" +
+      "void main() {\n" +
+      "  vec3 dir = normalize(vDir);\n" +
+      "  float lon = atan(dir.x, -dir.z) + yawOffset;\n" +
+      "  float u = 0.5 + lon / TWO_PI;\n" + // 不 fract:交给 RepeatWrapping 环绕,滤波在缝上也连续
+      "  float v = clamp(0.5 + asin(clamp(dir.y, -1.0, 1.0)) / PI, 0.0, 1.0);\n" +
+      "  gl_FragColor = texture2D(panoMap, vec2(u, v));\n" +
+      "}\n";
+
+    var mesh;
+    function buildSphere() {
+      if (mesh) return; // 只建一次
+      var geo = new THREE.SphereGeometry(1, 256, 128);
+      var uniforms = {
+        panoMap: { value: panoTex },
+        yawOffset: { value: YAW_OFFSET }
+      };
+      var vert;
+      if (hasDepth) {
+        uniforms.depthMap = { value: depthTex };
+        vert = VERT_DEPTH;
+      } else {
+        vert = VERT_FLAT;
+        $("hudDepthWarn").classList.remove("hide");
+      }
+      var mat = new THREE.ShaderMaterial({
+        uniforms: uniforms,
+        vertexShader: vert,
+        fragmentShader: FRAG,
+        side: THREE.BackSide
+      });
+      mesh = new THREE.Mesh(geo, mat);
+      // 顶点位移(深度/固定半径)发生在 GPU 顶点着色器里，three 的自动视锥剔除
+      // 只会用 geometry 原始(半径 1 的单位球)position 算 boundingSphere，
+      // 跟相机(y=1.4，早就在半径 1 之外)一比就直接判"不在视锥内"整网格
+      // 被剔掉、一次绘制都不发生，画面纯黑。必须关掉自动剔除。
+      mesh.frustumCulled = false;
+      scene.add(mesh);
+
+      $("cardLoading").classList.remove("on");
+      if (!isTouchDevice()) $("cardLock").classList.add("on");
+      startInput();
+      renderer.setAnimationLoop(tick);
+      window.__psmWalk = { camera: camera, keys: keys }; // 调试出口(同 __psmViewer 先例,不影响功能)
+    }
+
+    // ---------------- 桌面输入：PointerLock + WASD ----------------
+    var keys = {};
+    var locked = false;
+    var canvasEl = renderer.domElement;
+
+    function onPointerLockChange() {
+      locked = (document.pointerLockElement === canvasEl);
+      if (locked) {
+        $("cardLock").classList.remove("on");
+      } else if (!isTouchDevice()) {
+        $("lockMsg").textContent = "已退出漫游 · 点击画面重新锁定视角";
+        $("cardLock").classList.add("on");
+      }
+    }
+
+    function onMouseMove(e) {
+      if (!locked) return;
+      yaw -= (e.movementX || 0) * MOUSE_SENS;
+      pitch -= (e.movementY || 0) * MOUSE_SENS;
+      pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+    }
+
+    function requestLock() {
+      if (isTouchDevice()) return;
+      if (canvasEl.requestPointerLock) canvasEl.requestPointerLock();
+    }
+
+    // ---------------- 移动端：单指转视角 + 左下摇杆行走 ----------------
+    var joyOuter = $("joystickOuter"), joyKnob = $("joystickKnob");
+    var joyTouchId = null, joyCenter = { x: 0, y: 0 };
+    var joyVec = { x: 0, y: 0 }; // -1..1
+    var lookTouchId = null, lookLast = { x: 0, y: 0 };
+
+    function joyHitTest(t) {
+      var r = joyOuter.getBoundingClientRect();
+      var cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      var dx = t.clientX - cx, dy = t.clientY - cy;
+      return (dx * dx + dy * dy) <= (r.width * 0.75) * (r.width * 0.75);
+    }
+
+    function onTouchStart(e) {
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (joyTouchId === null && joyHitTest(t)) {
+          joyTouchId = t.identifier;
+          var r = joyOuter.getBoundingClientRect();
+          joyCenter.x = r.left + r.width / 2;
+          joyCenter.y = r.top + r.height / 2;
+          joyOuter.classList.add("dragging");
+        } else if (lookTouchId === null) {
+          lookTouchId = t.identifier;
+          lookLast.x = t.clientX; lookLast.y = t.clientY;
+        }
+      }
+      e.preventDefault();
+    }
+
+    function onTouchMove(e) {
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (t.identifier === joyTouchId) {
+          var dx = t.clientX - joyCenter.x, dy = t.clientY - joyCenter.y;
+          var d = Math.min(JOYSTICK_MAX_PX, Math.hypot(dx, dy));
+          var ang = Math.atan2(dy, dx);
+          var kx = Math.cos(ang) * d, ky = Math.sin(ang) * d;
+          joyKnob.style.transform = "translate(" + kx + "px," + ky + "px)";
+          joyVec.x = kx / JOYSTICK_MAX_PX;
+          joyVec.y = ky / JOYSTICK_MAX_PX;
+        } else if (t.identifier === lookTouchId) {
+          var mx = t.clientX - lookLast.x, my = t.clientY - lookLast.y;
+          lookLast.x = t.clientX; lookLast.y = t.clientY;
+          yaw -= mx * TOUCH_LOOK_SENS;
+          pitch -= my * TOUCH_LOOK_SENS;
+          pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+        }
+      }
+      e.preventDefault();
+    }
+
+    function onTouchEnd(e) {
+      for (var i = 0; i < e.changedTouches.length; i++) {
+        var t = e.changedTouches[i];
+        if (t.identifier === joyTouchId) {
+          joyTouchId = null;
+          joyVec.x = 0; joyVec.y = 0;
+          joyKnob.style.transform = "translate(0,0)";
+          joyOuter.classList.remove("dragging");
+        } else if (t.identifier === lookTouchId) {
+          lookTouchId = null;
+        }
+      }
+    }
+
+    function startInput() {
+      window.addEventListener("keydown", function (e) { keys[e.code] = true; });
+      window.addEventListener("keyup", function (e) { keys[e.code] = false; });
+
+      document.addEventListener("pointerlockchange", onPointerLockChange);
+      document.addEventListener("mousemove", onMouseMove);
+      canvasEl.addEventListener("click", requestLock);
+      $("lockBtn").addEventListener("click", requestLock);
+
+      if (isTouchDevice()) {
+        joyOuter.classList.add("on");
+        canvasEl.addEventListener("touchstart", onTouchStart, { passive: false });
+        canvasEl.addEventListener("touchmove", onTouchMove, { passive: false });
+        canvasEl.addEventListener("touchend", onTouchEnd, { passive: false });
+        canvasEl.addEventListener("touchcancel", onTouchEnd, { passive: false });
+        $("mobileHint").classList.add("show");
+        setTimeout(function () { $("mobileHint").classList.remove("show"); }, 3000);
+      }
+
+      window.addEventListener("resize", onResize);
+      window.addEventListener("orientationchange", onResize);
+    }
+
+    function onResize() {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // ---------------- 每帧：移动 + 行走范围限制 + 渲染 ----------------
+    var clock = new THREE.Clock();
+    var tmpDir = new THREE.Vector3();
+    var euler = new THREE.Euler(0, 0, 0, "YXZ");
+
+    function tick() {
+      var dt = Math.min(0.1, clock.getDelta());
+
+      euler.set(pitch, yaw, 0);
+      camera.quaternion.setFromEuler(euler);
+
+      var moveF = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+      var moveR = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+      if (isTouchDevice()) {
+        moveF += -joyVec.y;
+        moveR += joyVec.x;
+      }
+      var len = Math.hypot(moveF, moveR);
+      if (len > 1) { moveF /= len; moveR /= len; }
+
+      if (moveF !== 0 || moveR !== 0) {
+        var sprint = keys.ShiftLeft || keys.ShiftRight;
+        var speed = BASE_SPEED * (sprint ? SPRINT_MULT : 1);
+        var fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+        var rx = Math.cos(yaw), rz = -Math.sin(yaw);
+        var dx = (fx * moveF + rx * moveR) * speed * dt;
+        var dz = (fz * moveF + rz * moveR) * speed * dt;
+
+        var nx = camera.position.x + dx;
+        var nz = camera.position.z + dz;
+        var dist = Math.hypot(nx, nz);
+        if (dist > 1e-6) {
+          tmpDir.set(nx / dist, 0, nz / dist);
+          var wallDepth = sampleDepthMeters(tmpDir);
+          var maxR = Math.min(MAX_WALK_RADIUS, WALK_DEPTH_FACTOR * wallDepth);
+          if (dist > maxR) {
+            nx = (nx / dist) * maxR;
+            nz = (nz / dist) * maxR;
+          }
+        }
+        camera.position.x = nx;
+        camera.position.z = nz;
+      }
+
+      renderer.render(scene, camera);
+    }
+  }
+
+  function detectWebGL() {
+    try {
+      var c = document.createElement("canvas");
+      return !!(window.WebGLRenderingContext &&
+        (c.getContext("webgl2") || c.getContext("webgl") || c.getContext("experimental-webgl")));
+    } catch (e) { return false; }
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>
