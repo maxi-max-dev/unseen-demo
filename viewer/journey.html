@@ -103,34 +103,32 @@ html, body {
 .pl-step.unlocked:active .pl-dot { transform: scale(1.1); }
 
 .hint {
-  position: fixed; bottom: calc(126px + env(safe-area-inset-bottom, 0px));
+  position: fixed; bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   left: 0; right: 0; text-align: center;
   color: #fff; font-size: 12px; opacity: .55; z-index: 3; pointer-events: none;
   transition: opacity .4s;
 }
 .hint.hide { opacity: 0; }
 
-/* ---- 底部操作条 ---- */
-.action-bar {
-  position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
-  padding: 10px 14px calc(12px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(transparent, #000c 45%);
-  display: flex; flex-direction: column; gap: 8px;
+/* ---- 顶部标题行：标题左 + 小导航右 ---- */
+.th-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.nav-mini { display: flex; align-items: center; gap: 7px; pointer-events: auto; flex: none; }
+.nav-btn {
+  -webkit-tap-highlight-color: transparent; cursor: pointer; border: none;
+  height: 34px; display: flex; align-items: center; justify-content: center;
+  font-weight: 700; letter-spacing: .2px; white-space: nowrap;
 }
-.action-row { display: flex; gap: 8px; }
-.bar-btn {
-  -webkit-tap-highlight-color: transparent; cursor: pointer;
-  min-height: 44px; border-radius: 22px; border: none;
-  font-size: 13.5px; font-weight: 700; letter-spacing: .2px;
-  display: flex; align-items: center; justify-content: center; gap: 6px;
-  flex: 1; white-space: nowrap; padding: 0 14px;
+.nav-btn.prev {
+  width: 34px; border-radius: 50%; font-size: 19px; line-height: 1;
+  background: rgba(0,0,0,.42); color: #fff; border: 1px solid rgba(255,255,255,.34);
 }
-.bar-btn.primary { background: #c0392b; color: #fff; box-shadow: 0 4px 18px rgba(192,57,43,.5); flex: 1.4; }
-.bar-btn.primary:active { transform: scale(.98); }
-.bar-btn.ghost { background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.32); }
-.bar-btn.ghost:active { transform: scale(.98); }
-.bar-btn[disabled] { opacity: .45; pointer-events: none; }
-.bar-btn.hidden { display: none; }
+.nav-btn.next {
+  padding: 0 15px; border-radius: 17px; font-size: 13px;
+  background: #c0392b; color: #fff; box-shadow: 0 3px 12px rgba(192,57,43,.45);
+}
+.nav-btn:active { transform: scale(.94); }
+.nav-btn[disabled] { opacity: .4; pointer-events: none; }
+.nav-btn.hidden { display: none; }
 
 /* ---- 路线转场：全屏地图 + 移动中的婚车 ---- */
 .route-stage {
@@ -260,21 +258,17 @@ html, body {
 <div id="panorama"></div>
 
 <div class="top-hud">
-  <h1 id="topTitle">空间记忆 · 那一天的旅程</h1>
+  <div class="th-row">
+    <h1 id="topTitle">空间记忆 · 那一天的旅程</h1>
+    <div class="nav-mini" id="navMini">
+      <button class="nav-btn prev hidden" id="prevBtn" type="button" aria-label="上一站">‹</button>
+      <button class="nav-btn next" id="nextBtn" type="button">下一站 ›</button>
+    </div>
+  </div>
   <div class="progress-line" id="progressLine"></div>
 </div>
 
 <div class="hint" id="hint">👆 拖动环视 · 点亮点看照片</div>
-
-<div class="action-bar" id="actionBar">
-  <div class="action-row">
-    <button class="bar-btn ghost hidden" id="prevBtn" type="button">← 上一站</button>
-    <a class="bar-btn ghost" id="walkBtn" href="walk.html" target="_blank" rel="noopener">🚶 走进这里</a>
-  </div>
-  <div class="action-row">
-    <button class="bar-btn primary" id="nextBtn" type="button">下一站 →</button>
-  </div>
-</div>
 
 <!-- 路线转场：全屏地图 + 移动婚车 -->
 <div class="route-stage" id="routeStage">
@@ -620,7 +614,6 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   var hintEl = document.getElementById("hint");
   var prevBtn = document.getElementById("prevBtn");
   var nextBtn = document.getElementById("nextBtn");
-  var walkBtn = document.getElementById("walkBtn");
   var progressLine = document.getElementById("progressLine");
   var routeStage = document.getElementById("routeStage");
   var routeFrame = document.getElementById("routeFrame");
@@ -687,19 +680,11 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
 
   // ---- 底部操作条文案 ----
   function updateActionBar() {
-    var node = nodes[i];
     var isLast = i >= nodes.length - 1;
     prevBtn.classList.toggle("hidden", i <= 0);
-    if (isLast) {
-      nextBtn.textContent = "旅程结束 →";
-    } else {
-      var next = nodes[i + 1];
-      nextBtn.textContent = "下一站 · " + (next.chapter || next.name) + " →";
-    }
-    walkBtn.href = EFF[node.id].walkHref;
+    nextBtn.textContent = isLast ? "结束 ›" : "下一站 ›";
     prevBtn.disabled = busy;
     nextBtn.disabled = busy;
-    walkBtn.style.pointerEvents = busy ? "none" : "auto";
   }
 
   // ============================================================
