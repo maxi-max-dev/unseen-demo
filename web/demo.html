@@ -695,7 +695,10 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     return '<button data-go="' + (i + 1) + '" aria-label="第' + (i + 1) + '幕">' + (i + 1) + '</button>';
   }).join("");
 
-  function go(n){
+  // opts.silent = 这次跳幕是浏览器历史自己造成的（后退/前进/手改 hash），
+  // 别再往历史里塞一条，否则会和浏览器打架。
+  function go(n, opts){
+    opts = opts || {};
     n = Math.max(1, Math.min(N, n));
     if (n !== 2) flyGen++;          // 离开第②幕，在飞的那一轮当场作废
     cur = n;
@@ -707,7 +710,15 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     $("progress").style.width = (n / N * 100).toFixed(1) + "%";
     $("prev").disabled = n === 1;
     $("next").disabled = n === N;
-    if (location.hash !== "#" + n) history.replaceState(null, "", "#" + n);
+    // ⚠️ 用 pushState 而不是 replaceState。
+    // replaceState 不会在浏览器历史里留下这一幕 —— 点了五次「下一幕」历史栈里还是只有一条，
+    // 于是按一下返回键（手机上更要命：那个几乎是肌肉记忆的边缘滑动返回）
+    // 不是退到上一幕，而是【直接退出整个演示页】。
+    // 而「发个链接让队友自己看」正是这一页最主要的分发方式。
+    if (location.hash !== "#" + n) {
+      if (opts.silent) history.replaceState({ act:n }, "", "#" + n);
+      else history.pushState({ act:n }, "", "#" + n);
+    }
     window.scrollTo(0, 0);
     // 进这一幕就自动放，不管是翻过来的还是直接开 #2 进来的
     // （队友很可能拿着链接直接跳某一幕，那时候更不能是一张死图）
@@ -720,12 +731,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     if (n === 5) setTimeout(onAct(5, playFill), 700);
   }
 
-  // 浏览器前进/后退，以及把 #5 这种链接粘进已经开着的这个 tab，都要能跳幕。
-  // 只在启动时读一次 hash 的话，这两种进法都会停在原地不动。
-  window.addEventListener("hashchange", function(){
+  // 三种「不是点按钮」的进法都要能跳幕：
+  //   popstate  = 按了后退/前进键，或手机边缘滑动返回
+  //   hashchange = 把 #5 这种链接粘进已经开着的这个 tab
+  // 两者都用 silent，因为历史条目是浏览器自己造的，我们再 push 一次就会打架。
+  function fromHistory(){
     var n = parseInt((location.hash || "").replace("#", ""), 10);
-    if (isFinite(n) && n >= 1 && n <= N && n !== cur) go(n);
-  });
+    if (isFinite(n) && n >= 1 && n <= N && n !== cur) go(n, { silent:true });
+  }
+  window.addEventListener("popstate", fromHistory);
+  window.addEventListener("hashchange", fromHistory);
 
   $("dots").addEventListener("click", function(e){
     var b = e.target.closest("button[data-go]");
@@ -1230,7 +1245,8 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
   /* ════════ 开场 ════════ */
   var start = parseInt((location.hash || "").replace("#", ""), 10);
-  go(isFinite(start) && start >= 1 && start <= N ? start : 1);
+  // 开场那一幕用 silent：它是历史栈的第一条，不该再往里 push 一条重复的
+  go(isFinite(start) && start >= 1 && start <= N ? start : 1, { silent:true });
 })();
 </script>
 </body>
