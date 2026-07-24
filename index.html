@@ -250,8 +250,10 @@
   });
   g.innerHTML = parts.join("");
 
+  // 数量后面必须跟上"占位素材"四个字:tour.js 头部自己写明了这批是 fixtures.py 生成的合成集,
+  // 光写个"共 40 张"会被当成真实婚礼现场的统计(验收员实测的第一反应就是这个)
   document.getElementById("compassCap").textContent = real
-    ? ("每一道刻度,是一张照片的朝向 · 共 " + yaws.length + " 张")
+    ? ("每一道刻度,是一张照片的朝向 · 共 " + yaws.length + " 张占位素材")
     : "方位罗盘";
 })();
 </script>

@@ -199,7 +199,10 @@ h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:va
   position:fixed; z-index:60; width:96px; border-radius:12px; overflow:hidden;
   box-shadow:0 14px 34px rgba(214,124,140,.4); opacity:0; pointer-events:none;
   border:2px solid #fff;
-  transition:transform 1.5s cubic-bezier(.35,.02,.2,1), opacity .3s, width 1.5s cubic-bezier(.35,.02,.2,1);
+  /* 只过渡 transform 和 opacity：这两个跑在合成线程上，主线程再忙也不影响插值。
+     原来这里还挂了 width —— width 会触发布局，逐帧重排，正好卡在飞行那一秒半上。
+     缩放本来就是靠 transform 里的 scale() 做的，width 那条纯属多余。 */
+  transition:transform 1.5s cubic-bezier(.35,.02,.2,1), opacity .3s;
 }
 #flyer img{ width:100%; height:72px; object-fit:cover; }
 #flyer.lit{ opacity:1; }
@@ -675,11 +678,21 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     window.scrollTo(0, 0);
     // 进这一幕就自动放，不管是翻过来的还是直接开 #2 进来的
     // （队友很可能拿着链接直接跳某一幕，那时候更不能是一张死图）
-    if (n === 2) setTimeout(playFly, 420);
-    if (n === 3) { setTimeout(function(){ pwLayout(); pwNudge(); }, 60); }
-    if (n === 4) setTimeout(syncStrip, 60);
-    if (n === 5) setTimeout(playFill, 700);
+    // 每个延时回调都先确认「人还在这一幕」：快速连点翻幕时，
+    // 上一幕的回调会落在下一幕身上，那是个竞态坑。
+    var onAct = function(k, fn){ return function(){ if (cur === k) fn(); }; };
+    if (n === 2) setTimeout(onAct(2, playFly), 420);
+    if (n === 3) setTimeout(onAct(3, function(){ pwLayout(); pwNudge(); }), 60);
+    if (n === 4) setTimeout(onAct(4, syncStrip), 60);
+    if (n === 5) setTimeout(onAct(5, playFill), 700);
   }
+
+  // 浏览器前进/后退，以及把 #5 这种链接粘进已经开着的这个 tab，都要能跳幕。
+  // 只在启动时读一次 hash 的话，这两种进法都会停在原地不动。
+  window.addEventListener("hashchange", function(){
+    var n = parseInt((location.hash || "").replace("#", ""), 10);
+    if (isFinite(n) && n >= 1 && n <= N && n !== cur) go(n);
+  });
 
   $("dots").addEventListener("click", function(e){
     var b = e.target.closest("button[data-go]");
@@ -817,7 +830,8 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     // 2) 飞回它的方位
     setTimeout(function(){
       var flyer = $("flyer"), fimg = flyer.querySelector("img");
-      if (img) fimg.src = img;
+      // src 在初始化时就挂好了（见下面的预热）。在这里才赋值的话，
+      // 第一帧要等图片解码，实测会多出一个约 90ms 的卡顿，正好卡在起飞那一下。
       var from = slot.getBoundingClientRect();
       var svg = $("compass").getBoundingClientRect();
       var scale = svg.width / 260;
@@ -872,6 +886,14 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       }, T(1560));
     }, T(1000 + step));
   }
+  // 预热：飞行的那张图提前挂好并解码，别让起飞第一帧去等解码
+  (function warmFlyer(){
+    var fimg = $("flyer").querySelector("img");
+    if (hero.photo.img) {
+      fimg.src = hero.photo.img;
+      if (fimg.decode) fimg.decode().catch(function(){});
+    }
+  })();
   $("replay2").addEventListener("click", playFly);
   drawTicks(false);
 
