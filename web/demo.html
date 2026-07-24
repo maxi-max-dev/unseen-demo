@@ -220,7 +220,30 @@ h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:va
 .readout .k{ color:var(--ink-3); min-width:3.6em; font-size:11.5px; }
 .readout .v{ font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
 
-/* ═════ 第③幕 · 走进空间 ═════ */
+/* ═════ 第③幕 · 方位墙 ═════
+   为什么不直接嵌 3D：3D 漫游要用 WebGL 贴全景纹理，file:// 下浏览器按跨域拦掉，
+   本地直接双击打开这一页时那一幕会变成「全景图加载失败」。
+   而「断网也能走完」是不许砍的一条。所以主内容改成 2D 方位墙（<img> 底图，
+   到处都能开、手机上不吃帧），3D 漫游降级成一个按钮。 */
+.panwall{ position:relative; height:250px; border-radius:18px; overflow:hidden;
+  border:1px solid var(--line); box-shadow:var(--shadow); background:#efe4e4;
+  cursor:grab; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+.panwall.grab{ cursor:grabbing; }
+.pw-sky{ position:absolute; inset:0; background-repeat:repeat-x; background-position:0 center; }
+.pw-pins{ position:absolute; inset:0; pointer-events:none; }
+.pw-pin{ position:absolute; transform:translateX(-50%); width:78px; text-align:center; }
+.pw-pin img{ width:78px; height:56px; object-fit:cover; border-radius:9px; border:2px solid #fff;
+  box-shadow:0 7px 20px rgba(62,36,48,.4); }
+.pw-pin .lead{ width:2px; margin:0 auto; background:linear-gradient(180deg,#fff,rgba(255,255,255,.1)); }
+.pw-pin .tag{ font-size:10px; color:#fff; background:rgba(62,36,48,.8); border-radius:999px;
+  padding:1px 7px; display:inline-block; white-space:nowrap; }
+.pw-ruler{ position:absolute; left:0; right:0; bottom:0; height:21px;
+  background:rgba(62,36,48,.6); backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); }
+.pw-ruler i{ position:absolute; font-style:normal; font-size:9px; color:rgba(255,255,255,.92);
+  transform:translateX(-50%); top:4px; white-space:nowrap; }
+.pw-hint{ position:absolute; right:8px; top:8px; font-size:10px; color:#fff;
+  background:rgba(62,36,48,.62); padding:3px 9px; border-radius:999px; pointer-events:none; }
+
 .frame-wrap{ position:relative; border-radius:18px; overflow:hidden;
              border:1px solid var(--line); box-shadow:var(--shadow); background:#1a1418;
              aspect-ratio:9/13; max-height:56vh; }
@@ -321,6 +344,8 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   .frame-wrap{ aspect-ratio:16/10; max-height:62vh; }
   .eye .thumb img{ height:96px; }
   .subtitle p{ font-size:15px; }
+  .compass{ width:296px; }
+  .panwall{ height:320px; }
 }
 @media (prefers-reduced-motion:reduce){
   *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
@@ -459,17 +484,20 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       <div class="eyebrow">第三幕 · 空间</div>
       <h2>照片挂在它被拍下的方位上</h2>
     </div>
-    <div class="frame-wrap" id="walkWrap">
+    <div class="panwall" id="panwall">
+      <div class="pw-sky" id="pwSky"></div>
+      <div class="pw-pins" id="pwPins"></div>
+      <div class="pw-ruler" id="pwRuler"></div>
+      <div class="pw-hint">← 左右拖动，转一圈 →</div>
+    </div>
+
+    <div class="row">
+      <button class="btn" id="walkGo">进去 3D 漫游</button>
+      <a class="btn ghost" id="walkNew" target="_blank" rel="noopener">在新窗口打开</a>
+    </div>
+
+    <div class="frame-wrap" id="walkWrap" style="display:none">
       <iframe id="walkFrame" title="全景漫游" allow="fullscreen" loading="lazy"></iframe>
-      <div class="frame-cover" id="walkCover">
-        <img class="poster" id="walkPoster" alt="">
-        <svg width="54" height="54" viewBox="0 0 64 64" aria-hidden="true"><use href="#uLogo"/></svg>
-        <div style="font-size:15px;font-weight:700">走进宴会厅</div>
-        <div style="font-size:12.5px;opacity:.85;max-width:22em">
-          拖动画面转身。挂在墙上的每一张照片，都停在它当时被拍下的那个方向。
-        </div>
-        <button class="btn" id="walkGo">进去走一走</button>
-      </div>
     </div>
     <p class="tiny" id="walkNote"></p>
   </section>
@@ -648,6 +676,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     // 进这一幕就自动放，不管是翻过来的还是直接开 #2 进来的
     // （队友很可能拿着链接直接跳某一幕，那时候更不能是一张死图）
     if (n === 2) setTimeout(playFly, 420);
+    if (n === 3) { setTimeout(function(){ pwLayout(); pwNudge(); }, 60); }
     if (n === 4) setTimeout(syncStrip, 60);
     if (n === 5) setTimeout(playFill, 700);
   }
@@ -667,7 +696,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   (function swipe(){
     var x0 = null, y0 = null;
     document.addEventListener("touchstart", function(e){
-      if (e.target.closest("iframe, video, .strip")) { x0 = null; return; }
+      if (e.target.closest("iframe, video, .strip, .panwall")) { x0 = null; return; }
       x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
     }, { passive:true });
     document.addEventListener("touchend", function(e){
@@ -851,18 +880,127 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   // 清单顺序哪天一变，这一幕就会走进另一个房间，而②④⑤讲的还是宴会厅。
   // （已核对：s4 那张全景和 assets/walkdemo/ballroom.jpg 逐像素同源，所以是同一个厅）
   var WALK_URL = "../viewer/walk.html?scene=ballroom";
-  $("walkPoster").src = D.pano;
-  $("walkNote").innerHTML = "这一幕嵌的是仓库里的全景漫游页 <code>viewer/walk.html</code>，" +
-    "走的是和前面几幕同一个宴会厅。" +
-    '<a href="' + WALK_URL + '" target="_blank" rel="noopener">在新窗口打开 →</a>';
-  var walkLoaded = false;
-  function loadWalk(){
-    if (walkLoaded) return;
-    walkLoaded = true;
-    $("walkFrame").src = WALK_URL;
-    $("walkCover").classList.add("off");
+  var IS_FILE = location.protocol === "file:";
+  $("walkNew").href = WALK_URL;
+
+  // ── 方位墙：把全景横着铺开，每张照片钉在它自己的方位上 ──
+  var PW = { off: 0, W: 0, drag: null };
+  var pwPhotos = D.photos.filter(function(p){
+    return (p.state === "auto_ok" || p.state === "approved") && p.img;
+  });
+
+  // 开场别停在一段空墙上：找出照片最密的那一段，把它推到视野中间
+  function pwBestYaw(){
+    if (!pwPhotos.length) return 0;
+    var best = 0, bestN = -1;
+    for (var c = 0; c < 360; c += 5) {
+      var n = pwPhotos.filter(function(p){
+        var diff = ((p.yaw - c) % 360 + 360) % 360;
+        return Math.min(diff, 360 - diff) <= 60; // 视野约 120°，取半宽 60°
+      }).length;
+      if (n > bestN) { bestN = n; best = c; }
+    }
+    return best;
   }
-  $("walkGo").addEventListener("click", loadWalk);
+
+  function pwLayout(){
+    var box = $("panwall");
+    PW.W = Math.max(box.clientWidth * 3, 900);   // 一圈 360° 铺成 3 屏宽，转起来才有距离感
+    $("pwSky").style.backgroundImage = "url('" + D.pano + "')";
+    $("pwSky").style.backgroundSize = PW.W + "px 100%";
+    // 刻度：每 45° 一个方位词
+    var words = ["正前方","右前方","右侧","右后方","正后方","左后方","左侧","左前方"];
+    var rul = [];
+    for (var k = 0; k < 8; k++) rul.push({ yaw:k * 45, txt:(k * 45) + "° " + words[k] });
+    $("pwRuler").innerHTML = rul.map(function(r, i){
+      return '<i data-yaw="' + r.yaw + '">' + esc(r.txt) + '</i>';
+    }).join("");
+    // 照片钉：同一片区域里错开高度，免得两张挤成一叠
+    // 方位撞车的（这个空间里真有两张都在 255.3°）横向错开一点，不然卡片叠成一张
+    var seen = [];
+    var dxOf = pwPhotos.map(function(p){
+      var near = seen.filter(function(q){
+        var d = Math.abs(((p.yaw - q) % 360 + 360) % 360);
+        return Math.min(d, 360 - d) < 7;
+      }).length;
+      seen.push(p.yaw);
+      return near === 0 ? 0 : (near % 2 ? 46 : -46) * Math.ceil(near / 2);
+    });
+
+    $("pwPins").innerHTML = pwPhotos.map(function(p, i){
+      var top = 12 + (i % 3) * 22;
+      // 引线拉到刻度条上沿。高度用实测的，不要写死 —— 桌面上这条墙比手机高
+      var lead = box.clientHeight - 21 - (top + 56 + 18);
+      return '<div class="pw-pin" data-yaw="' + p.yaw + '" data-dx="' + dxOf[i] +
+             '" style="top:' + top + 'px">' +
+        '<img src="' + esc(p.img) + '" alt="">' +
+        '<div class="tag">' + esc(p.contributor) + ' · ' + p.yaw.toFixed(0) + '°</div>' +
+        '<div class="lead" style="height:' + Math.max(lead, 6) + 'px"></div>' +
+      '</div>';
+    }).join("");
+    if (!PW.homed) {
+      PW.homed = true;
+      PW.off = (pwBestYaw() / 360) * PW.W - box.clientWidth / 2;
+    }
+    pwRender();
+  }
+
+  function pwRender(){
+    var w = PW.W;
+    PW.off = ((PW.off % w) + w) % w;               // 转一圈接回来，不要走到尽头卡住
+    $("pwSky").style.backgroundPositionX = (-PW.off) + "px";
+    var vw = $("panwall").clientWidth;
+    function place(el){
+      var yaw = parseFloat(el.getAttribute("data-yaw"));
+      var x = (yaw / 360) * w - PW.off + (parseFloat(el.getAttribute("data-dx")) || 0);
+      x = ((x % w) + w) % w;
+      if (x > vw + 60) x -= w;                     // 绕回左边，免得右侧堆一排看不见的
+      el.style.left = x.toFixed(1) + "px";
+      el.style.visibility = (x < -60 || x > vw + 60) ? "hidden" : "visible";
+    }
+    [].forEach.call($("pwPins").children, place);
+    [].forEach.call($("pwRuler").children, place);
+  }
+
+  (function pwDrag(){
+    var box = $("panwall"), x0 = null, o0 = 0;
+    function down(x){ x0 = x; o0 = PW.off; box.classList.add("grab"); }
+    function move(x){ if (x0 == null) return; PW.off = o0 - (x - x0); pwRender(); }
+    function up(){ x0 = null; box.classList.remove("grab"); }
+    box.addEventListener("pointerdown", function(e){ down(e.clientX); box.setPointerCapture(e.pointerId); });
+    box.addEventListener("pointermove", function(e){ if (x0 != null) { e.preventDefault(); move(e.clientX); } });
+    box.addEventListener("pointerup", up);
+    box.addEventListener("pointercancel", up);
+  })();
+
+  // 进这一幕先自己飘一小段，告诉人这里是能拖的
+  var pwNudged = false;
+  function pwNudge(){
+    if (pwNudged || REDUCED) return;
+    pwNudged = true;
+    var t0 = null, dur = 1500, from = PW.off, to = PW.off + PW.W * 0.14;
+    function step(ts){
+      if (t0 == null) t0 = ts;
+      var k = Math.min(1, (ts - t0) / dur);
+      PW.off = from + (to - from) * (1 - Math.pow(1 - k, 3));
+      pwRender();
+      if (k < 1) requestAnimationFrame(step);
+    }
+    requestAnimationFrame(step);
+  }
+
+  $("walkNote").innerHTML = "上面这一条是 2D 方位墙，钉在上面的每一张照片都停在它被拍下的方位。" +
+    "「3D 漫游」按钮打开的是仓库里的全景漫游页 <code>viewer/walk.html</code>，走的是同一个宴会厅。" +
+    (IS_FILE ? "<b>当前是本地直接打开（file://），3D 漫游要用 WebGL 贴全景纹理，" +
+               "浏览器按跨域拦掉，请用「在新窗口打开」或走 http 访问。</b>" : "");
+
+  var walkLoaded = false;
+  $("walkGo").addEventListener("click", function(){
+    if (IS_FILE) { window.open(WALK_URL, "_blank"); return; }
+    $("walkWrap").style.display = "";
+    if (!walkLoaded) { walkLoaded = true; $("walkFrame").src = WALK_URL; }
+    $("walkWrap").scrollIntoView({ behavior:"smooth", block:"center" });
+  });
 
   /* ════════ 第④幕：同一时刻，三个机位 ════════ */
   var trio = D.trio, pick = 0;
@@ -905,7 +1043,10 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   $("act4Note").textContent =
     "这三张来自 " + trio.length + " 个不同的人，方位是机器算出来的，不是人填的。" +
     "当前为占位素材，真实全景与照片到位后原样替换。";
-  window.addEventListener("resize", function(){ if (cur === 4) syncStrip(); });
+  window.addEventListener("resize", function(){
+    if (cur === 3) pwLayout();
+    if (cur === 4) syncStrip();
+  });
 
   /* ════════ 第⑤幕：主办后台快照 ════════ */
   var S = D.stats;
