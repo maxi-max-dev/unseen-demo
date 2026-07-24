@@ -269,12 +269,27 @@
   var SID = qs.get("space") || "";
   var MOCK = qs.get("mock") === "1";
 
+  // 宾客页的【公开地址】。现场宾客的手机连不到这台电脑, 所以二维码绝不能是局域网 IP ——
+  // 页面托管在 GitHub Pages, 数据托管在阿里云 OSS(杭州, 和现场同城), 这台电脑只做后台计算。
+  // (OSS 国内地域会给默认域名加 Content-Disposition: attachment, 地址栏直开会变下载,
+  //  所以 HTML 只能放 Pages, 不能放 OSS。)
+  var CLOUD_JOIN_BASE = "https://maxi-max-dev.github.io/unseen-demo/web/join.html";
+  var CLOUD_WALK_BASE = "https://maxi-max-dev.github.io/unseen-demo/web/walk.html";
+
   var S = {          // 页面状态
     space: null,     // space.json
     joinUrl: "",
     picked: {},      // 待审照片的勾选状态 photoId -> true
-    busy: false
+    busy: false,
+    cloudJson: "",   // 已发布到 OSS 的公开清单地址(space.ossSpaceJson)
+    cloudMsg: "",    // 云发布进度的人话
+    worker: null     // { running, ageS } 后台工人心跳
   };
+
+  // 云发布过没 = 本地 space.json 里有没有 ossSpaceJson。有了才把二维码换成公开地址,
+  // 否则宾客扫到一个还没数据的链接, 比扫到局域网 IP 更糟。
+  function cloudJoinUrl(){ return CLOUD_JOIN_BASE + "?s=" + encodeURIComponent(SID); }
+  function cloudWalkUrl(){ return CLOUD_WALK_BASE + "?cloud=" + encodeURIComponent(S.cloudJson); }
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -449,8 +464,13 @@
         '</div>' +
         '<div class="top-actions">' + pub + btn +
           '<div class="pubstate" id="pubState">' +
-            (sp.published ? '宾客扫码就能走进去了' : '发布后宾客才能进入空间漫游') +
+            (S.cloudJson ? '已上云,宾客扫码就能走进去了'
+                         : (sp.published ? '本机已发布,还没推到云上' : '发布后宾客才能进入空间漫游')) +
           '</div>' +
+          // 云发布进度 + 后台工人心跳。工人这一格很重要: 忘了起工人的话,
+          // 宾客传的照片会一直躺在 OSS 收件箱里没人算, 现场会当场懵。
+          '<div class="pubstate" id="cloudSlot"></div>' +
+          '<div class="pubstate" id="workerSlot"></div>' +
           // 发布时后台会无人值守跑一遍机器验收(结构闸+渲染闸+语义闸), 报告落
           // /spaces/<sid>/report.json。这一格由 pollReport() 填, 拿不到就一直空着, 不占地方。
           '<div class="pubstate" id="reportSlot"></div>' +

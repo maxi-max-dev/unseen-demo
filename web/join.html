@@ -1263,10 +1263,13 @@
     startPoll(recs, task);
   }
 
-  // 在 space.json 里认领"哪一条是我刚传的那张":
-  // key 里带着我们自己生成的短 id,工人不管把它改名成什么,只要保留来源都能对上。
+  // 在 space.json 里认领"哪一条是我刚传的那张"。第一招:key 里带着我们自己生成的短 id。
   function findMine(sp, shortId) {
-    var ps = (sp && sp.photos) || [];
+    // ⚠️ 必须把 pending 也算进来: 机器拿不准的照片按隐私红线【不进公开 photos】,
+    //    只在 pending 里留一条不含画面的回执。不看 pending 的话, 宾客传完一张被判
+    //    needs_review 的照片, 页面会永远停在"机器正在把它放回空间…"——
+    //    7/24 Max 本人就是这么卡住的。
+    var ps = ((sp && sp.photos) || []).concat((sp && sp.pending) || []);
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
       var hay = [p.id, p.src, p.thumb, p.key, p.inboxKey, p.origin, p.source].join("|");
@@ -1275,20 +1278,50 @@
     return null;
   }
 
+  // 第二招(兜底):工人会把 inbox/<...短id...>.jpg 改名成 photos/p7.jpg,
+  // 改完短 id 就没了,第一招必然落空。这时只能认"我传完之后新冒出来的、而且署我名字的那几张"。
+  // 实测 s4 就是这么改名的,没这招的话宾客永远只看得到"机器还在算"。
+  function freshOfMine(sp, preIds, claimed, sinceMs) {
+    return ((sp && sp.photos) || []).filter(function (p) {
+      if (claimed[p.id] || p.contributor !== state.nick) return false;
+      if (!preIds[p.id]) return true;            // 空间里以前没这条 = 就是新的
+      // id 撞车也得认得出来:工人给的 id 不保证全局唯一(自验时真撞出过两条 p10),
+      // 所以再看一眼上传时间,比我按下"传上去"还新的就算我的。留 1 分钟容忍两边表不准。
+      var ts = Number(p.uploadedAt) || 0;
+      if (ts && ts < 1e12) ts *= 1000;           // 秒级时间戳换成毫秒
+      return !!sinceMs && ts >= sinceMs - 60000;
+    });
+  }
+
   function startPoll(recs, task) {
     stopPoll();
     var t0 = Date.now(), left = {};
     recs.forEach(function (r) { left[r.shortId] = r; });
+    // 传之前先记下空间里已经有哪些照片,兜底认领要靠这份快照分辨新旧
+    var preIds = {};
+    ((state.space && state.space.photos) || []).forEach(function (p) { preIds[p.id] = 1; });
+
+    function resolveOne(sid, p) {
+      settleRow(sid, p, task);
+      patchMine(sid, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+      // 把认到的那条挂回 rec 上,结算悬赏时直接用,不能再按短 id 找一遍
+      //(工人改过名之后短 id 就没了,再找必然落空,悬赏会算成 10 分)
+      if (left[sid]) left[sid].resolved = p;
+      delete left[sid];
+    }
 
     function tick() {
       loadSpace().then(function (sp) {
         state.space = sp;
+        var claimed = {};   // 同一条服务端照片别被两张认领,先到先得
         Object.keys(left).forEach(function (sid) {
           var p = findMine(sp, sid);
-          if (!p) return;
-          settleRow(sid, p, task);
-          patchMine(sid, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
-          delete left[sid];
+          if (p && !claimed[p.id]) { claimed[p.id] = 1; resolveOne(sid, p); }
+        });
+        var fresh = freshOfMine(sp, preIds, claimed, t0);
+        Object.keys(left).forEach(function (sid) {
+          var p = fresh.shift();
+          if (p) { claimed[p.id] = 1; resolveOne(sid, p); }
         });
         renderTasks();
         if (!Object.keys(left).length) { stopPoll(); finishSum(recs, task); return; }
@@ -1360,9 +1393,8 @@
     var b = $("btnGoWalk"); if (b) b.textContent = "看看它在空间里 →";
     var s = $("resSum");
     if (!s) return;
-    var sp = state.space || {};
     var filled = recs.some(function (r) {
-      var p = findMine(sp, r.shortId);
+      var p = r.resolved;
       return p && (p.state === "auto_ok" || p.state === "approved") && p.taskId === task.id;
     });
     var gained = filled ? (task.bounty || 0) : recs.length * 10;
@@ -1445,11 +1477,26 @@
     loadSpace().then(function (sp) {
       if (!sp || !sp.id) return;
       state.space = sp;
-      // 把本机账本里还没有结论的那些对一遍答案
-      loadMine().forEach(function (m) {
-        if (m.photoId || !m.shortId) return;
+      // 把本机账本里还没有结论的那些对一遍答案(同样是先认短 id、认不到再按"新增+署我名"兜底)
+      var mine = loadMine(), claimed = {};
+      mine.forEach(function (m) { if (m.photoId) claimed[m.photoId] = 1; });
+      var pending = mine.filter(function (m) { return !m.photoId && m.shortId; });
+      pending.forEach(function (m) {
         var p = findMine(sp, m.shortId);
-        if (p) patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+        if (p && !claimed[p.id]) {
+          claimed[p.id] = 1; m.matched = p;
+          patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+        }
+      });
+      // 已被认走的既算"旧"也算"已占";时间线用本机账本里最早那条待认领的上传时刻
+      var since = Math.min.apply(null, pending.map(function (m) { return m.at || Date.now(); }));
+      var fresh = freshOfMine(sp, claimed, claimed, since);
+      pending.forEach(function (m) {
+        if (m.matched) return;
+        var p = fresh.shift();
+        if (!p) return;
+        claimed[p.id] = 1;
+        patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
       });
       if (state.view === "mine") renderMine();
       renderTasks();
@@ -1633,6 +1680,8 @@
         reason: "匹配度 0.91、辨识度 0.088,两项都达标,自动入选", taskId: "t1" }, MOCK_SPACE.tasks[0]);
       settleRow("w2", { id: "x2", yaw: 118.9, confidence: 0.8310, state: "needs_review",
         reason: "辨识度 0.031 偏低,交给新人裁决" }, MOCK_SPACE.tasks[0]);
+      var w = $("waitBar"); if (w) w.style.display = "none";
+      var b = $("btnGoWalk"); if (b) b.textContent = "看看它在空间里 →";
       var s = $("resSum");
       s.innerHTML = "悬赏到账 <b>+50</b> 分 · 这个任务被你补上了 🎉";
       s.classList.add("in");

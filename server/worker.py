@@ -42,6 +42,12 @@ from server import oss, space  # noqa: E402
 STATE_NAME = ".ingested.json"      # 已处理台账, 放在空间目录里
 STATE_SCHEMA = "psm-ingested/1"
 
+# 心跳文件: 工人每轮写一次时间戳, 新人后台读它显示"后台工人: 运行中 / 未运行"。
+# 为什么必须有: 忘了起工人的话, 宾客传的照片会一直躺在 OSS 收件箱里没人算,
+# 页面上什么都不会变 —— 现场当场懵。让后台把这件事摆在脸上。
+HEARTBEAT_NAME = ".worker.json"
+HEARTBEAT_STALE_S = 60             # 60 秒内有心跳算在跑(和 space.py 的判定保持一致)
+
 
 def log(msg):
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
@@ -56,6 +62,16 @@ def inbox_prefix(sid):
 
 def state_path(sid):
     return os.path.join(space.space_dir(sid), STATE_NAME)
+
+
+def beat(sid, note=""):
+    """写一次心跳。写不成就算了 —— 心跳只是给后台看的仪表盘, 不值得为它中断收照片。"""
+    try:
+        path = os.path.join(space.space_dir(sid), HEARTBEAT_NAME)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump({"pid": os.getpid(), "at": time.time(), "note": note}, f)
+    except Exception:
+        pass
 
 
 def load_state(sid):
@@ -84,27 +100,50 @@ def save_state(sid, st):
     os.replace(tmp, path)
 
 
+def _decode_nick(raw):
+    """把宾客页 base64url 编过的昵称解回来。解不出来就退回 URL 解码, 再不行就原样。"""
+    import base64
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    try:
+        pad = "=" * (-len(s) % 4)
+        out = base64.urlsafe_b64decode(s + pad).decode("utf-8")
+        if out.strip():
+            return out
+    except Exception:
+        pass
+    try:
+        return urllib.parse.unquote_plus(s)
+    except Exception:
+        return s
+
+
 def parse_key(key):
     """从 OSS key 解析出 (投稿人, taskId)。约定见文件顶部。
 
     ⚠️ 必须健壮: 这段字符串是宾客手机拼的, 什么鬼东西都可能进来。
        解析不出来就当匿名投稿, 绝不抛异常 —— 丢一个昵称是小事, 丢一张照片是事故。
+
+    ⚠️ 7/24 修的一个真实事故: 宾客页(web/join.html)用的是 **base64url** 编码昵称
+       (btoa 之后把 +/ 换成 -_ 、去掉尾部 =), 这里原来只做 URL 解码, 于是中文昵称
+       原样变成 "5L2g5aSn54i3" 这种乱码进了贡献者榜。两个模块各写各的、契约漂移。
+       现在先试 base64url, 失败再退回 URL 解码(兼容老 key), 都不成就按原文。
     """
     stem = os.path.splitext(os.path.basename(key))[0]
     parts = stem.split("__")
 
     contributor = ""
     if len(parts) >= 2:
-        try:
-            contributor = urllib.parse.unquote_plus(parts[1])
-        except Exception:
-            contributor = ""
+        contributor = _decode_nick(parts[1])
         contributor = " ".join(contributor.split())[:24]     # 压掉换行/连续空格, 限长
 
     task_id = None
     if len(parts) >= 3:
         t = parts[2].strip()
-        if t and t.lower() not in ("none", "null", "undefined", "-"):
+        # "free" 是宾客页(web/join.html)对"没接任务"的写法, "none" 是本文件顶部的老约定,
+        # 两边都认 —— 契约漂移过一次(昵称编码), 这里就别再赌第二次。
+        if t and t.lower() not in ("none", "free", "null", "undefined", "-"):
             task_id = t[:16]
 
     return (contributor or "匿名宾客"), task_id
@@ -193,10 +232,19 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
                 contributor, task_id=task_id,
             )
             r = out[0]
-            # 回读一眼 margin: upload_photos 的返回里没带, 但日志和台账想说人话就得有它
-            with space.space_txn(sid, write=False) as sp:
-                rec = next((p for p in sp["photos"] if p["id"] == r["photoId"]), {})
-            margin = rec.get("margin", 0.0)
+            # 回读一眼 margin: upload_photos 的返回里没带, 但日志和台账想说人话就得有它。
+            # 顺手把【这张照片是从哪个 inbox key 来的】写回去 ——
+            # ⚠️ 这一笔是宾客页认领自己那张照片的唯一线索: 工人把 inbox/<...短id...>.jpg
+            #    改名成了 photos/pX.jpg, 短 id 就没了; 宾客页(web/join.html 的 findMine)
+            #    正是靠 photo.inboxKey 里那段短 id 才能说出"你这张放在了右后方"。
+            #    不写这一笔, 待审的照片在宾客那边就永远是"机器还在算"。
+            with space.space_txn(sid) as sp:
+                rec = next((p for p in sp["photos"] if p["id"] == r["photoId"]), None)
+                if rec is not None:
+                    rec["inboxKey"] = key
+                    margin = rec.get("margin", 0.0)
+                else:
+                    margin = 0.0
 
             done[key] = {"photoId": r["photoId"], "state": r["state"],
                          "contributor": contributor, "taskId": r.get("taskFilled") or task_id,
@@ -241,6 +289,7 @@ def run_forever(sid, interval=5, conf=None):
     """常驻循环。Ctrl-C 干净退出(台账每张都已经落盘, 不会丢进度)。"""
     conf = conf or oss.load_conf()
     log(f"工人上岗: 空间 {sid} ← oss://{conf['bucket']}/{inbox_prefix(sid)}, 每 {interval}s 看一眼")
+    beat(sid, "loading-clip")   # 先跳一下: 加载 CLIP 那十几秒, 后台也该显示"工人在了"
     space.get_clip_model()      # 先把 CLIP 加载完, 别让第一个宾客等这 10-20 秒
     log("CLIP 就绪, 开始盯收件箱(Ctrl-C 收工)")
 
@@ -248,6 +297,7 @@ def run_forever(sid, interval=5, conf=None):
     quiet_rounds = max(1, int(60 / max(interval, 1)))    # 大约每分钟报一次平安
     try:
         while True:
+            beat(sid, "polling")     # 每轮一次心跳, 新人后台靠它显示"工人运行中"
             res = poll_once(sid, conf, log_empty=False)
             if res.get("processed"):
                 idle = 0

@@ -1234,6 +1234,88 @@ def api_publish(sid: str, payload: dict = Body(default={})):
         return _fail(f"发布失败: {e}")
 
 
+# ---------------------------------------------------------------- 发布到云 + 工人心跳
+#
+# 云发布为什么要走后台线程 + 轮询: 首次全量发布实测 98 秒(这台机器传杭州只有 ~27KB/s)。
+# 同步返回会让新人后台的 fetch 干等一分半, 看着像卡死。所以 POST 只负责"点火",
+# 进度写在内存里, 前端 GET 轮询画进度条。
+_cloud_state = {}          # sid -> {running, done, total, key, result, error, at}
+_cloud_lock = threading.Lock()
+
+
+def _cloud_get(sid):
+    with _cloud_lock:
+        return dict(_cloud_state.get(sid) or {})
+
+
+def _cloud_set(sid, **kw):
+    with _cloud_lock:
+        st = _cloud_state.setdefault(sid, {})
+        st.update(kw)
+        st["at"] = time.time()
+
+
+def kick_publish_cloud(sid):
+    """后台线程把空间推到 OSS。已经在跑就不重复点火(重复点火会互相抢带宽)。"""
+    from server import publish       # 延迟导入: 让没配 OSS 凭据的人也能用本机模式
+
+    st = _cloud_get(sid)
+    if st.get("running"):
+        return False
+
+    def run():
+        _cloud_set(sid, running=True, done=0, total=0, key="", result=None, error=None)
+        try:
+            def progress(done, total, key):
+                _cloud_set(sid, done=done, total=total, key=key)
+            r = publish.publish_space(sid, progress=progress)
+            # public 那一整份没必要塞进状态里(几十 KB, 前端也不看), 去掉。
+            r.pop("public", None)
+            _cloud_set(sid, running=False, result=r, error=None)
+            print(f"== [{sid}] 云发布完成: 上传 {r['uploaded']} 跳过 {r['skipped']} "
+                  f"耗时 {r['elapsedS']}s → {r['spaceJson']} ==", flush=True)
+        except Exception as e:
+            _cloud_set(sid, running=False, error=f"{type(e).__name__}: {e}")
+            print(f"== [{sid}] 云发布失败: {type(e).__name__}: {e} ==", flush=True)
+
+    threading.Thread(target=run, daemon=True, name=f"space-cloud-{sid}").start()
+    return True
+
+
+@router.post("/space/{sid}/publish-cloud")
+def api_publish_cloud(sid: str, payload: dict = Body(default={})):
+    try:
+        with space_txn(sid, write=False):
+            pass        # 先确认空间在, 免得后台线程炸在一个不存在的 sid 上
+        started = kick_publish_cloud(sid)
+        return {"ok": True, "started": started, "state": _cloud_get(sid)}
+    except FileNotFoundError as e:
+        return _fail(e)
+    except Exception as e:
+        return _fail(f"云发布起不来: {e}")
+
+
+@router.get("/space/{sid}/publish-cloud")
+def api_publish_cloud_state(sid: str):
+    """轮询云发布进度。state 里有 running/done/total/result/error。"""
+    return {"ok": True, "state": _cloud_get(sid)}
+
+
+@router.get("/space/{sid}/worker-status")
+def api_worker_status(sid: str):
+    """后台工人还活着吗? —— 工人(server/worker.py)每轮往空间目录写一次 .worker.json,
+    60 秒内有心跳就算在跑。忘了起工人的话宾客传的照片永远不会出现, 这一格必须显眼。"""
+    path = os.path.join(space_dir(sid), ".worker.json")
+    try:
+        with open(path, encoding="utf-8") as f:
+            hb = json.load(f)
+        age = time.time() - float(hb.get("at") or 0)
+        return {"ok": True, "running": age < 60, "ageS": round(age, 1),
+                "pid": hb.get("pid"), "note": hb.get("note") or ""}
+    except Exception:
+        return {"ok": True, "running": False, "ageS": None, "pid": None, "note": ""}
+
+
 @router.get("/space/{sid}/joinurl")
 def api_joinurl(sid: str):
     try:
