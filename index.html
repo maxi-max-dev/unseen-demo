@@ -2,27 +2,115 @@
 <html lang="zh">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Unseen · Demo</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>空间记忆 · 重温那一天</title>
 <style>
-  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f5f2ec;font-family:-apple-system,"PingFang SC",sans-serif}
-  .card{text-align:center;padding:32px}
-  h1{font-size:22px;color:#3a3a3a;margin:0 0 6px}
-  p{font-size:13px;color:#999;margin:0 0 28px}
-  a{display:block;margin:12px auto;padding:15px 28px;max-width:280px;border-radius:14px;text-decoration:none;font-size:15px;font-weight:600}
-  .on{background:#c0392b;color:#fff}
-  .off{background:#fff;color:#3a3a3a;border:1px solid #ddd}
-  small{color:#bbb;font-size:11px}
+  :root{ --cream:#f6f2ea; --ink:#3a352f; --sub:#9a9186; --red:#c0392b; --gold:#b08d57; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; min-height:100%; }
+  body{
+    min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    background:
+      radial-gradient(120% 80% at 50% 0%, #fbf8f2 0%, var(--cream) 55%, #efe8dc 100%);
+    color:var(--ink); font-family:-apple-system,"PingFang SC",system-ui,sans-serif;
+    padding:44px 22px calc(30px + env(safe-area-inset-bottom,0)); text-align:center;
+  }
+  .kicker{ font-size:11px; letter-spacing:4px; color:var(--gold); font-weight:700; margin-bottom:26px; }
+  .kicker span{ opacity:.6; letter-spacing:2px; }
+  .names{
+    font-family:"Songti SC","STSong",serif; font-size:40px; font-weight:600; line-height:1.15;
+    letter-spacing:2px; margin:0 0 4px;
+  }
+  .names .heart{ color:var(--red); font-size:26px; vertical-align:middle; margin:0 10px; }
+  .date{ font-size:13px; letter-spacing:3px; color:var(--sub); margin-bottom:4px; }
+  .placeholder-tag{
+    display:inline-block; font-size:10px; color:var(--sub); border:1px dashed #cdc4b6;
+    border-radius:8px; padding:2px 8px; margin-top:8px; opacity:.85;
+  }
+  .lead{
+    max-width:340px; font-size:14px; line-height:1.85; color:#6f675d;
+    margin:26px auto 30px;
+  }
+
+  /* 旅程时间线（从 tour.js 动态生成） */
+  .journey{ width:100%; max-width:360px; margin:0 auto 34px; }
+  .track{ position:relative; display:flex; justify-content:space-between; padding:0 6px; }
+  .track::before{
+    content:""; position:absolute; left:16px; right:16px; top:9px; height:2px;
+    background:linear-gradient(90deg, var(--red), #d98b7f); border-radius:2px; opacity:.5;
+  }
+  .stop{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; flex:1; }
+  .stop .dot{
+    width:18px; height:18px; border-radius:50%; background:#fff; border:3px solid var(--red);
+    box-shadow:0 2px 6px rgba(192,57,43,.25);
+  }
+  .stop .ch{ font-size:12.5px; font-weight:700; margin-top:9px; color:var(--ink); }
+  .stop .tm{ font-size:10px; color:var(--sub); margin-top:2px; }
+
+  .cta{
+    display:inline-flex; align-items:center; gap:9px; text-decoration:none;
+    background:var(--red); color:#fff; font-size:16px; font-weight:700; letter-spacing:1px;
+    padding:0 34px; height:54px; border-radius:27px;
+    box-shadow:0 8px 24px rgba(192,57,43,.34); transition:transform .15s ease;
+  }
+  .cta:active{ transform:scale(.97); }
+  .cta .tri{ font-size:13px; }
+
+  .alts{ margin-top:22px; display:flex; gap:22px; justify-content:center; flex-wrap:wrap; }
+  .alts a{ color:var(--sub); text-decoration:none; font-size:12.5px; font-weight:600; border-bottom:1px solid transparent; }
+  .alts a:active{ color:var(--red); }
+
+  footer{ margin-top:34px; font-size:10.5px; color:#b8b0a4; letter-spacing:.5px; }
+
+  @media (max-height:680px){
+    .names{ font-size:32px; } .lead{ margin:18px auto 22px; } .journey{ margin-bottom:24px; }
+  }
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>婚礼旅程 · Demo</h1>
-  <p>把散落在大家手机里的照片,放回它们被拍下的那条路上</p>
-  <a class="on" href="viewer/online.html">在线版 · 真实高德地图</a>
-  <a class="off" href="viewer/index.html">离线版 · 旅程底图</a>
-  <a class="off" href="viewer/walk.html?demo=1">🚶 走进全景 · 3D 行走(DAP 技术演示)</a>
-  <small>AdventureX 2026 · 占位素材开发版</small>
-</div>
+  <div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span></div>
+
+  <h1 class="names" id="names">陈 屹 <span class="heart">♥</span> 林 沐</h1>
+  <div class="date" id="date">2026 · 盛夏</div>
+  <div class="placeholder-tag">示例名字 · 换成真实新人即可</div>
+
+  <p class="lead">那一天,散落在每个人的手机里。<br>现在,把这些照片放回它们被拍下的地方,<br>陪你重新走一遍。</p>
+
+  <div class="journey"><div class="track" id="track"></div></div>
+
+  <a class="cta" href="viewer/online.html"><span class="tri">▶</span> 重温那一天</a>
+
+  <div class="alts">
+    <a href="viewer/index.html">离线旅程版</a>
+    <a href="viewer/walk.html?demo=1">🚶 走进全景 · 演示</a>
+  </div>
+
+  <footer>AdventureX 2026 · 占位素材开发版</footer>
+
+<script src="tour.js"></script>
+<script>
+(function(){
+  // 时间线从 tour.js 的节点动态生成:真素材换血后这里自动跟着变,不用改落地页。
+  var track = document.getElementById("track");
+  try {
+    var nodes = (window.TOUR && window.TOUR.nodes) || [];
+    if (nodes.length) {
+      track.innerHTML = nodes.map(function(n){
+        return '<div class="stop"><div class="dot"></div>' +
+               '<div class="ch">' + (n.chapter || n.name || "") + '</div>' +
+               '<div class="tm">' + (n.time || "") + '</div></div>';
+      }).join("");
+    }
+    // 若以后给 TOUR.meta 加了 couple / date 字段,这里自动采用(现在没有就保留示例名)
+    var meta = (window.TOUR && window.TOUR.meta) || {};
+    if (meta.couple) {
+      document.getElementById("names").innerHTML =
+        meta.couple.replace("&", '<span class="heart">♥</span>');
+      document.querySelector(".placeholder-tag").style.display = "none";
+    }
+    if (meta.date) document.getElementById("date").textContent = meta.date;
+  } catch (e) { /* tour.js 没加载也不影响开场,时间线留空即可 */ }
+})();
+</script>
 </body>
 </html>

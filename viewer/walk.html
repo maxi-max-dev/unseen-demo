@@ -17,7 +17,9 @@ html, body {
 
 /* ---------------- 顶部 HUD：节点名 + 深度状态 ---------------- */
 .hud-top {
-  position: fixed; top: 0; left: 0; right: 0; z-index: 5;
+  /* z-index 25 > 居中卡片(20):卡片是全屏透明遮罩,不抬高会把顶部场景 chip 的点击全吃掉
+     (7/24 实测:锁定卡片挡住换场景)。hud-top 自身 pointer-events:none,不会挡卡片按钮。 */
+  position: fixed; top: 0; left: 0; right: 0; z-index: 25;
   padding: 14px 16px 20px;
   padding-top: calc(14px + env(safe-area-inset-top, 0px));
   background: linear-gradient(#000a, transparent);
@@ -66,7 +68,7 @@ html, body {
 
 /* ---------------- 左下返回 ---------------- */
 .back-link {
-  position: fixed; z-index: 6; cursor: pointer;
+  position: fixed; z-index: 25; cursor: pointer; /* 同 hud-top:抬到锁定卡片之上,进场景没锁定也能返回 */
   left: calc(14px + env(safe-area-inset-left, 0px));
   bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   display: inline-flex; align-items: center; gap: 5px;
