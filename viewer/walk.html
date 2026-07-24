@@ -142,6 +142,38 @@ html, body {
   font-size: 12.5px; font-weight: 600; padding: 0 18px; height: 40px;
   border-radius: 20px; box-shadow: 0 4px 14px rgba(192,57,43,.4);
 }
+
+/* ---------------- 桌面十字准星（PointerLock 锁定时显示，瞄准照片时高亮）---------------- */
+.crosshair {
+  position: fixed; z-index: 6; display: none;
+  left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px;
+  pointer-events: none;
+}
+.crosshair.on { display: block; }
+.crosshair::before, .crosshair::after {
+  content: ""; position: absolute; background: rgba(255,255,255,.65);
+  transition: background .15s ease, transform .15s ease;
+}
+.crosshair::before { left: 50%; top: 2px; bottom: 2px; width: 1.5px; margin-left: -.75px; }
+.crosshair::after { top: 50%; left: 2px; right: 2px; height: 1.5px; margin-top: -.75px; }
+.crosshair.hit { transform: translate(-50%,-50%) scale(1.4); left: 50%; top: 50%; margin: 0; }
+.crosshair.hit::before, .crosshair.hit::after { background: #ffd54a; }
+
+/* ---------------- 照片灯箱：点中空间里钉的照片后放大看 ---------------- */
+.photo-lightbox {
+  position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.88);
+  display: none; align-items: center; justify-content: center; flex-direction: column;
+  padding: 24px;
+}
+.photo-lightbox.on { display: flex; }
+.photo-lightbox img { max-width: 92vw; max-height: 74vh; border-radius: 10px; box-shadow: 0 10px 50px rgba(0,0,0,.6); }
+.photo-lightbox .lbCap { color: #fff; margin-top: 14px; font-size: 13.5px; text-align: center; opacity: .9; max-width: 80vw; }
+.photo-lightbox .close {
+  position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); right: 16px;
+  color: #fff; font-size: 30px; line-height: 1; z-index: 41; cursor: pointer;
+  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
 </style>
 </head>
 <body>
@@ -159,10 +191,20 @@ html, body {
 
 <a class="back-link" id="backLink" href="index.html"><span class="chev">‹</span>返回</a>
 
-<div class="mobile-hint" id="mobileHint"><span>拖动环视 · 左下摇杆行走</span></div>
+<div class="mobile-hint" id="mobileHint"><span>拖动环视 · 左下摇杆行走 · 点相框看大图</span></div>
 
 <div class="joystick-outer" id="joystickOuter">
   <div class="joystick-knob" id="joystickKnob"></div>
+</div>
+
+<!-- 桌面端：PointerLock 锁定时的屏幕中心准星，瞄到照片会高亮 -->
+<div class="crosshair" id="crosshair"></div>
+
+<!-- 空间里钉的照片：点中后放大看 -->
+<div class="photo-lightbox" id="photoLightbox">
+  <span class="close" id="lbClose">×</span>
+  <img id="lbImg" alt="">
+  <div class="lbCap" id="lbCap"></div>
 </div>
 
 <!-- 加载中 -->
@@ -186,7 +228,7 @@ html, body {
 <div class="center-card" id="cardLock">
   <div class="card-body">
     <p id="lockMsg">点击画面开始漫游</p>
-    <p class="sub">WASD 移动 · 鼠标环视 · Shift 加速 · ESC 退出</p>
+    <p class="sub">WASD 移动 · 鼠标环视 · Shift 加速 · ESC 退出 · 瞄准相框点击看大图</p>
     <button class="relock-btn" id="lockBtn" type="button">点击锁定视角</button>
   </div>
 </div>
@@ -226,11 +268,30 @@ html, body {
   // ============================================================
   // demo/scene 模式场景清单(写死)：Poly Haven CC0 真实室内全景 + 原车间 demo
   // ============================================================
+  // photos: 空间里钉的照片点位(占位素材,tools/fixtures.py 的 equirect_to_perspective
+  // 从对应 walkdemo 全景裁出)。yaw/pitch 与 tour.js 同一约定，真实素材接入时按同结构替换即可。
+  // demo-pano(车间)不给占位照片,保持这条场景干净。
   var SCENES = [
-    { slug: "ballroom", label: "宴会厅", author: "Sergej Majboroda" },
-    { slug: "chapel_day", label: "教堂", author: "Dimitrios Savva, Jarod Guest" },
-    { slug: "comfy_cafe", label: "咖啡馆", author: "Sergej Majboroda" },
-    { slug: "entrance_hall", label: "大厅", author: "Sergej Majboroda" },
+    { slug: "ballroom", label: "宴会厅", author: "Sergej Majboroda", photos: [
+      { src: "../assets/walkdemo/ballroom_p1.jpg", yaw: 35, pitch: -3, caption: "现场照片 ①" },
+      { src: "../assets/walkdemo/ballroom_p2.jpg", yaw: 150, pitch: 2, caption: "现场照片 ②" },
+      { src: "../assets/walkdemo/ballroom_p3.jpg", yaw: 265, pitch: 0, caption: "现场照片 ③" }
+    ] },
+    { slug: "chapel_day", label: "教堂", author: "Dimitrios Savva, Jarod Guest", photos: [
+      { src: "../assets/walkdemo/chapel_day_p1.jpg", yaw: 20, pitch: 0, caption: "现场照片 ①" },
+      { src: "../assets/walkdemo/chapel_day_p2.jpg", yaw: 140, pitch: 3, caption: "现场照片 ②" },
+      { src: "../assets/walkdemo/chapel_day_p3.jpg", yaw: 250, pitch: -2, caption: "现场照片 ③" }
+    ] },
+    { slug: "comfy_cafe", label: "咖啡馆", author: "Sergej Majboroda", photos: [
+      { src: "../assets/walkdemo/comfy_cafe_p1.jpg", yaw: 30, pitch: 0, caption: "现场照片 ①" },
+      { src: "../assets/walkdemo/comfy_cafe_p2.jpg", yaw: 160, pitch: -3, caption: "现场照片 ②" },
+      { src: "../assets/walkdemo/comfy_cafe_p3.jpg", yaw: 275, pitch: 4, caption: "现场照片 ③" }
+    ] },
+    { slug: "entrance_hall", label: "大厅", author: "Sergej Majboroda", photos: [
+      { src: "../assets/walkdemo/entrance_hall_p1.jpg", yaw: 25, pitch: 2, caption: "现场照片 ①" },
+      { src: "../assets/walkdemo/entrance_hall_p2.jpg", yaw: 145, pitch: 0, caption: "现场照片 ②" },
+      { src: "../assets/walkdemo/entrance_hall_p3.jpg", yaw: 255, pitch: -3, caption: "现场照片 ③" }
+    ] },
     { slug: "demo-pano", label: "车间", author: "Oliksiy Yakovlyev" }
   ];
 
@@ -307,7 +368,12 @@ html, body {
           depthPngUrl: "../assets/depth/" + node.id + ".png",
           depthJsonUrl: "../assets/depth/" + node.id + ".json",
           title: title || "空间记忆",
-          backHref: "index.html"
+          backHref: "index.html",
+          // node.photos 已有 src/yaw/pitch/caption(见 tour.js),原样接进照片钉点,
+          // 真实素材到位只需换 tour.js 里的 photos 数组,这里零改动。
+          photos: (node.photos || []).map(function (p) {
+            return { src: "../" + p.src, yaw: p.yaw, pitch: p.pitch, caption: p.caption };
+          })
         });
       });
     } else {
@@ -321,7 +387,8 @@ html, body {
         depthPngUrl: "../assets/depth/" + scene.slug + ".png",
         depthJsonUrl: "../assets/depth/" + scene.slug + ".json",
         title: scene.label,
-        backHref: "../index.html"
+        backHref: "../index.html",
+        photos: scene.photos
       });
     }
   }
@@ -518,6 +585,154 @@ html, body {
       "  gl_FragColor = texture2D(panoMap, vec2(u, v));\n" +
       "}\n";
 
+    // ---------------- 照片钉进 3D 空间：THREE.Sprite + 点击放大 ----------------
+    var photoSprites = [];
+    var raycaster = new THREE.Raycaster();
+    var ndcCenter = new THREE.Vector2(0, 0); // 桌面：屏幕中心固定 NDC 坐标
+    var tapNDC = new THREE.Vector2();        // 移动端：tap 点转的 NDC 坐标，复用避免每次 new
+    var paused = false;      // 灯箱开着时=true，tick 里跳过走动
+    var lightboxOpen = false;
+    var PHOTO_CANVAS_SIZE = 256;
+    var PHOTO_SPRITE_SCALE = 0.32;
+
+    // 圆角矩形路径（照片贴图 + 描边共用）
+    function roundRectPath(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.arcTo(x + w, y, x + w, y + h, r);
+      ctx.arcTo(x + w, y + h, x, y + h, r);
+      ctx.arcTo(x, y + h, x, y, r);
+      ctx.arcTo(x, y, x + w, y, r);
+      ctx.closePath();
+    }
+
+    // 加载中 / 加载失败的占位：纯色圆点，不许崩
+    function drawFallbackDot(ctx, size) {
+      ctx.clearRect(0, 0, size, size);
+      var cx = size / 2, cy = size / 2, r = size * 0.34;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.fillStyle = "#c0392b";
+      ctx.fill();
+      ctx.lineWidth = size * 0.045;
+      ctx.strokeStyle = "#fff";
+      ctx.stroke();
+    }
+
+    // 缩略图加载成功：画进圆角白边 canvas(cover 裁切填满)
+    function drawPhotoFrame(ctx, size, img) {
+      ctx.clearRect(0, 0, size, size);
+      var pad = size * 0.06;
+      var inner = size - pad * 2;
+      var r = inner * 0.12;
+
+      ctx.save();
+      roundRectPath(ctx, pad, pad, inner, inner, r);
+      ctx.clip();
+      var iw = img.naturalWidth || img.width, ih = img.naturalHeight || img.height;
+      if (iw && ih) {
+        var scale = Math.max(inner / iw, inner / ih);
+        var dw = iw * scale, dh = ih * scale;
+        ctx.drawImage(img, pad + (inner - dw) / 2, pad + (inner - dh) / 2, dw, dh);
+      }
+      ctx.restore();
+
+      ctx.lineWidth = size * 0.045;
+      ctx.strokeStyle = "#fff";
+      roundRectPath(ctx, pad, pad, inner, inner, r);
+      ctx.stroke();
+    }
+
+    // 单张照片 -> 一个 Sprite。世界位置公式照抄任务约定,别自己推导(实测过差 180°)。
+    function makePhotoSprite(photo) {
+      var canvas = document.createElement("canvas");
+      canvas.width = PHOTO_CANVAS_SIZE;
+      canvas.height = PHOTO_CANVAS_SIZE;
+      var ctx = canvas.getContext("2d");
+      drawFallbackDot(ctx, PHOTO_CANVAS_SIZE); // 图片到之前先有个占位,不留空白
+
+      var canvasTex = new THREE.CanvasTexture(canvas);
+      canvasTex.minFilter = THREE.LinearFilter;
+      canvasTex.magFilter = THREE.LinearFilter;
+
+      var mat = new THREE.SpriteMaterial({ map: canvasTex, transparent: true, depthWrite: false });
+      var sprite = new THREE.Sprite(mat);
+      sprite.userData.photo = photo;
+
+      var yr = photo.yaw * Math.PI / 180, pr = photo.pitch * Math.PI / 180;
+      var dir = new THREE.Vector3(
+        Math.sin(yr) * Math.cos(pr),
+        Math.sin(pr),
+        -Math.cos(yr) * Math.cos(pr)
+      );
+      var radius = Math.max(1.0, Math.min(2.5, 0.6 * sampleDepthMeters(dir)));
+      sprite.position.copy(dir).multiplyScalar(radius);
+      sprite.scale.set(PHOTO_SPRITE_SCALE, PHOTO_SPRITE_SCALE, 1);
+
+      scene.add(sprite);
+      photoSprites.push(sprite);
+
+      // 缩略图异步加载,成功了再把 canvas 内容换成真图；失败就保留上面画好的占位圆点。
+      loader.load(photo.src, function (tex) {
+        try {
+          drawPhotoFrame(ctx, PHOTO_CANVAS_SIZE, tex.image);
+          canvasTex.needsUpdate = true;
+        } catch (e) { /* 画布绘制出问题也不影响已有占位圆点 */ }
+      }, undefined, function () { /* 加载失败,占位圆点留着,不崩 */ });
+    }
+
+    function buildPhotoSprites(photos) {
+      for (var i = 0; i < photos.length; i++) {
+        if (photos[i] && photos[i].src) makePhotoSprite(photos[i]);
+      }
+    }
+
+    // 命中测试只 intersect 照片 sprite 数组,不碰位移球(反面 BackSide 且巨大,会误命中)
+    function raycastPhotoHit(ndc) {
+      if (!photoSprites.length) return null;
+      raycaster.setFromCamera(ndc, camera);
+      var hits = raycaster.intersectObjects(photoSprites);
+      return hits.length ? hits[0].object.userData.photo : null;
+    }
+
+    function updateCrosshairHover() {
+      var el = $("crosshair");
+      if (!el) return;
+      el.classList.toggle("hit", !!raycastPhotoHit(ndcCenter));
+    }
+
+    function openPhotoLightbox(photo) {
+      $("lbImg").src = photo.src;
+      $("lbCap").textContent = photo.caption || "";
+      $("photoLightbox").classList.add("on");
+      lightboxOpen = true;
+      paused = true;
+      if (locked && document.exitPointerLock) document.exitPointerLock();
+    }
+
+    function closePhotoLightbox() {
+      $("photoLightbox").classList.remove("on");
+      lightboxOpen = false;
+      paused = false;
+      // 桌面端灯箱关掉时人已经不在 pointerlock 里了（打开灯箱时主动 exit 的），
+      // 把「点击锁定」卡片放回来，别卡在一个哪儿都点不动的空画面上。
+      if (!isTouchDevice() && !locked) {
+        $("lockMsg").textContent = "已退出漫游 · 点击画面重新锁定视角";
+        $("cardLock").classList.add("on");
+      }
+    }
+
+    // 移动端 tap 判定:抬指时移动距离 < 8px 才算 tap,交给触摸处理里的 lookDidMove 把关
+    function tryMobilePhotoTap(clientX, clientY) {
+      if (!photoSprites.length) return;
+      tapNDC.set(
+        (clientX / window.innerWidth) * 2 - 1,
+        -(clientY / window.innerHeight) * 2 + 1
+      );
+      var photo = raycastPhotoHit(tapNDC);
+      if (photo) openPhotoLightbox(photo);
+    }
+
     var mesh;
     function buildSphere() {
       if (mesh) return; // 只建一次
@@ -548,11 +763,14 @@ html, body {
       mesh.frustumCulled = false;
       scene.add(mesh);
 
+      buildPhotoSprites(opts.photos || []);
+
       $("cardLoading").classList.remove("on");
       if (!isTouchDevice()) $("cardLock").classList.add("on");
       startInput();
       renderer.setAnimationLoop(tick);
-      window.__psmWalk = { camera: camera, keys: keys }; // 调试出口(同 __psmViewer 先例,不影响功能)
+      window.__psmWalk = { camera: camera, keys: keys, scene: scene, photoSprites: photoSprites,
+        setYaw: function (deg) { yaw = deg * Math.PI / 180; }, openPhoto: function (i) { if (photoSprites[i]) openPhotoLightbox(photoSprites[i].userData.photo); } }; // 调试出口(同 __psmViewer 先例,不影响功能)
     }
 
     // ---------------- 桌面输入：PointerLock + WASD ----------------
@@ -564,9 +782,14 @@ html, body {
       locked = (document.pointerLockElement === canvasEl);
       if (locked) {
         $("cardLock").classList.remove("on");
-      } else if (!isTouchDevice()) {
-        $("lockMsg").textContent = "已退出漫游 · 点击画面重新锁定视角";
-        $("cardLock").classList.add("on");
+        $("crosshair").classList.add("on");
+      } else {
+        $("crosshair").classList.remove("on");
+        $("crosshair").classList.remove("hit");
+        if (!isTouchDevice() && !lightboxOpen) {
+          $("lockMsg").textContent = "已退出漫游 · 点击画面重新锁定视角";
+          $("cardLock").classList.add("on");
+        }
       }
     }
 
@@ -577,8 +800,19 @@ html, body {
       pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
     }
 
+    // 桌面：屏幕中心 raycast 命中照片 -> 退出锁定并开灯箱（不在此处处理移动端 tap，见 onTouchEnd）
+    function onDesktopMouseDown(e) {
+      if (!locked) return;
+      var photo = raycastPhotoHit(ndcCenter);
+      if (photo) {
+        e.preventDefault();
+        openPhotoLightbox(photo);
+      }
+    }
+
     function requestLock() {
       if (isTouchDevice()) return;
+      if (lightboxOpen) return; // 灯箱开着时，退出锁定触发的那次 click 不许把锁又抢回去
       if (canvasEl.requestPointerLock) canvasEl.requestPointerLock();
     }
 
@@ -587,6 +821,8 @@ html, body {
     var joyTouchId = null, joyCenter = { x: 0, y: 0 };
     var joyVec = { x: 0, y: 0 }; // -1..1
     var lookTouchId = null, lookLast = { x: 0, y: 0 };
+    var lookStart = { x: 0, y: 0 }, lookMoved = false; // 抬指时移动 < 8px 才算 tap(照片点击),否则是正常拖动看视角
+    var TAP_MOVE_THRESHOLD = 8;
 
     function joyHitTest(t) {
       var r = joyOuter.getBoundingClientRect();
@@ -607,6 +843,8 @@ html, body {
         } else if (lookTouchId === null) {
           lookTouchId = t.identifier;
           lookLast.x = t.clientX; lookLast.y = t.clientY;
+          lookStart.x = t.clientX; lookStart.y = t.clientY;
+          lookMoved = false;
         }
       }
       e.preventDefault();
@@ -629,6 +867,10 @@ html, body {
           yaw -= mx * TOUCH_LOOK_SENS;
           pitch -= my * TOUCH_LOOK_SENS;
           pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitch));
+          if (!lookMoved) {
+            var sdx = t.clientX - lookStart.x, sdy = t.clientY - lookStart.y;
+            if (Math.hypot(sdx, sdy) > TAP_MOVE_THRESHOLD) lookMoved = true;
+          }
         }
       }
       e.preventDefault();
@@ -643,6 +885,7 @@ html, body {
           joyKnob.style.transform = "translate(0,0)";
           joyOuter.classList.remove("dragging");
         } else if (t.identifier === lookTouchId) {
+          if (!lookMoved && !lightboxOpen) tryMobilePhotoTap(t.clientX, t.clientY);
           lookTouchId = null;
         }
       }
@@ -656,6 +899,12 @@ html, body {
       document.addEventListener("mousemove", onMouseMove);
       canvasEl.addEventListener("click", requestLock);
       $("lockBtn").addEventListener("click", requestLock);
+      canvasEl.addEventListener("mousedown", onDesktopMouseDown);
+
+      $("lbClose").addEventListener("click", closePhotoLightbox);
+      $("photoLightbox").addEventListener("click", function (e) {
+        if (e.target.id === "photoLightbox") closePhotoLightbox();
+      });
 
       if (isTouchDevice()) {
         joyOuter.classList.add("on");
@@ -688,37 +937,42 @@ html, body {
       euler.set(pitch, yaw, 0);
       camera.quaternion.setFromEuler(euler);
 
-      var moveF = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
-      var moveR = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
-      if (isTouchDevice()) {
-        moveF += -joyVec.y;
-        moveR += joyVec.x;
-      }
-      var len = Math.hypot(moveF, moveR);
-      if (len > 1) { moveF /= len; moveR /= len; }
+      if (locked) updateCrosshairHover();
 
-      if (moveF !== 0 || moveR !== 0) {
-        var sprint = keys.ShiftLeft || keys.ShiftRight;
-        var speed = BASE_SPEED * (sprint ? SPRINT_MULT : 1);
-        var fx = -Math.sin(yaw), fz = -Math.cos(yaw);
-        var rx = Math.cos(yaw), rz = -Math.sin(yaw);
-        var dx = (fx * moveF + rx * moveR) * speed * dt;
-        var dz = (fz * moveF + rz * moveR) * speed * dt;
-
-        var nx = camera.position.x + dx;
-        var nz = camera.position.z + dz;
-        var dist = Math.hypot(nx, nz);
-        if (dist > 1e-6) {
-          tmpDir.set(nx / dist, 0, nz / dist);
-          var wallDepth = sampleDepthMeters(tmpDir);
-          var maxR = Math.min(MAX_WALK_RADIUS, WALK_DEPTH_FACTOR * wallDepth);
-          if (dist > maxR) {
-            nx = (nx / dist) * maxR;
-            nz = (nz / dist) * maxR;
-          }
+      // 灯箱开着(paused=true)时跳过走动,人不动,专心看照片
+      if (!paused) {
+        var moveF = (keys.KeyW ? 1 : 0) - (keys.KeyS ? 1 : 0);
+        var moveR = (keys.KeyD ? 1 : 0) - (keys.KeyA ? 1 : 0);
+        if (isTouchDevice()) {
+          moveF += -joyVec.y;
+          moveR += joyVec.x;
         }
-        camera.position.x = nx;
-        camera.position.z = nz;
+        var len = Math.hypot(moveF, moveR);
+        if (len > 1) { moveF /= len; moveR /= len; }
+
+        if (moveF !== 0 || moveR !== 0) {
+          var sprint = keys.ShiftLeft || keys.ShiftRight;
+          var speed = BASE_SPEED * (sprint ? SPRINT_MULT : 1);
+          var fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+          var rx = Math.cos(yaw), rz = -Math.sin(yaw);
+          var dx = (fx * moveF + rx * moveR) * speed * dt;
+          var dz = (fz * moveF + rz * moveR) * speed * dt;
+
+          var nx = camera.position.x + dx;
+          var nz = camera.position.z + dz;
+          var dist = Math.hypot(nx, nz);
+          if (dist > 1e-6) {
+            tmpDir.set(nx / dist, 0, nz / dist);
+            var wallDepth = sampleDepthMeters(tmpDir);
+            var maxR = Math.min(MAX_WALK_RADIUS, WALK_DEPTH_FACTOR * wallDepth);
+            if (dist > maxR) {
+              nx = (nx / dist) * maxR;
+              nz = (nz / dist) * maxR;
+            }
+          }
+          camera.position.x = nx;
+          camera.position.z = nz;
+        }
       }
 
       renderer.render(scene, camera);

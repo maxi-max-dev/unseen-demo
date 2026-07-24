@@ -50,13 +50,29 @@ body.view-map #panorama,
 body.view-map #miniMapWrap,
 body.view-map #drawer,
 body.view-map .hint,
-body.view-map #gyroBtn { opacity: 0; pointer-events: none; }
+body.view-map #gyroBtn,
+body.view-map #walkBtn { opacity: 0; pointer-events: none; }
 body.view-pano #miniMapWrap,
 body.view-pano #drawer,
 body.view-pano .hint,
-body.view-pano #gyroBtn { opacity: 1; pointer-events: auto; }
+body.view-pano #gyroBtn,
+body.view-pano #walkBtn { opacity: 1; pointer-events: auto; }
 
-#panorama, #miniMapWrap, #drawer, .hint, #gyroBtn, #filmBtn { transition: opacity .4s ease; }
+#panorama, #miniMapWrap, #drawer, .hint, #gyroBtn, #filmBtn, #walkBtn { transition: opacity .4s ease; }
+
+/* 「走进这里」入口(全景视图):从这个点位坠入可 3D 行走的场景 */
+.walk-btn {
+  position: fixed; z-index: 5; cursor: pointer;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  display: inline-flex; align-items: center; gap: 7px;
+  background: #c0392b; color: #fff; text-decoration: none;
+  font-size: 13px; font-weight: 700; letter-spacing: .3px;
+  padding: 0 20px; height: 42px; border-radius: 21px;
+  box-shadow: 0 4px 18px rgba(192,57,43,.45);
+  -webkit-tap-highlight-color: transparent; white-space: nowrap;
+}
+.walk-btn:active { transform: translateX(-50%) scale(.96); }
 
 #mapView {
   position: fixed; inset: 0; z-index: 2; overflow: hidden;
@@ -329,6 +345,7 @@ body.view-pano #gyroBtn { opacity: 1; pointer-events: auto; }
 
 <div id="miniMapWrap"><canvas id="miniMap" width="108" height="81"></canvas></div>
 <button class="gyro-btn" id="gyroBtn" type="button" aria-label="陀螺仪环视" title="陀螺仪环视">🧭</button>
+<a class="walk-btn" id="walkBtn" href="walk.html">🚶 走进这里</a>
 
 <div class="hint" id="hint">👆 拖动环视 · 点亮点看照片</div>
 
@@ -633,12 +650,15 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     document.body.classList.add("view-" + v);
   }
 
+  var walkBtn = document.getElementById("walkBtn");
   function refreshHud(id) {
     var node = nodeById[id];
     if (!node) return;
     hudName.textContent = node.name;
     // 旅程模式下副标题显示"{环节} · {时间}"(如"接亲 · 09:08"),没有 chapter 字段时退回旧的 sub 文案
     hudSub.textContent = node.chapter ? (node.chapter + " · " + (node.time || "")) : (node.sub || "");
+    // 「走进这里」指向该点位的可 3D 行走场景(真素材换血后自动带节点照片进去)
+    if (walkBtn) walkBtn.href = "walk.html?node=" + encodeURIComponent(id);
   }
 
   function refreshHudForMapView() {
