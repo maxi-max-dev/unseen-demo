@@ -13,3 +13,14 @@ Processing done locally: downloaded the full-resolution tonemapped JPG
 (8192x4096) and downscaled with Lanczos resampling to 4096x2048
 (equirectangular 2:1) for use as a real-world indoor panorama test image
 for the DAP depth model. No other edits.
+
+ballroom.jpg — Poly Haven CC0 — 作者 Sergej Majboroda — https://polyhaven.com/a/ballroom
+chapel_day.jpg — Poly Haven CC0 — 作者 Dimitrios Savva, Jarod Guest — https://polyhaven.com/a/chapel_day
+comfy_cafe.jpg — Poly Haven CC0 — 作者 Sergej Majboroda — https://polyhaven.com/a/comfy_cafe
+entrance_hall.jpg — Poly Haven CC0 — 作者 Sergej Majboroda — https://polyhaven.com/a/entrance_hall
+
+All four downloaded via https://api.polyhaven.com/files/<slug> -> tonemapped.url
+(original 8192x4096 tonemapped JPG), downscaled with PIL Lanczos to
+4096x2048 (equirectangular 2:1), saved as JPEG quality 92. No other edits.
+No slug substitutions were needed; all four requested slugs
+(ballroom, chapel_day, comfy_cafe, entrance_hall) resolved directly.

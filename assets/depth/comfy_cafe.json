@@ -1,0 +1,14 @@
+{
+  "min": 0.010863306932151318,
+  "max": 0.06411828845739365,
+  "width": 1024,
+  "height": 512,
+  "model": "DAP",
+  "convention": "near_small",
+  "source_image": "assets/walkdemo/comfy_cafe.jpg",
+  "source_resolution": [
+    4096,
+    2048
+  ],
+  "device": "mps"
+}

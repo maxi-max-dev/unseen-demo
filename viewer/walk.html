@@ -31,6 +31,26 @@ html, body {
 }
 .hud-top .depth-warn.hide { display: none; }
 
+/* ---------------- 场景切换 chip 排(仅 demo/scene 模式显示) ---------------- */
+.scene-chips {
+  display: none; margin-top: 10px; gap: 8px;
+  overflow-x: auto; white-space: nowrap;
+  -webkit-overflow-scrolling: touch;
+  pointer-events: auto; /* hud-top 整体 pointer-events:none,这里单独打开 */
+  scrollbar-width: none;
+}
+.scene-chips::-webkit-scrollbar { display: none; }
+.scene-chips.on { display: flex; }
+.scene-chips .chip {
+  flex: none; display: inline-flex; align-items: center;
+  background: rgba(246,244,239,.92); color: #4a4a46; text-decoration: none;
+  font-size: 12px; font-weight: 600; padding: 6px 14px; border-radius: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,.2);
+  -webkit-tap-highlight-color: transparent;
+}
+.scene-chips .chip:active { transform: scale(.96); }
+.scene-chips .chip.active { background: #c0392b; color: #fff; }
+
 /* ---------------- 右上角来源徽章 ---------------- */
 .hud-badge {
   position: fixed; z-index: 5; pointer-events: none;
@@ -130,6 +150,7 @@ html, body {
 
 <div class="hud-top">
   <h1 id="hudTitle">加载中…</h1>
+  <div class="scene-chips" id="sceneChips"></div>
   <span class="depth-warn hide" id="hudDepthWarn">深度未生成，当前为普通全景</span>
 </div>
 
@@ -203,6 +224,17 @@ html, body {
   var YAW_OFFSET = Math.PI;
 
   // ============================================================
+  // demo/scene 模式场景清单(写死)：Poly Haven CC0 真实室内全景 + 原车间 demo
+  // ============================================================
+  var SCENES = [
+    { slug: "ballroom", label: "宴会厅", author: "Sergej Majboroda" },
+    { slug: "chapel_day", label: "教堂", author: "Dimitrios Savva, Jarod Guest" },
+    { slug: "comfy_cafe", label: "咖啡馆", author: "Sergej Majboroda" },
+    { slug: "entrance_hall", label: "大厅", author: "Sergej Majboroda" },
+    { slug: "demo-pano", label: "车间", author: "Oliksiy Yakovlyev" }
+  ];
+
+  // ============================================================
   // 小工具
   // ============================================================
   function qs(name) { return new URLSearchParams(location.search).get(name); }
@@ -232,6 +264,26 @@ html, body {
     document.head.appendChild(s);
   }
 
+  function findScene(slug) {
+    for (var i = 0; i < SCENES.length; i++) {
+      if (SCENES[i].slug === slug) return SCENES[i];
+    }
+    return null;
+  }
+
+  // 场景切换 chip 排：只在 demo/scene 模式调用,node 模式永不调用(容器默认 display:none)
+  function renderSceneChips(activeSlug) {
+    var container = $("sceneChips");
+    var html = "";
+    for (var i = 0; i < SCENES.length; i++) {
+      var s = SCENES[i];
+      var cls = "chip" + (s.slug === activeSlug ? " active" : "");
+      html += '<a class="' + cls + '" href="?scene=' + encodeURIComponent(s.slug) + '">' + s.label + "</a>";
+    }
+    container.innerHTML = html;
+    container.classList.add("on");
+  }
+
   function boot() {
     var nodeId = qs("node");
     if (nodeId) {
@@ -259,13 +311,16 @@ html, body {
         });
       });
     } else {
-      // 演示全景来自 Poly Haven(CC0),署名只在 demo 模式追加
-      $("licLine").textContent += " · 演示全景 Poly Haven CC0";
+      // demo/scene 模式：?scene=<slug> 指定场景，?demo=1 或无参数缺省 ballroom。
+      // 场景不在清单里(拼错/旧链接)也静默回落到 SCENES[0]。
+      var scene = findScene(qs("scene")) || SCENES[0];
+      renderSceneChips(scene.slug);
+      $("licLine").textContent = "全景 © " + scene.author + " · Poly Haven CC0 · 深度 DAP © Insta360 Research CC BY-NC 4.0";
       startWalk({
-        panoUrl: "../assets/walkdemo/demo-pano.jpg",
-        depthPngUrl: "../assets/depth/demo-pano.png",
-        depthJsonUrl: "../assets/depth/demo-pano.json",
-        title: "真实全景演示",
+        panoUrl: "../assets/walkdemo/" + scene.slug + ".jpg",
+        depthPngUrl: "../assets/depth/" + scene.slug + ".png",
+        depthJsonUrl: "../assets/depth/" + scene.slug + ".json",
+        title: scene.label,
         backHref: "../index.html"
       });
     }

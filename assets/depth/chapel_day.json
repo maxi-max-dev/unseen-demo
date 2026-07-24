@@ -1,0 +1,14 @@
+{
+  "min": 0.010338076390326023,
+  "max": 0.1951124370098114,
+  "width": 1024,
+  "height": 512,
+  "model": "DAP",
+  "convention": "near_small",
+  "source_image": "assets/walkdemo/chapel_day.jpg",
+  "source_resolution": [
+    4096,
+    2048
+  ],
+  "device": "mps"
+}
