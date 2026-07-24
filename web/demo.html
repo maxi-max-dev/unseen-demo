@@ -102,7 +102,10 @@ h1{ font-size:clamp(29px,7.4vw,54px); line-height:1.08; font-weight:700; color:v
     margin:6px 0 0; letter-spacing:-.01em; }
 h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:var(--ink); margin:4px 0 0; }
 .lede{ font-size:15px; color:var(--ink-2); margin:10px 0 0; max-width:34em; }
-.tiny{ font-size:12px; color:var(--ink-3); line-height:1.6; }
+/* overflow-wrap:anywhere 是给「server/spaces/s4/space.json」这种长路径准备的：
+   26 个字符中间没有可断行的地方，320px 的窄屏上它会把整块内容顶出视口（实测溢出 20px）。 */
+.tiny{ font-size:12px; color:var(--ink-3); line-height:1.6; overflow-wrap:anywhere; }
+code{ overflow-wrap:anywhere; }
 
 .card{ background:var(--card); border:1px solid var(--line); border-radius:18px;
        box-shadow:var(--shadow); padding:16px; }
@@ -164,6 +167,8 @@ h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:va
 /* 手机上一屏要同时看得见：罗盘（照片飞到哪）+ 手机（照片从哪飞出来）+ 读数（凭什么这么判）
    任何一个掉到屏幕外，这一幕就废了一半 */
 .stage2 .duo{ display:grid; grid-template-columns:minmax(0,46fr) minmax(0,54fr); gap:10px; align-items:start; }
+/* iPhone SE 这一档（320px）两列各自只剩一百多像素，读数挤成面条，直接改成上下排 */
+@media (max-width:340px){ .stage2 .duo{ grid-template-columns:1fr; } }
 .compass-wrap{ position:relative; display:grid; place-items:center; }
 .compass{ width:min(53vw,244px); height:auto; overflow:visible; }
 .compass-cap{ position:absolute; text-align:center; pointer-events:none; }
@@ -196,7 +201,12 @@ h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:va
 
 /* 飞行中的照片：动画的主角，必须显眼 */
 #flyer{
-  position:fixed; z-index:60; width:96px; border-radius:12px; overflow:hidden;
+  /* top/left 必须写死 0：position:fixed 但 top/left 是 auto 时，
+     它的起始盒子取的是【文档流里的静态位置】，不是视口原点。
+     而 JS 里的 translate() 传的是 getBoundingClientRect() 算出来的视口绝对坐标，
+     两者叠加，整张卡片被推到视口下方一千多像素，飞行全程根本看不见。 */
+  position:fixed; top:0; left:0;
+  z-index:60; width:96px; border-radius:12px; overflow:hidden;
   box-shadow:0 14px 34px rgba(214,124,140,.4); opacity:0; pointer-events:none;
   border:2px solid #fff;
   /* 只过渡 transform 和 opacity：这两个跑在合成线程上，主线程再忙也不影响插值。
@@ -792,9 +802,10 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
            (isVerdict ? '<span class="pill ok">✓ ' + esc(r[1]) + '</span>'
                       : '<span class="v">' + esc(r[1]) + '</span>') + '</div>';
   }).join("") +
+  // 这里只写短名：右栏在 390px 下只有一百七十来像素，
+  // 整条 server/spaces/s4/space.json 会被迫断在词中间，很难看。完整出处在第⑤幕底下写着。
   '<div class="tiny" style="margin-top:4px">门槛 匹配度 ≥ ' + D.stats.confMin +
-  ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。数字来自 ' +
-  esc(D.generatedFrom) + '。</div>';
+  ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。<br>数字来自 <code>s4/space.json</code>，没有一个是手打的。</div>';
 
   // 罗盘上那两段弧不许只是好看：说清各自是什么，否则看着像随手画的进度条
   $("compassLegend").innerHTML =
@@ -1131,9 +1142,14 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     "门槛 匹配度 ≥ " + C.confMin + " 且 辨识度 ≥ " + C.marginMin + "。";
 
   /* ════════ 第⑥幕 ════════ */
-  $("filmNote").textContent =
-    "79 秒，镜头路线是按每张照片的方位自动排的。片子里 12 张照片有 11 张的落点，" +
-    "被一套独立写的暴力搜索核实过（偏差 0 到 2 度）。";
+  // 「11/12、偏差 0 到 2 度」这组数不是这一页算出来的，是上一轮一个独立验收员
+  // 写暴力搜索量的，原始日志不在仓库里。第 2 轮验收员照着页面去找出处没找到 ——
+  // 那就不能像本页其它数字一样平铺直叙地写，必须把来源摆在明面上。
+  $("filmNote").innerHTML =
+    "79 秒（实测 79.4 秒），镜头路线是按每张照片的方位自动排的。<br>" +
+    "<span style='color:var(--ink-3)'>另据上一轮独立验收员的记录：他自己写了一套暴力搜索，" +
+    "把全景逐度重切去和片中照片做相关，12 张里 11 张落在相关峰值上（偏差 0 到 2 度）。" +
+    "那次的原始日志没留在仓库里，这条只算旁证，不当本页的实测数字用。</span>";
 
   /* ════════ 断网 / 有后端 的招牌 ════════ */
   function refreshBadge(){
