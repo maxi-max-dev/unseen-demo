@@ -1,0 +1,924 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UNSEEN · 六幕演示</title>
+<meta name="description" content="把散在每个人手机里的照片，放回它被拍下的那个方位。六幕演示动线。">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   UNSEEN 皮肤 · 参数出处见仓库根目录 DESIGN-UNSEEN.md
+   （Max 的美术队友出的基准图 → 翻译成 token）
+   ═══════════════════════════════════════════════════════════════════ */
+:root{
+  --bg-1:#FFF3F1; --bg-2:#FFF7EE; --bg-3:#FFEFE3;
+  --pink:#FF7FA8; --pink-hot:#FF5C8A; --gold:#FFC981; --gold-deep:#F6A94A;
+  --ink:#3E2430; --ink-2:#5C3B48; --ink-3:#9A7C86;
+  --card:#fff; --line:rgba(255,170,185,.28);
+  --shadow:0 10px 34px rgba(214,124,140,.13);
+  --grad:linear-gradient(100deg,var(--pink),var(--gold));
+  --ok-bg:#E5F5EA; --ok-fg:#3F8C60;
+  --warn-bg:#FEF0DC; --warn-fg:#C97F1E;
+  --mute-bg:#F0EBED; --mute-fg:#8B7F85;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif;
+  --bar:calc(96px + env(safe-area-inset-bottom,0px));
+}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html,body{ margin:0; padding:0; height:100%; }
+body{
+  font-family:var(--sans); color:var(--ink-2); line-height:1.7;
+  background:
+    radial-gradient(120% 80% at 50% -20%, rgba(255,255,255,.92), rgba(255,255,255,0) 60%),
+    linear-gradient(150deg, var(--bg-1) 0%, var(--bg-2) 48%, var(--bg-3) 100%);
+  background-attachment:fixed;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+img{ max-width:100%; display:block; }
+button{ font:inherit; color:inherit; }
+
+/* ── 光斑 + 胶片齿孔带：基准图的辨识度有一半在光上 ───────────────── */
+.bokeh{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.bokeh i{
+  position:absolute; border-radius:50%; filter:blur(26px);
+  animation:drift linear infinite;
+}
+@keyframes drift{
+  0%{ transform:translate3d(0,0,0) scale(1); }
+  50%{ transform:translate3d(14px,-22px,0) scale(1.12); }
+  100%{ transform:translate3d(0,0,0) scale(1); }
+}
+.film-strip{
+  position:fixed; z-index:0; pointer-events:none; opacity:.5;
+  left:-14%; width:128%; height:52px; transform:rotate(-7deg);
+  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75) 18%,rgba(255,255,255,.75) 82%,rgba(255,255,255,0));
+}
+.film-strip::before,.film-strip::after{
+  content:""; position:absolute; left:0; right:0; height:9px;
+  background-image:repeating-linear-gradient(90deg,rgba(214,150,120,.34) 0 8px,transparent 8px 20px);
+}
+.film-strip::before{ top:6px; } .film-strip::after{ bottom:6px; }
+.fs-a{ top:16%; } .fs-b{ top:71%; transform:rotate(6deg); opacity:.34; }
+
+/* ── 顶栏 ──────────────────────────────────────────────────────── */
+.topbar{
+  position:fixed; top:0; left:0; right:0; z-index:40;
+  display:flex; align-items:center; gap:10px;
+  padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;
+  background:rgba(255,250,248,.82); backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px); border-bottom:1px solid var(--line);
+}
+.wordmark{ display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--ink); }
+.wordmark b{ font-size:14px; font-weight:500; letter-spacing:.3em; }
+.wordmark span{ font-size:11px; color:var(--ink-3); letter-spacing:.06em; }
+@media (max-width:430px){ .wordmark span{ display:none; } }
+.dots{ margin-left:auto; display:flex; gap:6px; }
+.dots button{
+  width:22px; height:22px; padding:0; border:0; background:transparent;
+  font-size:11px; color:var(--ink-3); border-radius:50%; cursor:pointer;
+  font-variant-numeric:tabular-nums; transition:.2s;
+}
+.dots button[aria-current="true"]{ background:var(--grad); color:#fff; font-weight:600;
+  box-shadow:0 3px 10px rgba(255,124,160,.4); }
+
+/* ── 幕 ────────────────────────────────────────────────────────── */
+main{ position:relative; z-index:1; }
+.act{
+  display:none; min-height:100vh; min-height:100dvh;
+  padding:calc(74px + env(safe-area-inset-top,0px)) 18px calc(var(--bar) + 12px);
+  max-width:860px; margin:0 auto;
+  flex-direction:column; justify-content:center; gap:16px;
+}
+.act.on{ display:flex; animation:actin .5s cubic-bezier(.2,.7,.3,1) both; }
+@keyframes actin{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
+
+.eyebrow{ font-size:11.5px; letter-spacing:.24em; color:var(--gold-deep); font-weight:700; }
+h1{ font-size:clamp(29px,7.4vw,54px); line-height:1.08; font-weight:700; color:var(--ink);
+    margin:6px 0 0; letter-spacing:-.01em; }
+h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:var(--ink); margin:4px 0 0; }
+.lede{ font-size:15px; color:var(--ink-2); margin:10px 0 0; max-width:34em; }
+.tiny{ font-size:12px; color:var(--ink-3); line-height:1.6; }
+
+.card{ background:var(--card); border:1px solid var(--line); border-radius:18px;
+       box-shadow:var(--shadow); padding:16px; }
+.glass{ background:rgba(255,255,255,.74); backdrop-filter:blur(14px);
+        -webkit-backdrop-filter:blur(14px); border:1px solid var(--line);
+        border-radius:18px; box-shadow:var(--shadow); }
+.pill{ display:inline-flex; align-items:center; gap:5px; border-radius:999px;
+       padding:3px 11px; font-size:11.5px; font-weight:600; white-space:nowrap; }
+.pill.ok{ background:var(--ok-bg); color:var(--ok-fg); }
+.pill.warn{ background:var(--warn-bg); color:var(--warn-fg); }
+.pill.mute{ background:var(--mute-bg); color:var(--mute-fg); }
+.btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
+      background:var(--grad); color:#fff; border:0; border-radius:14px;
+      padding:13px 22px; font-size:15px; font-weight:600; cursor:pointer;
+      box-shadow:0 8px 22px rgba(255,124,160,.34); text-decoration:none;
+      transition:transform .18s, box-shadow .18s; }
+.btn:active{ transform:translateY(1px) scale(.99); }
+.btn.ghost{ background:rgba(255,255,255,.9); color:var(--ink-2);
+            border:1px solid var(--line); box-shadow:none; font-weight:600; }
+.row{ display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+
+/* ── 底部字幕条（每幕的台词就在界面上，队友不用听人解说）───────── */
+.subtitle{
+  position:fixed; left:0; right:0; bottom:0; z-index:45;
+  padding:12px 14px calc(12px + env(safe-area-inset-bottom,0px));
+  background:rgba(62,36,48,.9); backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px); color:#fff;
+  display:flex; align-items:center; gap:12px;
+}
+.subtitle p{ margin:0; font-size:13.5px; line-height:1.55; flex:1; min-width:0;
+             color:rgba(255,255,255,.94); }
+.nav{ display:flex; gap:8px; flex:none; }
+.nav button{
+  width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.22);
+  background:rgba(255,255,255,.1); color:#fff; font-size:17px; cursor:pointer;
+  display:grid; place-items:center; transition:.18s;
+}
+.nav button:disabled{ opacity:.3; cursor:default; }
+.nav button.next{ background:var(--grad); border-color:transparent;
+                  box-shadow:0 6px 18px rgba(255,124,160,.4); }
+.progress{ position:absolute; left:0; top:0; height:2px; background:var(--grad);
+           transition:width .45s cubic-bezier(.2,.7,.3,1); }
+
+/* ═════ 第①幕 ═════ */
+.hero-mark{ display:grid; place-items:center; margin-bottom:6px; }
+.logo-glow{ filter:drop-shadow(0 8px 26px rgba(255,140,175,.36)); }
+
+/* ═════ 第②幕 · 归位动画 ═════ */
+.stage2{ position:relative; display:grid; gap:12px; }
+/* 手机上一屏要同时看得见：罗盘（照片飞到哪）+ 手机（照片从哪飞出来）+ 读数（凭什么这么判）
+   任何一个掉到屏幕外，这一幕就废了一半 */
+.stage2 .duo{ display:grid; grid-template-columns:minmax(0,46fr) minmax(0,54fr); gap:10px; align-items:start; }
+.compass-wrap{ position:relative; display:grid; place-items:center; }
+.compass{ width:min(58vw,262px); height:auto; overflow:visible; }
+.compass-cap{ position:absolute; text-align:center; pointer-events:none; }
+.compass-cap .big{ font-size:26px; font-weight:700; color:var(--ink);
+                   font-variant-numeric:tabular-nums; line-height:1.1; }
+.compass-cap .sub{ font-size:11.5px; color:var(--ink-3); }
+.tick{ transition:opacity .3s; }
+.tick.new{ animation:pop .6s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes pop{ 0%{ transform:scale(.2); opacity:0; } 100%{ transform:scale(1); opacity:1; } }
+
+.phone{
+  width:100%; max-width:210px; margin:0 auto; border-radius:24px; padding:8px;
+  background:linear-gradient(160deg,#fff,#ffeef2);
+  border:1px solid var(--line); box-shadow:0 16px 40px rgba(214,124,140,.2);
+}
+.phone-screen{ border-radius:18px; overflow:hidden; background:#fff; }
+.phone-head{ padding:8px 10px 6px; border-bottom:1px solid var(--line); }
+.phone-head b{ font-size:11.5px; color:var(--ink); letter-spacing:.2em; }
+.wanted{ padding:9px 10px; }
+.wanted img{ width:100%; height:74px; object-fit:cover; border-radius:10px; }
+.wanted .t{ font-size:12px; font-weight:700; color:var(--ink); margin-top:6px; }
+.wanted .b{ font-size:11px; color:var(--ink-3); }
+.slot{ margin:8px 10px 10px; min-height:78px; border-radius:12px;
+       border:1.5px dashed rgba(255,140,175,.5); display:grid; place-items:center;
+       font-size:11.5px; color:var(--ink-3); overflow:hidden; text-align:center; padding:4px; }
+/* 落位回执：手机槽只有一百来像素宽，用 .pill 那种 nowrap 的胶囊会直接顶出去 */
+.slot .done{ background:var(--ok-bg); color:var(--ok-fg); border-radius:10px;
+             padding:6px 8px; font-size:11px; font-weight:700; line-height:1.5;
+             max-width:100%; }
+
+/* 飞行中的照片：动画的主角，必须显眼 */
+#flyer{
+  position:fixed; z-index:60; width:96px; border-radius:12px; overflow:hidden;
+  box-shadow:0 14px 34px rgba(214,124,140,.4); opacity:0; pointer-events:none;
+  border:2px solid #fff;
+  transition:transform 1.5s cubic-bezier(.35,.02,.2,1), opacity .3s, width 1.5s cubic-bezier(.35,.02,.2,1);
+}
+#flyer img{ width:100%; height:72px; object-fit:cover; }
+#flyer.lit{ opacity:1; }
+.beam{ position:fixed; z-index:55; height:2px; transform-origin:0 50%;
+       background:linear-gradient(90deg,rgba(255,124,160,0),rgba(255,124,160,.9),rgba(255,201,129,.9));
+       opacity:0; pointer-events:none; transition:opacity .4s; border-radius:2px; }
+.beam.lit{ opacity:1; }
+.burst{ position:fixed; z-index:58; width:16px; height:16px; border-radius:50%;
+        background:radial-gradient(circle,#fff,rgba(255,190,140,.9),rgba(255,124,160,0));
+        opacity:0; pointer-events:none; }
+.burst.go{ animation:burst .9s ease-out both; }
+@keyframes burst{ 0%{ opacity:1; transform:scale(.4); } 100%{ opacity:0; transform:scale(7); } }
+
+.readout{ display:grid; gap:6px; }
+.readout .line{ display:flex; align-items:center; gap:6px; font-size:12px; flex-wrap:wrap;
+                opacity:0; transform:translateY(6px); transition:.4s; }
+.readout .line.in{ opacity:1; transform:none; }
+.readout .k{ color:var(--ink-3); min-width:3.6em; font-size:11.5px; }
+.readout .v{ font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+
+/* ═════ 第③幕 · 走进空间 ═════ */
+.frame-wrap{ position:relative; border-radius:18px; overflow:hidden;
+             border:1px solid var(--line); box-shadow:var(--shadow); background:#1a1418;
+             aspect-ratio:9/13; max-height:56vh; }
+.frame-wrap iframe{ width:100%; height:100%; border:0; display:block; }
+.frame-cover{ position:absolute; inset:0; display:grid; place-items:center; gap:10px;
+              align-content:center; text-align:center; padding:20px; color:#fff; }
+.frame-cover.off{ display:none; }
+/* 封面图铺满，压一层暗罩把字托起来。压罩必须是伪元素，
+   用 z-index:-1 把 <img> 塞到父级背景后面会直接看不见（撞过一次）。 */
+.frame-cover img.poster{ position:absolute; inset:0; width:100%; height:100%;
+                         object-fit:cover; }
+.frame-cover::after{ content:""; position:absolute; inset:0;
+      background:linear-gradient(180deg,rgba(62,36,48,.28),rgba(62,36,48,.78)); }
+.frame-cover > :not(.poster){ position:relative; z-index:1; }
+
+/* ═════ 第④幕 · 多视角 ═════ */
+.strip{ position:relative; height:76px; border-radius:14px; overflow:hidden;
+        border:1px solid var(--line); box-shadow:var(--shadow); background:#f6ecec; }
+/* 全景条用 repeat-x 的背景而不是一张 <img>：方位转到 0° 附近时要能绕回去接上，
+   单张图在那里会露出一大块空白，看着像图没加载。 */
+.strip .pano{ position:absolute; inset:0; background-repeat:repeat-x;
+              background-position:0 center; transition:background-position .7s cubic-bezier(.2,.7,.3,1); }
+.strip .marker{ position:absolute; top:0; bottom:0; width:2px; background:var(--pink-hot);
+                box-shadow:0 0 12px rgba(255,92,138,.9); left:50%; }
+.strip .lbl{ position:absolute; left:50%; bottom:5px; transform:translateX(-50%);
+             background:rgba(62,36,48,.82); color:#fff; font-size:10.5px;
+             padding:2px 8px; border-radius:999px; white-space:nowrap; }
+.eyes{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+.eye{ border:0; padding:0; background:transparent; cursor:pointer; text-align:left; }
+.eye .thumb{ border-radius:12px; overflow:hidden; border:2px solid transparent;
+             box-shadow:var(--shadow); transition:.22s; background:#fff; }
+.eye .thumb img{ width:100%; height:58px; object-fit:cover; }
+.eye[aria-current="true"] .thumb{ border-color:var(--pink-hot);
+             box-shadow:0 10px 26px rgba(255,92,138,.34); transform:translateY(-3px); }
+.eye .who{ font-size:11px; color:var(--ink-3); margin-top:5px; text-align:center; }
+.eye[aria-current="true"] .who{ color:var(--ink); font-weight:700; }
+.bigview{ border-radius:18px; overflow:hidden; border:1px solid var(--line);
+          box-shadow:var(--shadow); background:#fff; }
+.bigview img{ width:100%; aspect-ratio:16/11; object-fit:cover; }
+.bigview .meta{ padding:10px 14px; display:flex; align-items:center; gap:10px;
+                flex-wrap:wrap; font-size:12.5px; }
+.bigview .meta b{ color:var(--ink); }
+
+/* ═════ 第⑤幕 · 主办后台 ═════ */
+.headline-stat{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
+.headline-stat .n{ font-size:clamp(34px,9vw,52px); font-weight:700; line-height:1;
+                   background:var(--grad); -webkit-background-clip:text;
+                   background-clip:text; color:transparent;
+                   font-variant-numeric:tabular-nums; }
+.kpis{ display:grid; grid-template-columns:repeat(auto-fit,minmax(96px,1fr)); gap:8px; }
+.kpi{ background:rgba(255,255,255,.8); border:1px solid var(--line); border-radius:14px;
+      padding:10px 12px; }
+.kpi .n{ font-size:22px; font-weight:700; color:var(--ink); font-variant-numeric:tabular-nums; }
+.kpi .l{ font-size:11px; color:var(--ink-3); }
+.wall{ display:grid; grid-template-columns:repeat(auto-fill,minmax(96px,1fr)); gap:8px; }
+.wanted-card{ position:relative; border-radius:12px; overflow:hidden; border:1px solid var(--line);
+              background:#fff; box-shadow:0 4px 14px rgba(214,124,140,.1); }
+.wanted-card img{ width:100%; height:62px; object-fit:cover; }
+.wanted-card .cap{ padding:5px 7px 7px; }
+.wanted-card .cap b{ display:block; font-size:11px; color:var(--ink); }
+.wanted-card .cap em{ font-style:normal; font-size:10px; color:var(--ink-3); }
+.wanted-card .badge{ position:absolute; top:5px; right:5px; font-size:9.5px;
+                     padding:2px 7px; border-radius:999px; font-weight:700; }
+.wanted-card.open .badge{ background:var(--warn-bg); color:var(--warn-fg); }
+.wanted-card.filled .badge{ background:var(--ok-bg); color:var(--ok-fg); }
+.wanted-card .fill-in{ position:absolute; inset:0; opacity:0; transition:opacity .55s; }
+.wanted-card .fill-in img{ width:100%; height:100%; object-fit:cover; }
+.wanted-card.filling .fill-in{ opacity:1; }
+.wanted-card.filling{ outline:2px solid var(--pink-hot); outline-offset:1px;
+                      box-shadow:0 8px 26px rgba(255,92,138,.4); }
+.wanted-card .stamp{ position:absolute; left:0; right:0; bottom:0; z-index:2;
+      background:rgba(62,36,48,.86); color:#fff; font-size:10.5px; text-align:center;
+      padding:4px 6px; transform:translateY(110%); transition:transform .4s .35s; }
+.wanted-card.filling .stamp{ transform:none; }
+.review-list{ display:grid; gap:8px; }
+.review-item{ display:flex; gap:10px; align-items:center; background:rgba(255,255,255,.82);
+              border:1px solid var(--line); border-radius:14px; padding:8px; }
+.review-item img{ width:56px; height:44px; object-fit:cover; border-radius:9px; flex:none; }
+.review-item .txt{ min-width:0; font-size:11.5px; color:var(--ink-3); line-height:1.5; }
+.review-item .txt b{ color:var(--ink); font-size:12px; display:block; }
+
+/* ═════ 第⑥幕 ═════ */
+video{ width:100%; border-radius:18px; border:1px solid var(--line);
+       box-shadow:var(--shadow); background:#1a1418; display:block; }
+.vision{ text-align:center; display:grid; gap:12px; place-items:center; }
+.vision .lines{ font-size:clamp(17px,4.6vw,25px); line-height:1.6; font-weight:600;
+                color:var(--ink); max-width:20em; }
+
+/* ── DemoMode 角标 ────────────────────────────────────────────────
+   放进顶栏而不是浮在右下角：浮着的话每一幕最后一行字都可能被它压住，
+   而这一页恰好每一幕的底部都有话要说。 */
+.demomode{ font-size:10px; padding:3px 8px; border-radius:999px; white-space:nowrap;
+           background:rgba(255,255,255,.85); border:1px solid var(--line);
+           color:var(--ink-3); flex:none; }
+
+@media (min-width:720px){
+  .act{ padding-left:32px; padding-right:32px; }
+  .frame-wrap{ aspect-ratio:16/10; max-height:62vh; }
+  .eye .thumb img{ height:96px; }
+  .subtitle p{ font-size:15px; }
+}
+@media (prefers-reduced-motion:reduce){
+  *{ animation-duration:.01ms !important; transition-duration:.01ms !important; }
+  .bokeh{ display:none; }
+}
+</style>
+</head>
+<body>
+
+<div class="bokeh" id="bokeh" aria-hidden="true"></div>
+<div class="film-strip fs-a" aria-hidden="true"></div>
+<div class="film-strip fs-b" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="wordmark" href="../index.html">
+    <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true"><use href="#uLogo"/></svg>
+    <b>UNSEEN</b><span>空间记忆</span>
+  </a>
+  <span class="demomode" id="demoBadge">演示模式</span>
+  <nav class="dots" id="dots" aria-label="六幕"></nav>
+</header>
+
+<!-- 品牌标记：三个视角叠在一起，中间那块才是完整的记忆 -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="uLogo" viewBox="0 0 64 64">
+    <g style="mix-blend-mode:multiply">
+      <circle cx="32" cy="24" r="17" fill="#FF9FC0" opacity=".55"/>
+      <circle cx="23" cy="39" r="17" fill="#FF6E9E" opacity=".55"/>
+      <circle cx="41" cy="39" r="17" fill="#FFC26B" opacity=".55"/>
+    </g>
+    <path d="M32 44.5c-5.6-4-8.4-6.9-8.4-10.2a4.5 4.5 0 0 1 8.4-2.3 4.5 4.5 0 0 1 8.4 2.3c0 3.3-2.8 6.2-8.4 10.2z"
+          fill="#fff" opacity=".96"/>
+  </symbol>
+</defs></svg>
+
+<main id="stage">
+
+  <!-- ═══════ ① 开场 ═══════ -->
+  <section class="act" id="act1" aria-label="第一幕 开场">
+    <div class="hero-mark">
+      <svg class="logo-glow" width="112" height="112" viewBox="0 0 64 64" aria-label="UNSEEN"><use href="#uLogo"/></svg>
+    </div>
+    <div style="text-align:center">
+      <div class="eyebrow">错过的五分钟</div>
+      <h1>那五分钟<br>其实被拍下来了</h1>
+      <p class="lede" style="margin-left:auto;margin-right:auto">
+        婚礼那天，她错过了大厅里最好笑的五分钟。<br>
+        一百部手机在场，那五分钟其实被拍下来了，<br>
+        但它们死在了各自的手机里。
+      </p>
+    </div>
+    <div class="row" style="justify-content:center;margin-top:6px">
+      <span class="pill mute">六幕 · 约 3 分钟</span>
+      <span class="pill mute">← → 或滑动翻幕</span>
+    </div>
+  </section>
+
+  <!-- ═══════ ② 宾客上传 · 归位动画 ═══════ -->
+  <section class="act" id="act2" aria-label="第二幕 宾客上传">
+    <div>
+      <div class="eyebrow">第二幕 · 宾客</div>
+      <h2>扫码，传一张，看着它回到原地</h2>
+    </div>
+
+    <div class="stage2">
+      <div class="compass-wrap">
+        <svg class="compass" id="compass" viewBox="0 0 260 260" aria-label="方位罗盘">
+          <defs>
+            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#FF7FA8"/><stop offset="100%" stop-color="#FFC981"/>
+            </linearGradient>
+          </defs>
+          <circle cx="130" cy="130" r="112" fill="none" stroke="var(--line)" stroke-width="1"/>
+          <circle cx="130" cy="130" r="92" fill="none" stroke="rgba(255,170,185,.18)" stroke-width="1"/>
+          <circle cx="130" cy="130" r="112" fill="none" stroke="url(#ringGrad)" stroke-width="2.5"
+                  stroke-dasharray="0 999" id="ringArc" stroke-linecap="round"
+                  transform="rotate(-90 130 130)"/>
+          <g id="ticks"></g>
+          <g id="taskArcs"></g>
+          <circle cx="130" cy="130" r="3" fill="var(--ink)"/>
+          <text x="130" y="14" text-anchor="middle" font-size="9" fill="#9A7C86">0°</text>
+          <text x="252" y="133" text-anchor="end" font-size="9" fill="#9A7C86">90°</text>
+          <text x="130" y="254" text-anchor="middle" font-size="9" fill="#9A7C86">180°</text>
+          <text x="8" y="133" font-size="9" fill="#9A7C86">270°</text>
+        </svg>
+        <div class="compass-cap" id="compassCap">
+          <div class="big" id="capBig">—</div>
+          <div class="sub" id="capSub">等一张照片</div>
+        </div>
+      </div>
+
+      <div class="duo">
+        <div class="phone" id="phone">
+          <div class="phone-screen">
+            <div class="phone-head"><b>UNSEEN</b> <span class="tiny" id="phNick">· 宾客</span></div>
+            <div class="wanted" id="phWanted"></div>
+            <div class="slot" id="phSlot">扫码进来，选一张交上去</div>
+          </div>
+        </div>
+
+        <div class="glass" style="padding:12px">
+          <div class="readout" id="readout"></div>
+        </div>
+      </div>
+
+      <div class="row" style="justify-content:center">
+        <button class="btn" id="replay2">▶ 再放一遍归位</button>
+        <a class="btn ghost" id="realJoin" href="join.html?s=s4" target="_blank" rel="noopener">打开真的宾客端</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ③ 走进空间 ═══════ -->
+  <section class="act" id="act3" aria-label="第三幕 走进空间">
+    <div>
+      <div class="eyebrow">第三幕 · 空间</div>
+      <h2>照片挂在它被拍下的方位上</h2>
+    </div>
+    <div class="frame-wrap" id="walkWrap">
+      <iframe id="walkFrame" title="全景漫游" allow="fullscreen" loading="lazy"></iframe>
+      <div class="frame-cover" id="walkCover">
+        <img class="poster" id="walkPoster" alt="">
+        <svg width="54" height="54" viewBox="0 0 64 64" aria-hidden="true"><use href="#uLogo"/></svg>
+        <div style="font-size:15px;font-weight:700">走进宴会厅</div>
+        <div style="font-size:12.5px;opacity:.85;max-width:22em">
+          拖动画面转身。挂在墙上的每一张照片，都停在它当时被拍下的那个方向。
+        </div>
+        <button class="btn" id="walkGo">进去走一走</button>
+      </div>
+    </div>
+    <p class="tiny" id="walkNote"></p>
+  </section>
+
+  <!-- ═══════ ④ 多视角时刻 ═══════ -->
+  <section class="act" id="act4" aria-label="第四幕 多视角">
+    <div>
+      <div class="eyebrow">第四幕 · 同一时刻</div>
+      <h2>走到他的位置，换一双眼睛</h2>
+    </div>
+    <div class="strip" id="strip">
+      <div class="pano" id="stripPano" role="img" aria-label="全景条"></div>
+      <div class="marker"></div>
+      <div class="lbl" id="stripLbl">—</div>
+    </div>
+    <div class="bigview" id="bigview"></div>
+    <div class="eyes" id="eyes"></div>
+    <p class="tiny" id="act4Note"></p>
+  </section>
+
+  <!-- ═══════ ⑤ 主办后台 ═══════ -->
+  <section class="act" id="act5" aria-label="第五幕 主办后台">
+    <div>
+      <div class="eyebrow">第五幕 · 新人后台</div>
+      <div class="headline-stat">
+        <span class="n" id="statAuto">—</span>
+        <h2 style="margin:0">张机器自己放好了</h2>
+      </div>
+      <p class="lede" style="margin-top:4px">
+        需要你看一眼的只有 <b id="statReview">—</b> 张。脏活机器干，人只做机器拿不准的判断。
+      </p>
+    </div>
+
+    <div class="kpis" id="kpis"></div>
+
+    <div>
+      <div class="row" style="justify-content:space-between;margin-bottom:8px">
+        <b style="font-size:13.5px;color:var(--ink)">盲区通缉令</b>
+        <button class="btn ghost" id="fillDemo" style="padding:7px 14px;font-size:12.5px">
+          放一遍「照片补上」
+        </button>
+      </div>
+      <div class="wall" id="wall"></div>
+      <p class="tiny" id="wallNote" style="margin-top:8px"></p>
+    </div>
+
+    <div>
+      <b style="font-size:13.5px;color:var(--ink)">机器拿不准的，才推给你</b>
+      <div class="review-list" id="reviewList" style="margin-top:8px"></div>
+    </div>
+
+    <div class="glass" style="padding:12px 14px">
+      <p class="tiny" id="calib" style="margin:0"></p>
+    </div>
+  </section>
+
+  <!-- ═══════ ⑥ 成片 + 愿景 ═══════ -->
+  <section class="act" id="act6" aria-label="第六幕 成片与愿景">
+    <div>
+      <div class="eyebrow">第六幕 · 成片</div>
+      <h2>一键把这一天剪成一段片子</h2>
+    </div>
+    <video id="film" controls playsinline preload="none"
+           poster="../film/out/poster.jpg"
+           src="../film/out/memory-film-web.mp4"></video>
+    <p class="tiny" id="filmNote"></p>
+
+    <div class="vision">
+      <svg width="78" height="78" viewBox="0 0 64 64" class="logo-glow" aria-hidden="true"><use href="#uLogo"/></svg>
+      <div class="lines">
+        一个人的记忆，一台相机就够了。<br>
+        一群人的记忆，需要一个共同的空间。
+      </div>
+      <p class="tiny" style="max-width:24em">婚礼，毕业，还有今天这个会场。</p>
+      <div class="row" style="justify-content:center">
+        <a class="btn ghost" href="../index.html">回到入口</a>
+        <a class="btn ghost" href="show.html">看六个展厅</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="subtitle" id="subtitle">
+  <div class="progress" id="progress" style="width:16.6%"></div>
+  <p id="subtitleText">—</p>
+  <div class="nav">
+    <button id="prev" aria-label="上一幕">‹</button>
+    <button id="next" class="next" aria-label="下一幕">›</button>
+  </div>
+</footer>
+
+<div id="flyer" aria-hidden="true"><img alt=""></div>
+<div class="beam" id="beam" aria-hidden="true"></div>
+<div class="burst" id="burst" aria-hidden="true"></div>
+
+<script src="demo-data.js"></script>
+<script>
+(function(){
+  "use strict";
+
+  var D = window.DEMO_DATA;
+  var $ = function(id){ return document.getElementById(id); };
+  var esc = function(s){ return String(s == null ? "" : s)
+        .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
+
+  // demo-data.js 没加载出来的话，整页只会是一堆空壳。宁可当场说清楚，
+  // 也不要让人对着半张脸的演示页猜是不是网卡了。
+  if (!D) {
+    document.getElementById("stage").innerHTML =
+      '<section class="act on"><div class="card"><b>演示数据没加载出来</b>' +
+      '<p class="tiny">缺 web/demo-data.js。在仓库根目录跑一次：' +
+      '<code>python3 tools/build_demo_data.py</code></p></div></section>';
+    return;
+  }
+
+  var REDUCED = window.matchMedia &&
+                window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ════════ 台词包（§5，替 Max 写的字不用破折号）════════ */
+  var LINES = [
+    "婚礼那天，她错过了大厅里最好笑的五分钟。一百部手机在场，那五分钟其实被拍下来了，但它们死在了各自的手机里。",
+    "扫码，传一张，看着它回到它被拍下的地方。",
+    "云相册回答：有哪些照片。我们回答：当时那里发生了什么，谁还没拍到。",
+    "你错过的那几分钟，有人替你留住了。走到他的位置，补看一遍。",
+    "机器已自动处理 " + D.stats.total + " 张，需要你看的只有 " + D.stats.review + " 张。没拍到的角落，挂上悬赏。",
+    "一个人的记忆，一台相机就够了。一群人的记忆，需要一个共同的空间。婚礼，毕业，还有今天这个会场。"
+  ];
+  var N = 6;
+
+  /* ════════ 光斑 ════════ */
+  (function bokeh(){
+    if (REDUCED) return;
+    var box = $("bokeh"), cols = ["#FFB3C9","#FFD8A8","#FFFFFF","#FFC0D4"], html = [];
+    for (var i = 0; i < 11; i++) {
+      var s = 40 + (i * 37) % 120;
+      html.push('<i style="width:' + s + 'px;height:' + s + 'px;left:' + ((i * 23 + 7) % 96) +
+                '%;top:' + ((i * 41 + 11) % 92) + '%;background:' + cols[i % 4] +
+                ';opacity:' + (0.1 + (i % 5) * 0.045).toFixed(2) +
+                ';animation-duration:' + (11 + i * 2.4) + 's;animation-delay:-' + (i * 1.7) + 's"></i>');
+    }
+    box.innerHTML = html.join("");
+  })();
+
+  /* ════════ 翻幕 ════════ */
+  var cur = 1;
+  var acts = [];
+  for (var a = 1; a <= N; a++) acts.push($("act" + a));
+
+  $("dots").innerHTML = LINES.map(function(_, i){
+    return '<button data-go="' + (i + 1) + '" aria-label="第' + (i + 1) + '幕">' + (i + 1) + '</button>';
+  }).join("");
+
+  function go(n){
+    n = Math.max(1, Math.min(N, n));
+    cur = n;
+    acts.forEach(function(el, i){ el.classList.toggle("on", i === n - 1); });
+    [].forEach.call($("dots").children, function(b, i){
+      b.setAttribute("aria-current", i === n - 1 ? "true" : "false");
+    });
+    $("subtitleText").textContent = LINES[n - 1];
+    $("progress").style.width = (n / N * 100).toFixed(1) + "%";
+    $("prev").disabled = n === 1;
+    $("next").disabled = n === N;
+    if (location.hash !== "#" + n) history.replaceState(null, "", "#" + n);
+    window.scrollTo(0, 0);
+    // 进这一幕就自动放，不管是翻过来的还是直接开 #2 进来的
+    // （队友很可能拿着链接直接跳某一幕，那时候更不能是一张死图）
+    if (n === 2) setTimeout(playFly, 420);
+    if (n === 4) setTimeout(syncStrip, 60);
+    if (n === 5) setTimeout(playFill, 700);
+  }
+
+  $("dots").addEventListener("click", function(e){
+    var b = e.target.closest("button[data-go]");
+    if (b) go(+b.getAttribute("data-go"));
+  });
+  $("prev").addEventListener("click", function(){ go(cur - 1); });
+  $("next").addEventListener("click", function(){ go(cur + 1); });
+  document.addEventListener("keydown", function(e){
+    if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
+    if (e.key === "ArrowRight" || e.key === " ") { e.preventDefault(); go(cur + 1); }
+    if (e.key === "ArrowLeft") { e.preventDefault(); go(cur - 1); }
+  });
+  // 滑动翻幕：只认横向且够长的一划，别把 3D 漫游里的拖动也吃掉
+  (function swipe(){
+    var x0 = null, y0 = null;
+    document.addEventListener("touchstart", function(e){
+      if (e.target.closest("iframe, video, .strip")) { x0 = null; return; }
+      x0 = e.touches[0].clientX; y0 = e.touches[0].clientY;
+    }, { passive:true });
+    document.addEventListener("touchend", function(e){
+      if (x0 == null) return;
+      var dx = e.changedTouches[0].clientX - x0, dy = e.changedTouches[0].clientY - y0;
+      if (Math.abs(dx) > 62 && Math.abs(dx) > Math.abs(dy) * 1.8) go(cur + (dx < 0 ? 1 : -1));
+      x0 = null;
+    }, { passive:true });
+  })();
+
+  /* ════════ 第②幕：罗盘 + 归位动画 ════════ */
+  var CX = 130, CY = 130;
+  function pol(yaw, r){
+    var rad = (yaw - 90) * Math.PI / 180;
+    return { x: CX + Math.cos(rad) * r, y: CY + Math.sin(rad) * r };
+  }
+  var hero = D.hero;
+
+  // 已经在空间里的照片先铺上去（主角那张留到动画里才落位）
+  function drawTicks(includeHero){
+    var svgNS = "http://www.w3.org/2000/svg", g = $("ticks");
+    g.innerHTML = "";
+    D.photos.filter(function(p){ return p.state === "auto_ok" || p.state === "approved"; })
+      .forEach(function(p){
+        if (!includeHero && p.id === hero.photo.id) return;
+        var isHero = p.id === hero.photo.id;
+        var a = pol(p.yaw, 96), b = pol(p.yaw, 110);
+        var ln = document.createElementNS(svgNS, "line");
+        ln.setAttribute("x1", a.x.toFixed(1)); ln.setAttribute("y1", a.y.toFixed(1));
+        ln.setAttribute("x2", b.x.toFixed(1)); ln.setAttribute("y2", b.y.toFixed(1));
+        ln.setAttribute("stroke", isHero ? "#FF5C8A" : "#C9A9B2");
+        ln.setAttribute("stroke-width", isHero ? 3.4 : 1.8);
+        ln.setAttribute("stroke-linecap", "round");
+        ln.setAttribute("opacity", isHero ? 1 : .65);
+        ln.setAttribute("class", "tick" + (isHero ? " new" : ""));
+        g.appendChild(ln);
+      });
+  }
+  // 任务方位区间画成弧：让「这张照片正好落在通缉的那一段里」看得见
+  (function drawTaskArc(){
+    var t = hero.task, r = t.yawRange;
+    if (!r) return;
+    var a = r[0], b = r[1], span = ((b - a) + 360) % 360;
+    var p0 = pol(a, 103), p1 = pol(a + span, 103);
+    $("taskArcs").innerHTML =
+      '<path d="M' + p0.x.toFixed(1) + ' ' + p0.y.toFixed(1) +
+      ' A103 103 0 ' + (span > 180 ? 1 : 0) + ' 1 ' + p1.x.toFixed(1) + ' ' + p1.y.toFixed(1) +
+      '" fill="none" stroke="#FFC981" stroke-width="9" opacity=".42" stroke-linecap="round"/>';
+  })();
+
+  $("phNick").textContent = "· " + hero.photo.contributor;
+  $("phWanted").innerHTML =
+    (hero.task.img ? '<img src="' + esc(hero.task.img) + '" alt="通缉的方位">' : "") +
+    '<div class="t">' + esc(hero.task.title) + ' · ' + esc(hero.photo.bearing) + '</div>' +
+    '<div class="b">' + esc(hero.task.brief) + ' · 悬赏 ' + esc(hero.task.bounty) + ' 分</div>';
+
+  var READ = [
+    ["方位", hero.photo.yaw.toFixed(1) + "° " + hero.photo.bearing],
+    ["匹配度", hero.photo.confidence != null ? hero.photo.confidence.toFixed(4) : "—"],
+    ["辨识度", hero.photo.margin != null ? hero.photo.margin.toFixed(4) : "—"],
+    ["判定", "两项都过线，自动入选"]
+  ];
+  $("readout").innerHTML = READ.map(function(r, i){
+    var isVerdict = i === 3;
+    return '<div class="line" data-i="' + i + '"><span class="k">' + esc(r[0]) + '</span>' +
+           (isVerdict ? '<span class="pill ok">✓ ' + esc(r[1]) + '</span>'
+                      : '<span class="v">' + esc(r[1]) + '</span>') + '</div>';
+  }).join("") +
+  '<div class="tiny" style="margin-top:4px">门槛 匹配度 ≥ ' + D.stats.confMin +
+  ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。数字来自 ' +
+  esc(D.generatedFrom) + '。</div>';
+
+  var flying = false;
+  function playFly(){
+    if (flying) return;
+    flying = true;
+    drawTicks(false);
+    $("capBig").textContent = "—";
+    $("capSub").textContent = "等一张照片";
+    $("ringArc").setAttribute("stroke-dasharray", "0 999");
+    [].forEach.call($("readout").querySelectorAll(".line"), function(l){ l.classList.remove("in"); });
+    var slot = $("phSlot");
+    slot.innerHTML = '<span>扫码进来，选一张交上去</span>';
+
+    var img = hero.photo.img;
+    var step = REDUCED ? 1 : 0;
+    var T = function(ms){ return REDUCED ? 10 : ms; };
+
+    // 1) 照片出现在手机里
+    setTimeout(function(){
+      slot.innerHTML = img
+        ? '<img src="' + esc(img) + '" alt="宾客交的照片" style="width:100%;height:100%;object-fit:cover">'
+        : '<span>已选好一张</span>';
+      slot.style.borderStyle = "solid";
+    }, T(300));
+
+    // 2) 飞回它的方位
+    setTimeout(function(){
+      var flyer = $("flyer"), fimg = flyer.querySelector("img");
+      if (img) fimg.src = img;
+      var from = slot.getBoundingClientRect();
+      var svg = $("compass").getBoundingClientRect();
+      var scale = svg.width / 260;
+      var land = pol(hero.photo.yaw, 103);
+      var tx = svg.left + land.x * scale, ty = svg.top + land.y * scale;
+
+      flyer.style.transition = "none";
+      flyer.style.width = Math.min(from.width, 130) + "px";
+      flyer.style.transform = "translate(" + (from.left + from.width / 2 - 48) + "px," +
+                              (from.top + from.height / 2 - 36) + "px) rotate(0deg) scale(1)";
+      flyer.classList.add("lit");
+      // 强制回流，否则起点终点合成一帧，看不见飞
+      void flyer.offsetWidth;
+      flyer.style.transition = "";
+
+      requestAnimationFrame(function(){
+        flyer.style.transform = "translate(" + (tx - 48) + "px," + (ty - 36) + "px) rotate(" +
+                                (hero.photo.yaw > 180 ? -12 : 12) + "deg) scale(.42)";
+        var beam = $("beam");
+        var cx = svg.left + CX * scale, cy = svg.top + CY * scale;
+        var dx = tx - cx, dy = ty - cy;
+        beam.style.left = cx + "px"; beam.style.top = cy + "px";
+        beam.style.width = Math.sqrt(dx * dx + dy * dy) + "px";
+        beam.style.transform = "rotate(" + (Math.atan2(dy, dx) * 180 / Math.PI) + "deg)";
+        setTimeout(function(){ beam.classList.add("lit"); }, T(900));
+      });
+
+      // 3) 落位：光爆 + 刻度出现 + 读数逐条亮
+      setTimeout(function(){
+        flyer.classList.remove("lit");
+        $("beam").classList.remove("lit");
+        var burst = $("burst");
+        burst.style.left = (tx - 8) + "px"; burst.style.top = (ty - 8) + "px";
+        burst.classList.remove("go"); void burst.offsetWidth; burst.classList.add("go");
+
+        drawTicks(true);
+        $("capBig").textContent = hero.photo.yaw.toFixed(1) + "°";
+        $("capSub").textContent = hero.photo.bearing + " · " + esc(hero.photo.contributor) + " 交的";
+        var C = 2 * Math.PI * 112;
+        $("ringArc").setAttribute("stroke-dasharray", (C * D.stats.auto / D.stats.total).toFixed(0) + " 999");
+
+        READ.forEach(function(_, i){
+          setTimeout(function(){
+            var l = $("readout").querySelector('.line[data-i="' + i + '"]');
+            if (l) l.classList.add("in");
+          }, T(180 * i));
+        });
+        slot.innerHTML = '<span class="done">✓ 已回到 ' + hero.photo.yaw.toFixed(1) +
+                         '°<br>悬赏 +' + esc(hero.task.bounty) + ' 分</span>';
+        flying = false;
+      }, T(1560));
+    }, T(1000 + step));
+  }
+  $("replay2").addEventListener("click", playFly);
+  drawTicks(false);
+
+  /* ════════ 第③幕：走进空间（点了才加载 3D，别在手机上白等）════════ */
+  $("walkPoster").src = D.pano;
+  $("walkNote").innerHTML = "这一幕嵌的是仓库里的全景漫游页 " +
+    "<code>viewer/walk.html</code>，用的是同一份空间数据。" +
+    '<a href="../viewer/walk.html?demo=1" target="_blank" rel="noopener">在新窗口打开 →</a>';
+  var walkLoaded = false;
+  function loadWalk(){
+    if (walkLoaded) return;
+    walkLoaded = true;
+    $("walkFrame").src = "../viewer/walk.html?demo=1";
+    $("walkCover").classList.add("off");
+  }
+  $("walkGo").addEventListener("click", loadWalk);
+
+  /* ════════ 第④幕：同一时刻，三个机位 ════════ */
+  var trio = D.trio, pick = 0;
+  $("stripPano").style.backgroundImage = "url('" + D.pano + "')";
+  $("eyes").innerHTML = trio.map(function(p, i){
+    return '<button class="eye" data-i="' + i + '" aria-current="' + (i === 0) + '">' +
+      '<div class="thumb">' + (p.img ? '<img src="' + esc(p.img) + '" alt="">' : "") + '</div>' +
+      '<div class="who">' + esc(p.contributor) + '<br>' + p.yaw.toFixed(0) + '° ' + esc(p.bearing) + '</div>' +
+    '</button>';
+  }).join("");
+  function syncStrip(){
+    var p = trio[pick];
+    var strip = $("strip"), img = $("stripPano");
+    // 全景是等距柱状投影：横向 0-360° 线性铺开。按原比例只有 2 倍条高那么宽，
+    // 铺不满一屏还只剩一条缝，所以横向拉开到条宽的 3 倍再取当前方位那一段。
+    var w = Math.max(strip.clientWidth * 3, 640);
+    img.style.backgroundSize = w + "px 100%";
+    var x = (p.yaw / 360) * w;
+    img.style.backgroundPositionX = (strip.clientWidth / 2 - x) + "px";
+    $("stripLbl").textContent = p.yaw.toFixed(1) + "° " + p.bearing;
+  }
+  function setEye(i){
+    pick = i;
+    [].forEach.call($("eyes").children, function(b, k){
+      b.setAttribute("aria-current", k === i ? "true" : "false");
+    });
+    var p = trio[i];
+    $("bigview").innerHTML =
+      (p.img ? '<img src="' + esc(p.img) + '" alt="' + esc(p.contributor) + '的视角">' : "") +
+      '<div class="meta"><span class="pill ok">机位 ' + (i + 1) + ' / ' + trio.length + '</span>' +
+      '<b>' + esc(p.contributor) + '</b> 站在 <b>' + p.yaw.toFixed(1) + '°</b> ' + esc(p.bearing) +
+      '<span class="pill mute">匹配度 ' + (p.confidence != null ? p.confidence.toFixed(2) : "—") + '</span></div>';
+    syncStrip();
+  }
+  $("eyes").addEventListener("click", function(e){
+    var b = e.target.closest(".eye");
+    if (b) setEye(+b.getAttribute("data-i"));
+  });
+  setEye(0);
+  $("act4Note").textContent =
+    "这三张来自 " + trio.length + " 个不同的人，方位是机器算出来的，不是人填的。" +
+    "当前为占位素材，真实全景与照片到位后原样替换。";
+  window.addEventListener("resize", function(){ if (cur === 4) syncStrip(); });
+
+  /* ════════ 第⑤幕：主办后台快照 ════════ */
+  var S = D.stats;
+  $("statAuto").textContent = S.auto;
+  $("statReview").textContent = S.review;
+  $("kpis").innerHTML = [
+    [S.total, "张照片进来"],
+    [S.auto, "张机器自动放好"],
+    [S.review, "张推给你看"],
+    [S.tasksOpen + " / " + S.tasksTotal, "个悬赏还开着"]
+  ].map(function(k){
+    return '<div class="kpi"><div class="n">' + esc(k[0]) + '</div><div class="l">' + esc(k[1]) + '</div></div>';
+  }).join("");
+
+  $("wall").innerHTML = D.wall.map(function(t){
+    var filledPhoto = (t.fills || []).filter(function(f){ return f.state === "auto_ok" || f.state === "approved"; })[0];
+    return '<div class="wanted-card ' + (t.status === "open" ? "open" : "filled") +
+      '" data-task="' + esc(t.id) + '">' +
+      '<span class="badge">' + (t.status === "open" ? "缺" : "已补") + '</span>' +
+      (t.img ? '<img src="' + esc(t.img) + '" alt="">'
+             : '<div style="height:62px;background:linear-gradient(120deg,#FFEAF0,#FFF3E2);"></div>') +
+      (filledPhoto && filledPhoto.img
+        ? '<div class="fill-in"><img src="' + esc(filledPhoto.img) + '" alt=""></div>' +
+          '<div class="stamp">' + esc(filledPhoto.contributor) + ' 补上了 · ' +
+          filledPhoto.yaw.toFixed(0) + '°</div>' : "") +
+      '<div class="cap"><b>' + (t.bearing ? esc(t.bearing) : esc(t.title)) + '</b>' +
+      '<em>' + (t.status === "open" ? "悬赏 " + esc(t.bounty) + " 分"
+                                    : esc((t.filledBy || []).join("、") || "已补上")) + '</em></div>' +
+    '</div>';
+  }).join("");
+  $("wallNote").textContent =
+    "通缉令那张图不是人挑的：机器把全景切成 360 格，找出连着没照片的那一段，" +
+    "自动裁一张那个方向的全景当悬赏封面。现在 " + S.tasksFilled + " 个已补上，" + S.tasksOpen + " 个还开着。";
+
+  function playFill(){
+    var card = $("wall").querySelector('.wanted-card.filled .fill-in');
+    if (!card) return;
+    var box = card.parentElement;
+    box.classList.remove("filling");
+    void box.offsetWidth;
+    setTimeout(function(){ box.classList.add("filling"); }, REDUCED ? 0 : 260);
+  }
+  $("fillDemo").addEventListener("click", function(){
+    [].forEach.call($("wall").querySelectorAll(".wanted-card"), function(c){ c.classList.remove("filling"); });
+    setTimeout(playFill, 60);
+  });
+
+  $("reviewList").innerHTML = (D.needsReview || []).map(function(p){
+    return '<div class="review-item">' +
+      (p.img ? '<img src="' + esc(p.img) + '" alt="">' : "") +
+      '<div class="txt"><b>' + esc(p.contributor) + ' 交的 · ' + p.yaw.toFixed(1) + '°</b>' +
+      esc(p.reason) + '</div></div>';
+  }).join("") || '<p class="tiny">这个空间当前没有待审照片。</p>';
+
+  var C = D.calibration;
+  $("calib").innerHTML = "这些数字全部来自 <code>" + esc(D.generatedFrom) +
+    "</code>，没有一个是手打的（导出脚本 <code>tools/build_demo_data.py</code>）。<br>" +
+    "另有一组阈值标定实测：" + C.total + " 张标定集判对 " + C.correct + " 张，" +
+    "混进来的 " + C.foreignTotal + " 张外来照片拦下 " + C.foreignBlocked + " 张。" +
+    "门槛 匹配度 ≥ " + C.confMin + " 且 辨识度 ≥ " + C.marginMin + "。";
+
+  /* ════════ 第⑥幕 ════════ */
+  $("filmNote").textContent =
+    "79 秒，镜头路线是按每张照片的方位自动排的。片子里 12 张照片有 11 张的落点，" +
+    "被一套独立写的暴力搜索核实过（偏差 0 到 2 度）。";
+
+  /* ════════ 断网 / 有后端 的招牌 ════════ */
+  function refreshBadge(){
+    var b = $("demoBadge");
+    b.textContent = navigator.onLine ? "演示模式" : "离线也照走";
+    b.title = navigator.onLine
+      ? "六幕走的是导出好的静态数据，不连后台也能走完"
+      : "当前离线，动线不受影响";
+  }
+  refreshBadge();
+  window.addEventListener("online", refreshBadge);
+  window.addEventListener("offline", refreshBadge);
+
+  /* ════════ 开场 ════════ */
+  var start = parseInt((location.hash || "").replace("#", ""), 10);
+  go(isFinite(start) && start >= 1 && start <= N ? start : 1);
+})();
+</script>
+</body>
+</html>
