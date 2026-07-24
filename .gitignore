@@ -5,3 +5,4 @@ tools/cache/
 __pycache__/
 *.pyc
 *.bak
+server/sessions/

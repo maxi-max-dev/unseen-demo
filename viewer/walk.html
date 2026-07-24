@@ -347,8 +347,38 @@ html, body {
     container.classList.add("on");
   }
 
+  // compose 模式：?compose=<manifestUrl>，manifestUrl 来自 server/compose_server.py 的
+  // POST /compose 返回值(如 "/sessions/3/manifest.json")。fetch 到 manifest 后，用
+  // manifestUrl 去掉末尾文件名剩下的目录前缀拼出各资源的完整可访问路径——manifestUrl
+  // 本身已经是从站点根算起的绝对路径，所以这里拼出来的 panoUrl/depthPngUrl/photo.src
+  // 也都是绝对路径，不需要像 node/scene 模式那样再手动拼 "../"（那两个模式的 "../" 前缀
+  // 只在 boot() 这两处加，makePhotoSprite/openPhotoLightbox 全程直接用 photo.src 原样加载，
+  // 不会重复加前缀，三种模式互不干扰）。
+  function bootCompose(manifestUrl) {
+    fetch(manifestUrl, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error("http " + r.status);
+      return r.json();
+    }).then(function (manifest) {
+      var slash = manifestUrl.lastIndexOf("/");
+      var prefix = slash >= 0 ? manifestUrl.slice(0, slash + 1) : "";
+      startWalk({
+        panoUrl: prefix + manifest.panorama,
+        depthPngUrl: prefix + manifest.depth,
+        depthJsonUrl: prefix + manifest.depthJson,
+        title: manifest.title || "我的空间",
+        backHref: "../server/upload.html",
+        photos: (manifest.photos || []).map(function (p) {
+          return { src: prefix + p.src, yaw: p.yaw, pitch: p.pitch, caption: p.caption };
+        })
+      });
+    }).catch(function (e) {
+      showError("合成结果加载失败", String((e && e.message) || e), "../server/upload.html");
+    });
+  }
+
   function boot() {
     var nodeId = qs("node");
+    var composeUrl = qs("compose");
     if (nodeId) {
       loadTourScript(function (tour) {
         if (!tour || !tour.nodes) {
@@ -378,6 +408,8 @@ html, body {
           })
         });
       });
+    } else if (composeUrl) {
+      bootCompose(composeUrl);
     } else {
       // demo/scene 模式：?scene=<slug> 指定场景，?demo=1 或无参数缺省 ballroom。
       // 场景不在清单里(拼错/旧链接)也静默回落到 SCENES[0]。
