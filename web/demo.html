@@ -700,7 +700,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   function go(n, opts){
     opts = opts || {};
     n = Math.max(1, Math.min(N, n));
-    if (n !== 2) flyGen++;          // 离开第②幕，在飞的那一轮当场作废
+    if (n !== 2) {
+      flyGen++;                     // 作废在飞的那一轮的所有后续 setTimeout
+      // 光是拦「未来」的回调不够：飞行中途离场时，#flyer 和 .beam 可能已经被点亮，
+      // 而负责熄灭它们的那一步（落位回调）被 alive() 挡掉永远不执行 ——
+      // 于是那张飞行的照片和光束会永久悬浮在所有幕之上（position:fixed z-index:60）。
+      // 离场时主动把已点亮的视觉状态一起清掉。手机边缘滑动返回最容易触发这条。
+      var _f = $("flyer"), _b = $("beam");
+      if (_f) _f.classList.remove("lit");
+      if (_b) _b.classList.remove("lit");
+    }
     cur = n;
     acts.forEach(function(el, i){ el.classList.toggle("on", i === n - 1); });
     [].forEach.call($("dots").children, function(b, i){
