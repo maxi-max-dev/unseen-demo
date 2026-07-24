@@ -178,6 +178,32 @@ html, body {
 .title-card .tc-rule {
   width: 40px; height: 2px; background: #c0392b; margin: 16px 0;
 }
+.title-card .tc-line {
+  margin-top: 18px; font-size: 15px; color: #d8d2c8; letter-spacing: 1px;
+  font-weight: 300; max-width: 300px; line-height: 1.7; text-align: center;
+}
+
+/* ---- 开场叙事卡（打开旅程时的第一屏，点「从接亲开始」进入）---- */
+.opening {
+  position: fixed; inset: 0; z-index: 50; display: flex;
+  align-items: center; justify-content: center; text-align: center; padding: 30px;
+  background: radial-gradient(120% 80% at 50% 0%, #fbf8f2 0%, #f6f2ea 55%, #efe8dc 100%);
+  transition: opacity .6s ease;
+}
+.opening.hide { opacity: 0; pointer-events: none; }
+.opening .op-kicker { font-size: 11px; letter-spacing: 4px; color: #b08d57; font-weight: 700; margin-bottom: 22px; }
+.opening .op-congrats {
+  font-family: "Songti SC","STSong",serif; font-size: 30px; font-weight: 600;
+  color: #3a352f; letter-spacing: 2px; margin-bottom: 20px;
+}
+.opening .op-body { font-size: 15px; line-height: 2; color: #6f675d; max-width: 320px; margin: 0 auto 34px; }
+.opening .op-start {
+  display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
+  background: #c0392b; color: #fff; font-size: 16px; font-weight: 700; letter-spacing: 1px;
+  padding: 0 32px; height: 52px; border-radius: 26px; box-shadow: 0 8px 24px rgba(192,57,43,.34);
+  transition: transform .15s ease;
+}
+.opening .op-start:active { transform: scale(.97); }
 
 /* ---- 结束页 ---- */
 .end-page {
@@ -266,6 +292,16 @@ html, body {
   <div class="tc-chapter" id="tcChapter"></div>
   <div class="tc-rule"></div>
   <div class="tc-time" id="tcTime"></div>
+  <div class="tc-line" id="tcLine"></div>
+</div>
+
+<div class="opening" id="opening">
+  <div>
+    <div class="op-kicker">空间记忆 · 那一天的旅程</div>
+    <div class="op-congrats">恭喜你们结婚 🎉</div>
+    <div class="op-body">还记得那一天吗?<br>那些散落在每个人手机里的瞬间,<br>现在,让我们从头,慢慢走一遍。</div>
+    <button class="op-start" id="opStart" type="button">▶ 从接亲开始</button>
+  </div>
 </div>
 
 <!-- 结束页 -->
@@ -430,6 +466,44 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   var MAP_W = TOUR.map.width, MAP_H = TOUR.map.height;
 
   // ============================================================
+  // 演示层：每个环节直接套用一个真实好看的全景场景(而不是合成占位图)。
+  // 这是可插拔的展示层——真 X5 场地全景到位后,把 node.panorama 换成真图、
+  // 或直接删掉这个 map 即可,journey 逻辑一个字不用改。
+  //   接亲→咖啡馆(温馨晨起) 出发→大厅 仪式→教堂 宴席→宴会厅
+  // 照片位=各场景已裁好的透视图(assets/walkdemo/<slug>_p{1,2,3}.jpg),yaw/pitch 与 walk.html 一致。
+  // ============================================================
+  var DEMO_SCENES = {
+    jieqin: { slug: "comfy_cafe",     line: "清晨,喜悦在这里悄悄开始",   pins: [[30,0],[160,-3],[275,4]] },
+    chufa:  { slug: "entrance_hall",  line: "然后,你们一起走向那一刻",   pins: [[25,2],[145,0],[255,-3]] },
+    yishi:  { slug: "chapel_day",     line: "在这里,你们许下一生的誓言", pins: [[20,0],[140,3],[250,-2]] },
+    yanxi:  { slug: "ballroom",       line: "最后,和所有爱的人举杯",     pins: [[35,-3],[150,2],[265,0]] }
+  };
+
+  // 解析一个 node 的「有效」全景/照片/走进链接:命中演示层就用真场景,否则回落到 tour.js 原始数据。
+  function resolve(node) {
+    var d = DEMO_SCENES[node.id];
+    if (d) {
+      return {
+        panorama: "assets/walkdemo/" + d.slug + ".jpg",
+        photos: d.pins.map(function (p, k) {
+          return { src: "assets/walkdemo/" + d.slug + "_p" + (k + 1) + ".jpg",
+                   yaw: p[0], pitch: p[1], by: "auto", confidence: 1, caption: "现场照片 " + "①②③"[k] };
+        }),
+        walkHref: "walk.html?scene=" + encodeURIComponent(d.slug),
+        line: d.line
+      };
+    }
+    return {
+      panorama: node.panorama,
+      photos: node.photos || [],
+      walkHref: "walk.html?node=" + encodeURIComponent(node.id),
+      line: ""
+    };
+  }
+  var EFF = {};
+  nodes.forEach(function (n) { EFF[n.id] = resolve(n); });
+
+  // ============================================================
   // 照片热点 + 灯箱（原样复制自 viewer/index.html 的写法）
   // ============================================================
   function makePhotoTooltip(hotSpotDiv, args) {
@@ -473,8 +547,9 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   // ============================================================
   var scenes = {};
   nodes.forEach(function (node) {
+    var eff = EFF[node.id];
     var hotSpots = [];
-    (node.photos || []).forEach(function (photo) {
+    eff.photos.forEach(function (photo) {
       hotSpots.push({
         pitch: photo.pitch || 0,
         yaw: photo.yaw,
@@ -489,7 +564,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     scenes[node.id] = {
       title: node.name,
       type: "equirectangular",
-      panorama: "../" + node.panorama,
+      panorama: "../" + eff.panorama,
       pitch: 0,
       yaw: 0,
       hfov: 100,
@@ -517,6 +592,15 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     scenes: scenes
   });
   window.__psmViewer = viewer;
+
+  // 首屏竞态兜底：pannellum autoLoad 的 load 事件可能在 enterStation 挂上监听器之前就触发,
+  // 那样首屏的 onFirstLoad 永远收不到、busy/sceneLoading 永久为 true、之后点「下一站」全被吃掉=卡死
+  // (7/24 Max 实测卡在接亲无法前进的根因)。这里在 viewer 一创建就抢先记一笔,只认第一次。
+  var firstLoadFired = false;
+  viewer.on("load", function firstLoadCatcher() {
+    firstLoadFired = true;
+    viewer.off("load", firstLoadCatcher);
+  });
 
   viewer.on("error", function (err) {
     document.getElementById("psmBoot").textContent = "加载出错：" + err;
@@ -612,7 +696,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
       var next = nodes[i + 1];
       nextBtn.textContent = "下一站 · " + (next.chapter || next.name) + " →";
     }
-    walkBtn.href = "walk.html?node=" + encodeURIComponent(node.id);
+    walkBtn.href = EFF[node.id].walkHref;
     prevBtn.disabled = busy;
     nextBtn.disabled = busy;
     walkBtn.style.pointerEvents = busy ? "none" : "auto";
@@ -672,6 +756,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   function showTitleCard(node) {
     tcChapter.textContent = node.chapter || node.name;
     tcTime.textContent = node.time || "";
+    document.getElementById("tcLine").textContent = EFF[node.id].line || "";
     titleCard.classList.add("on");
   }
   function hideTitleCard() {
@@ -687,28 +772,34 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
       }
     }
     showTitleCard(node);
-    setTimeout(function () { cardDone = true; maybeDone(); }, 1200);
+    setTimeout(function () { cardDone = true; maybeDone(); }, 1400);
+
+    // 看门狗:无论如何最多等 6 秒,到点强制放开(load 事件丢了也绝不永久卡死)。
+    var settled = false;
+    var watchdog = setTimeout(function () { finishLoad(); }, 6000);
+    function finishLoad() {
+      if (settled) return;
+      settled = true;
+      clearTimeout(watchdog);
+      initialLoadPending = false;
+      sceneLoading = false;
+      document.getElementById("psmBoot").classList.add("hide");
+      loadDone = true; maybeDone();
+    }
 
     if (initialLoadPending) {
-      // 首屏场景已经在 viewer 创建时靠 autoLoad 自动加载，这里只等 load 事件，
-      // 绝不能再调一次 loadScene——否则和 autoLoad 的加载互相打架。
-      var onFirstLoad = function () {
-        viewer.off("load", onFirstLoad);
-        initialLoadPending = false;
-        sceneLoading = false;
-        document.getElementById("psmBoot").classList.add("hide");
-        loadDone = true; maybeDone();
-      };
-      viewer.on("load", onFirstLoad);
+      // 首屏场景由 pannellum autoLoad 自动加载,不能再调 loadScene。
+      // 竞态兜底:load 若已在挂监听器前触发(firstLoadFired),立刻收工;否则等 load 或看门狗。
+      if (firstLoadFired) { finishLoad(); }
+      else {
+        var onFirstLoad = function () { viewer.off("load", onFirstLoad); finishLoad(); };
+        viewer.on("load", onFirstLoad);
+      }
     } else if (viewer.getScene() === node.id) {
-      loadDone = true; maybeDone();
+      finishLoad();
     } else {
       sceneLoading = true;
-      var onLoad = function () {
-        viewer.off("load", onLoad);
-        sceneLoading = false;
-        loadDone = true; maybeDone();
-      };
+      var onLoad = function () { viewer.off("load", onLoad); finishLoad(); };
       viewer.on("load", onLoad);
       viewer.loadScene(node.id);
     }
@@ -769,7 +860,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
         '</div><div class="ep-time">' + (node.time || "") + "</div>";
       var count = document.createElement("div");
       count.className = "ep-count";
-      count.textContent = (node.photos || []).length + " 张照片";
+      count.textContent = EFF[node.id].photos.length + " 张照片";
       row.appendChild(left);
       row.appendChild(count);
       epTimeline.appendChild(row);
@@ -811,10 +902,17 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   // ============================================================
   buildProgress();
   updateActionBar();
-  enterStation(nodes[0], function () {
-    busy = false;
-    updateActionBar();
-    flashHint();
+  // 开场叙事卡先挡在最前(此时首屏全景已由 autoLoad 在后台预载),
+  // 用户点「从接亲开始」才真正进第一站,这样接亲的标题卡+那句叙事是给用户看的、不被盖住。
+  document.getElementById("opStart").addEventListener("click", function () {
+    var op = document.getElementById("opening");
+    op.classList.add("hide");
+    setTimeout(function () { op.style.display = "none"; }, 650);
+    enterStation(nodes[0], function () {
+      busy = false;
+      updateActionBar();
+      flashHint();
+    });
   });
 })();
 </script>
