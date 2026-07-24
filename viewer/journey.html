@@ -14,21 +14,23 @@
 /* ============================================================
    照片热点：自绘 marker（原样复制自 viewer/index.html）
    ============================================================ */
+/* 照片热点=空间里钉的一张小缩略图(不是黄点),点开放大 */
 .psm-photo-hotspot {
-  width: 40px; height: 40px; margin: -20px 0 0 -20px;
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer;
+  width: 52px; height: 52px; margin: -26px 0 0 -26px; cursor: pointer;
 }
-.psm-photo-hotspot .psm-ring {
-  width: 30px; height: 30px; border-radius: 50%; box-sizing: border-box;
-  display: flex; align-items: center; justify-content: center;
-  animation: psm-pulse 2.2s ease-in-out infinite;
+.psm-photo-hotspot .psm-thumb {
+  width: 100%; height: 100%; border-radius: 9px; object-fit: cover; display: block;
+  border: 2px solid #fff; box-shadow: 0 3px 11px rgba(0,0,0,.5); background: #cfc9bf;
+  transition: transform .15s ease;
 }
-.psm-photo-hotspot .psm-dot { width: 7px; height: 7px; border-radius: 50%; }
-.psm-photo-hotspot.psm-auto .psm-ring { border: 2.5px dashed #ffd54a; background: rgba(255,213,74,.14); }
-.psm-photo-hotspot.psm-auto .psm-dot { background: #ffd54a; }
-.psm-photo-hotspot.psm-manual .psm-ring { border: 2.5px solid #fff; background: rgba(255,255,255,.14); }
-.psm-photo-hotspot.psm-manual .psm-dot { background: #fff; }
+.psm-photo-hotspot:hover .psm-thumb { transform: scale(1.08); }
+.psm-photo-hotspot:active .psm-thumb { transform: scale(.94); }
+.psm-photo-hotspot .psm-vbadge {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%);
+  width: 24px; height: 24px; border-radius: 50%; background: rgba(0,0,0,.55);
+  color: #fff; display: flex; align-items: center; justify-content: center;
+  font-size: 11px; pointer-events: none; box-shadow: 0 1px 4px rgba(0,0,0,.4);
+}
 @keyframes psm-pulse {
   0%, 100% { transform: scale(1); opacity: 1; }
   50% { transform: scale(1.14); opacity: .78; }
@@ -315,6 +317,7 @@ html, body {
 <div class="lightbox" id="lightbox">
   <span class="close" id="lbClose">×</span>
   <img id="lbImg" alt="">
+  <video id="lbVideo" playsinline controls loop style="display:none;max-width:92%;max-height:74vh;border-radius:12px"></video>
   <div class="lbBadge" id="lbBadge"></div>
   <div class="lbCap" id="lbCap"></div>
 </div>
@@ -467,22 +470,32 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   // 照片位=各场景已裁好的透视图(assets/walkdemo/<slug>_p{1,2,3}.jpg),yaw/pitch 与 walk.html 一致。
   // ============================================================
   var DEMO_SCENES = {
-    jieqin: { slug: "comfy_cafe",     line: "清晨,喜悦在这里悄悄开始",   pins: [[30,0],[160,-3],[275,4]] },
-    chufa:  { slug: "entrance_hall",  line: "然后,你们一起走向那一刻",   pins: [[25,2],[145,0],[255,-3]] },
-    yishi:  { slug: "chapel_day",     line: "在这里,你们许下一生的誓言", pins: [[20,0],[140,3],[250,-2]] },
-    yanxi:  { slug: "ballroom",       line: "最后,和所有爱的人举杯",     pins: [[35,-3],[150,2],[265,0]] }
+    jieqin: { slug: "comfy_cafe",     line: "清晨,喜悦在这里悄悄开始" },
+    chufa:  { slug: "entrance_hall",  line: "然后,你们一起走向那一刻" },
+    yishi:  { slug: "chapel_day",     line: "在这里,你们许下一生的誓言" },
+    yanxi:  { slug: "ballroom",       line: "最后,和所有爱的人举杯" }
   };
+  // 每个场景钉 9 张缩略图(_j1..j9)+ 1 段现场视频(_v1.mp4),位置与 tools 裁切时一一对应。
+  // 真素材到位后:把这些换成真宾客照片/视频即可,journey 逻辑不用改。
+  var J_PINS = [[20,-8],[60,6],[100,-3],[145,10],[185,0],[225,-12],[265,7],[305,-5],[340,4]];
+  var VIDEO_PIN = [0, 2]; // 视频热点的方向
 
   // 解析一个 node 的「有效」全景/照片/走进链接:命中演示层就用真场景,否则回落到 tour.js 原始数据。
   function resolve(node) {
     var d = DEMO_SCENES[node.id];
     if (d) {
+      var photos = J_PINS.map(function (p, k) {
+        return { src: "assets/walkdemo/" + d.slug + "_j" + (k + 1) + ".jpg",
+                 yaw: p[0], pitch: p[1], by: "auto", confidence: 1, caption: "现场照片 " + (k + 1) };
+      });
+      // 视频热点:缩略图用 j1 当封面,点开在灯箱里播 _v1.mp4
+      photos.push({ src: "assets/walkdemo/" + d.slug + "_j1.jpg",
+                    thumb: "assets/walkdemo/" + d.slug + "_j1.jpg",
+                    video: "assets/walkdemo/" + d.slug + "_v1.mp4",
+                    yaw: VIDEO_PIN[0], pitch: VIDEO_PIN[1], by: "auto", caption: "现场视频" });
       return {
         panorama: "assets/walkdemo/" + d.slug + ".jpg",
-        photos: d.pins.map(function (p, k) {
-          return { src: "assets/walkdemo/" + d.slug + "_p" + (k + 1) + ".jpg",
-                   yaw: p[0], pitch: p[1], by: "auto", confidence: 1, caption: "现场照片 " + "①②③"[k] };
-        }),
+        photos: photos,
         walkHref: "walk.html?scene=" + encodeURIComponent(d.slug),
         line: d.line
       };
@@ -501,24 +514,41 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
   // 照片热点 + 灯箱（原样复制自 viewer/index.html 的写法）
   // ============================================================
   function makePhotoTooltip(hotSpotDiv, args) {
+    var photo = args.photo;
     hotSpotDiv.classList.add("psm-photo-hotspot");
-    hotSpotDiv.classList.add(args.photo.by === "auto" ? "psm-auto" : "psm-manual");
-    var ring = document.createElement("div");
-    ring.className = "psm-ring";
-    var dot = document.createElement("div");
-    dot.className = "psm-dot";
-    ring.appendChild(dot);
-    hotSpotDiv.appendChild(ring);
+    var img = document.createElement("img");
+    img.className = "psm-thumb";
+    img.src = "../" + (photo.thumb || photo.src); // 视频热点用 thumb 当封面,普通照片直接用自己
+    img.alt = photo.caption || "";
+    hotSpotDiv.appendChild(img);
+    if (photo.video) {
+      var badge = document.createElement("div");
+      badge.className = "psm-vbadge";
+      badge.textContent = "▶";
+      hotSpotDiv.appendChild(badge);
+    }
   }
 
   function openLightbox(photo) {
     var pct = Math.round((typeof photo.confidence === "number" ? photo.confidence : 1) * 100);
     var isAuto = photo.by === "auto";
-    document.getElementById("lbImg").src = "../" + photo.src;
+    var img = document.getElementById("lbImg");
+    var vid = document.getElementById("lbVideo");
+    if (photo.video) {
+      img.style.display = "none";
+      img.src = "";
+      vid.style.display = "block";
+      vid.src = "../" + photo.video;
+      vid.play().catch(function () {}); // 自动播放被拦也没事,有 controls 可手动播
+    } else {
+      vid.pause(); vid.style.display = "none"; vid.src = "";
+      img.style.display = "block";
+      img.src = "../" + photo.src;
+    }
     document.getElementById("lbCap").textContent = photo.caption || "";
     var badge = document.getElementById("lbBadge");
-    badge.textContent = isAuto ? ("AI 自动放置 · 置信度 " + pct + "%") : "人工校正 ✓";
-    badge.className = "lbBadge " + (isAuto ? "auto" : "manual");
+    badge.textContent = photo.video ? "现场视频" : (isAuto ? ("AI 自动放置 · 置信度 " + pct + "%") : "人工校正 ✓");
+    badge.className = "lbBadge " + (photo.video ? "auto" : (isAuto ? "auto" : "manual"));
     document.getElementById("lightbox").classList.add("on");
   }
 
@@ -531,6 +561,8 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     if (e.target.id === "lightbox") closeLightbox();
   });
   function closeLightbox() {
+    var vid = document.getElementById("lbVideo");
+    vid.pause(); vid.src = ""; vid.style.display = "none";
     document.getElementById("lightbox").classList.remove("on");
   }
 
