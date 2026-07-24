@@ -903,8 +903,13 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
       flyer.style.transition = "none";
       flyer.style.width = Math.min(from.width, 130) + "px";
-      flyer.style.transform = "translate(" + (from.left + from.width / 2 - 48) + "px," +
-                              (from.top + from.height / 2 - 36) + "px) rotate(0deg) scale(1)";
+      var startX = from.left + from.width / 2 - 48;
+      // 起飞点钳进视口：桌面窄高视口(1280×800)下手机槽偏低，
+      // 卡片(约 76px 高)起飞那一瞬底边会探出视口下沿约 14px(第 9 轮实测)。
+      // 卡进 [8, 视口高-84] 之间，手机上本来就够高，钳不到，只影响桌面那一下。
+      var startY = Math.min(from.top + from.height / 2 - 36, window.innerHeight - 84);
+      startY = Math.max(startY, 8);
+      flyer.style.transform = "translate(" + startX + "px," + startY + "px) rotate(0deg) scale(1)";
       flyer.classList.add("lit");
       // 强制回流，否则起点终点合成一帧，看不见飞
       void flyer.offsetWidth;
