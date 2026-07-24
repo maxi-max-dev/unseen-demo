@@ -37,28 +37,33 @@ body{
 img{ max-width:100%; display:block; }
 button{ font:inherit; color:inherit; }
 
-/* ── 光斑 + 胶片齿孔带：基准图的辨识度有一半在光上 ───────────────── */
+/* ── 光斑 + 胶片齿孔带：基准图的辨识度有一半在光上 ─────────────────
+   光斑分近中远三层，只做 transform 位移（不动 filter/opacity，省得每帧重绘）。
+   窄屏砍到 8 颗并停漂移：这一页在手机上要跑动画和 3D，装饰不许抢帧。 */
 .bokeh{ position:fixed; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
 .bokeh i{
-  position:absolute; border-radius:50%; filter:blur(26px);
-  animation:drift linear infinite;
+  position:absolute; border-radius:50%;
+  background:var(--c); opacity:var(--o); filter:blur(var(--blur));
+  animation:drift var(--d) ease-in-out infinite alternate;
 }
-@keyframes drift{
-  0%{ transform:translate3d(0,0,0) scale(1); }
-  50%{ transform:translate3d(14px,-22px,0) scale(1.12); }
-  100%{ transform:translate3d(0,0,0) scale(1); }
-}
+@keyframes drift{ to{ transform:translate3d(var(--dx),var(--dy),0) scale(1.08); } }
 .film-strip{
-  position:fixed; z-index:0; pointer-events:none; opacity:.5;
-  left:-14%; width:128%; height:52px; transform:rotate(-7deg);
-  background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.75) 18%,rgba(255,255,255,.75) 82%,rgba(255,255,255,0));
+  position:fixed; z-index:0; pointer-events:none; opacity:.4;
+  left:-14%; width:128%; height:46px; overflow:hidden;
+  border-top:1px solid var(--line); border-bottom:1px solid var(--line);
+  background:rgba(255,255,255,.82);
 }
 .film-strip::before,.film-strip::after{
-  content:""; position:absolute; left:0; right:0; height:9px;
-  background-image:repeating-linear-gradient(90deg,rgba(214,150,120,.34) 0 8px,transparent 8px 20px);
+  content:""; position:absolute; left:0; right:0; height:7px; opacity:.3;
+  background:repeating-linear-gradient(90deg,var(--gold-deep) 0 8px,transparent 8px 20px);
 }
-.film-strip::before{ top:6px; } .film-strip::after{ bottom:6px; }
-.fs-a{ top:16%; } .fs-b{ top:71%; transform:rotate(6deg); opacity:.34; }
+.film-strip::before{ top:5px; } .film-strip::after{ bottom:5px; }
+.fs-a{ top:15%; transform:rotate(-7deg); } .fs-b{ top:72%; transform:rotate(5deg); opacity:.24; }
+@media (max-width:430px){
+  .bokeh i:nth-child(n+9){ display:none; }
+  .bokeh i{ filter:blur(16px); animation:none; }
+}
+@media (prefers-reduced-motion:reduce){ .bokeh i{ animation:none; } }
 
 /* ── 顶栏 ──────────────────────────────────────────────────────── */
 .topbar{
@@ -144,6 +149,15 @@ h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:va
 /* ═════ 第①幕 ═════ */
 .hero-mark{ display:grid; place-items:center; margin-bottom:6px; }
 .logo-glow{ filter:drop-shadow(0 8px 26px rgba(255,140,175,.36)); }
+/* 揭幕感：标记后面一层暖白光晕 + 一圈慢呼吸的细环。纯装饰，reduced-motion 下自动停 */
+.halo{ position:relative; display:grid; place-items:center; padding:14px; }
+.halo::before{ content:""; position:absolute; width:210px; height:210px; border-radius:50%;
+  background:radial-gradient(circle,rgba(255,255,255,.92),rgba(255,214,225,.46) 42%,rgba(255,214,225,0) 70%); }
+.halo::after{ content:""; position:absolute; width:156px; height:156px; border-radius:50%;
+  border:1px solid rgba(255,170,185,.45); animation:breathe 5.5s ease-in-out infinite; }
+.halo > svg{ position:relative; }
+@keyframes breathe{ 0%,100%{ transform:scale(1); opacity:.45; } 50%{ transform:scale(1.07); opacity:.9; } }
+@media (prefers-reduced-motion:reduce){ .halo::after{ animation:none; } }
 
 /* ═════ 第②幕 · 归位动画 ═════ */
 .stage2{ position:relative; display:grid; gap:12px; }
@@ -151,7 +165,7 @@ h2{ font-size:clamp(22px,5.4vw,34px); line-height:1.2; font-weight:700; color:va
    任何一个掉到屏幕外，这一幕就废了一半 */
 .stage2 .duo{ display:grid; grid-template-columns:minmax(0,46fr) minmax(0,54fr); gap:10px; align-items:start; }
 .compass-wrap{ position:relative; display:grid; place-items:center; }
-.compass{ width:min(58vw,262px); height:auto; overflow:visible; }
+.compass{ width:min(53vw,244px); height:auto; overflow:visible; }
 .compass-cap{ position:absolute; text-align:center; pointer-events:none; }
 .compass-cap .big{ font-size:26px; font-weight:700; color:var(--ink);
                    font-variant-numeric:tabular-nums; line-height:1.1; }
@@ -329,16 +343,22 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   <nav class="dots" id="dots" aria-label="六幕"></nav>
 </header>
 
-<!-- 品牌标记：三个视角叠在一起，中间那块才是完整的记忆 -->
+<!-- 品牌标记：三个视角叠在一起，中间那块才是完整的记忆。
+     白心用三层 clipPath 依次裁：它是三个圆的【真交集】里的一块，
+     所以放大到 112px 也不会漂出公共区域（这一版是 Codex 给的解法，比手调心形坐标稳）。 -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <clipPath id="uClipTop"><circle cx="32" cy="22.5" r="18"/></clipPath>
+  <clipPath id="uClipLeft"><circle cx="22.5" cy="39" r="18"/></clipPath>
+  <clipPath id="uClipRight"><circle cx="41.5" cy="39" r="18"/></clipPath>
   <symbol id="uLogo" viewBox="0 0 64 64">
     <g style="mix-blend-mode:multiply">
-      <circle cx="32" cy="24" r="17" fill="#FF9FC0" opacity=".55"/>
-      <circle cx="23" cy="39" r="17" fill="#FF6E9E" opacity=".55"/>
-      <circle cx="41" cy="39" r="17" fill="#FFC26B" opacity=".55"/>
+      <circle cx="32" cy="22.5" r="18" fill="#FF9FC0" opacity=".55"/>
+      <circle cx="22.5" cy="39" r="18" fill="#FF6E9E" opacity=".55"/>
+      <circle cx="41.5" cy="39" r="18" fill="#FFC26B" opacity=".55"/>
     </g>
-    <path d="M32 44.5c-5.6-4-8.4-6.9-8.4-10.2a4.5 4.5 0 0 1 8.4-2.3 4.5 4.5 0 0 1 8.4 2.3c0 3.3-2.8 6.2-8.4 10.2z"
-          fill="#fff" opacity=".96"/>
+    <g clip-path="url(#uClipTop)"><g clip-path="url(#uClipLeft)"><g clip-path="url(#uClipRight)">
+      <path fill="#FFFFFF" d="M32 40.5C26.5 36.8 25.3 34.1 26 31.9C26.7 29.8 28.4 28.9 30.1 29.2C31 29.4 31.7 30 32 30.7C32.3 30 33 29.4 33.9 29.2C35.6 28.9 37.3 29.8 38 31.9C38.7 34.1 37.5 36.8 32 40.5Z"/>
+    </g></g></g>
   </symbol>
 </defs></svg>
 
@@ -346,7 +366,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
   <!-- ═══════ ① 开场 ═══════ -->
   <section class="act" id="act1" aria-label="第一幕 开场">
-    <div class="hero-mark">
+    <div class="hero-mark halo">
       <svg class="logo-glow" width="112" height="112" viewBox="0 0 64 64" aria-label="UNSEEN"><use href="#uLogo"/></svg>
     </div>
     <div style="text-align:center">
@@ -375,28 +395,42 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       <div class="compass-wrap">
         <svg class="compass" id="compass" viewBox="0 0 260 260" aria-label="方位罗盘">
           <defs>
-            <linearGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stop-color="#FF7FA8"/><stop offset="100%" stop-color="#FFC981"/>
+            <linearGradient id="ringGrad" x1="24" y1="24" x2="236" y2="236"
+                            gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#FF7FA8"/>
+              <stop offset=".56" stop-color="#FF5C8A"/>
+              <stop offset="1" stop-color="#FFC981"/>
             </linearGradient>
+            <line id="minorTick" x1="130" y1="21" x2="130" y2="29"
+                  stroke="#9A7C86" stroke-width="1.25" stroke-linecap="round"/>
+            <line id="majorTick" x1="130" y1="17" x2="130" y2="31"
+                  stroke="#5C3B48" stroke-width="2.25" stroke-linecap="round"/>
+            <filter id="tickGlow" x="-70%" y="-70%" width="240%" height="240%">
+              <feGaussianBlur stdDeviation="2.6" result="b"/>
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
           </defs>
-          <circle cx="130" cy="130" r="112" fill="none" stroke="var(--line)" stroke-width="1"/>
-          <circle cx="130" cy="130" r="92" fill="none" stroke="rgba(255,170,185,.18)" stroke-width="1"/>
-          <circle cx="130" cy="130" r="112" fill="none" stroke="url(#ringGrad)" stroke-width="2.5"
-                  stroke-dasharray="0 999" id="ringArc" stroke-linecap="round"
+          <circle cx="130" cy="130" r="116" fill="#fff" stroke="var(--line)"/>
+          <circle cx="130" cy="130" r="102" fill="none" stroke="var(--line)"/>
+          <circle cx="130" cy="130" r="82" fill="#FFF7EE" stroke="var(--line)"/>
+          <g id="grad"></g>
+          <g id="taskArcs"></g>
+          <circle id="ringArc" cx="130" cy="130" r="102" fill="none" stroke="url(#ringGrad)"
+                  stroke-width="7" stroke-linecap="round" stroke-dasharray="0 999"
                   transform="rotate(-90 130 130)"/>
           <g id="ticks"></g>
-          <g id="taskArcs"></g>
-          <circle cx="130" cy="130" r="3" fill="var(--ink)"/>
-          <text x="130" y="14" text-anchor="middle" font-size="9" fill="#9A7C86">0°</text>
-          <text x="252" y="133" text-anchor="end" font-size="9" fill="#9A7C86">90°</text>
-          <text x="130" y="254" text-anchor="middle" font-size="9" fill="#9A7C86">180°</text>
-          <text x="8" y="133" font-size="9" fill="#9A7C86">270°</text>
+          <!-- 只留 0° 定向。90/180/270 那三个标签在 390px 下会被外圈压住，
+               四根加粗刻度已经把四个方位交代清楚了，不必硬塞字 -->
+          <text x="130" y="11" text-anchor="middle" font-size="8.5" fill="#9A7C86">0° 正前方</text>
         </svg>
         <div class="compass-cap" id="compassCap">
           <div class="big" id="capBig">—</div>
           <div class="sub" id="capSub">等一张照片</div>
+          <div id="capPill" style="margin-top:5px;min-height:20px"></div>
         </div>
       </div>
+
+      <p class="tiny" id="compassLegend" style="text-align:center;margin:0"></p>
 
       <div class="duo">
         <div class="phone" id="phone">
@@ -504,7 +538,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     <p class="tiny" id="filmNote"></p>
 
     <div class="vision">
-      <svg width="78" height="78" viewBox="0 0 64 64" class="logo-glow" aria-hidden="true"><use href="#uLogo"/></svg>
+      <div class="halo"><svg width="86" height="86" viewBox="0 0 64 64" class="logo-glow" aria-hidden="true"><use href="#uLogo"/></svg></div>
       <div class="lines">
         一个人的记忆，一台相机就够了。<br>
         一群人的记忆，需要一个共同的空间。
@@ -567,17 +601,26 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   var N = 6;
 
   /* ════════ 光斑 ════════ */
+  // 位置写死不随机：截图要能复现，随机光斑会让「跟上一版比对」变成猜谜
   (function bokeh(){
-    if (REDUCED) return;
-    var box = $("bokeh"), cols = ["#FFB3C9","#FFD8A8","#FFFFFF","#FFC0D4"], html = [];
-    for (var i = 0; i < 11; i++) {
-      var s = 40 + (i * 37) % 120;
-      html.push('<i style="width:' + s + 'px;height:' + s + 'px;left:' + ((i * 23 + 7) % 96) +
-                '%;top:' + ((i * 41 + 11) % 92) + '%;background:' + cols[i % 4] +
-                ';opacity:' + (0.1 + (i % 5) * 0.045).toFixed(2) +
-                ';animation-duration:' + (11 + i * 2.4) + 's;animation-delay:-' + (i * 1.7) + 's"></i>');
-    }
-    box.innerHTML = html.join("");
+    var B = [
+      // left%, top%, px, opacity, color,     blur, dx,    dy
+      [ 8, 12, 150, .20, "#FFB3C9", 34,  "16px", "-22px"],
+      [76,  6, 124, .17, "#FFD8A8", 30, "-14px", "18px" ],
+      [44, 58, 168, .13, "#FFC0D4", 38,  "12px", "-16px"],
+      [88, 48, 132, .15, "#FFFFFF", 30, "-18px", "-12px"],
+      [20, 74, 110, .13, "#FFD8A8", 26,  "14px", "16px" ],
+      [60, 30,  96, .12, "#FFB3C9", 24, "-12px", "14px" ],
+      [ 4, 44,  86, .11, "#FFFFFF", 22,  "10px", "-14px"],
+      [92, 82, 104, .12, "#FFC0D4", 26, "-10px", "-16px"],
+      [32, 22,  34, .34, "#FFFFFF",  5,   "8px", "-10px"],
+      [68, 66,  28, .30, "#FFE3C0",  4,  "-8px", "10px" ]
+    ];
+    $("bokeh").innerHTML = B.map(function(b, i){
+      return '<i style="left:' + b[0] + '%;top:' + b[1] + '%;width:' + b[2] + 'px;height:' + b[2] +
+        'px;--o:' + b[3] + ';--c:' + b[4] + ';--blur:' + b[5] + 'px;--dx:' + b[6] + ';--dy:' + b[7] +
+        ';--d:' + (13 + i * 2.2) + 's;animation-delay:-' + (i * 1.9).toFixed(1) + 's"></i>';
+    }).join("");
   })();
 
   /* ════════ 翻幕 ════════ */
@@ -643,6 +686,18 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   }
   var hero = D.hero;
 
+  var R_IN = 84, R_OUT = 100, R_TASK = 93, R_LAND = 100, RING_R = 102;
+
+  // 外圈刻度盘：每 15° 一根，正东南西北那四根加粗。纯装饰，但它让「这是个方位仪」一眼成立
+  (function graduations(){
+    var g = [];
+    for (var d = 0; d < 360; d += 15) {
+      g.push('<use href="#' + (d % 90 === 0 ? "majorTick" : "minorTick") +
+             '" transform="rotate(' + d + ' 130 130)"/>');
+    }
+    $("grad").innerHTML = g.join("");
+  })();
+
   // 已经在空间里的照片先铺上去（主角那张留到动画里才落位）
   function drawTicks(includeHero){
     var svgNS = "http://www.w3.org/2000/svg", g = $("ticks");
@@ -651,15 +706,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       .forEach(function(p){
         if (!includeHero && p.id === hero.photo.id) return;
         var isHero = p.id === hero.photo.id;
-        var a = pol(p.yaw, 96), b = pol(p.yaw, 110);
+        var a = pol(p.yaw, R_IN), b = pol(p.yaw, R_OUT);
         var ln = document.createElementNS(svgNS, "line");
         ln.setAttribute("x1", a.x.toFixed(1)); ln.setAttribute("y1", a.y.toFixed(1));
         ln.setAttribute("x2", b.x.toFixed(1)); ln.setAttribute("y2", b.y.toFixed(1));
         ln.setAttribute("stroke", isHero ? "#FF5C8A" : "#C9A9B2");
-        ln.setAttribute("stroke-width", isHero ? 3.4 : 1.8);
+        ln.setAttribute("stroke-width", isHero ? 4 : 2.2);
         ln.setAttribute("stroke-linecap", "round");
-        ln.setAttribute("opacity", isHero ? 1 : .65);
+        ln.setAttribute("opacity", isHero ? 1 : .7);
         ln.setAttribute("class", "tick" + (isHero ? " new" : ""));
+        if (isHero) ln.setAttribute("filter", "url(#tickGlow)");
         g.appendChild(ln);
       });
   }
@@ -668,11 +724,12 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     var t = hero.task, r = t.yawRange;
     if (!r) return;
     var a = r[0], b = r[1], span = ((b - a) + 360) % 360;
-    var p0 = pol(a, 103), p1 = pol(a + span, 103);
+    var p0 = pol(a, R_TASK), p1 = pol(a + span, R_TASK);
     $("taskArcs").innerHTML =
       '<path d="M' + p0.x.toFixed(1) + ' ' + p0.y.toFixed(1) +
-      ' A103 103 0 ' + (span > 180 ? 1 : 0) + ' 1 ' + p1.x.toFixed(1) + ' ' + p1.y.toFixed(1) +
-      '" fill="none" stroke="#FFC981" stroke-width="9" opacity=".42" stroke-linecap="round"/>';
+      ' A' + R_TASK + ' ' + R_TASK + ' 0 ' + (span > 180 ? 1 : 0) + ' 1 ' +
+      p1.x.toFixed(1) + ' ' + p1.y.toFixed(1) +
+      '" fill="none" stroke="#FFC981" stroke-width="11" opacity=".45" stroke-linecap="round"/>';
   })();
 
   $("phNick").textContent = "· " + hero.photo.contributor;
@@ -697,6 +754,12 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。数字来自 ' +
   esc(D.generatedFrom) + '。</div>';
 
+  // 罗盘上那两段弧不许只是好看：说清各自是什么，否则看着像随手画的进度条
+  $("compassLegend").innerHTML =
+    '<span style="color:var(--pink-hot)">粗弧</span> ' + D.stats.auto + '/' + D.stats.total +
+    ' 自动入选　<span style="color:var(--gold-deep)">金段</span> 通缉方位 ' +
+    (hero.task.yawRange ? hero.task.yawRange[0] + "°–" + hero.task.yawRange[1] + "°" : "");
+
   var flying = false;
   function playFly(){
     if (flying) return;
@@ -704,6 +767,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     drawTicks(false);
     $("capBig").textContent = "—";
     $("capSub").textContent = "等一张照片";
+    $("capPill").innerHTML = "";
     $("ringArc").setAttribute("stroke-dasharray", "0 999");
     [].forEach.call($("readout").querySelectorAll(".line"), function(l){ l.classList.remove("in"); });
     var slot = $("phSlot");
@@ -728,7 +792,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       var from = slot.getBoundingClientRect();
       var svg = $("compass").getBoundingClientRect();
       var scale = svg.width / 260;
-      var land = pol(hero.photo.yaw, 103);
+      var land = pol(hero.photo.yaw, R_LAND);
       var tx = svg.left + land.x * scale, ty = svg.top + land.y * scale;
 
       flyer.style.transition = "none";
@@ -762,8 +826,9 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
         drawTicks(true);
         $("capBig").textContent = hero.photo.yaw.toFixed(1) + "°";
-        $("capSub").textContent = hero.photo.bearing + " · " + esc(hero.photo.contributor) + " 交的";
-        var C = 2 * Math.PI * 112;
+        $("capSub").textContent = hero.photo.bearing + " · " + hero.photo.contributor + " 交的";
+        $("capPill").innerHTML = '<span class="pill ok">● 自动入选</span>';
+        var C = 2 * Math.PI * RING_R;
         $("ringArc").setAttribute("stroke-dasharray", (C * D.stats.auto / D.stats.total).toFixed(0) + " 999");
 
         READ.forEach(function(_, i){
@@ -782,15 +847,19 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   drawTicks(false);
 
   /* ════════ 第③幕：走进空间（点了才加载 3D，别在手机上白等）════════ */
+  // 写死 ?scene=ballroom 而不是 ?demo=1：demo 走的是场景清单第一项，
+  // 清单顺序哪天一变，这一幕就会走进另一个房间，而②④⑤讲的还是宴会厅。
+  // （已核对：s4 那张全景和 assets/walkdemo/ballroom.jpg 逐像素同源，所以是同一个厅）
+  var WALK_URL = "../viewer/walk.html?scene=ballroom";
   $("walkPoster").src = D.pano;
-  $("walkNote").innerHTML = "这一幕嵌的是仓库里的全景漫游页 " +
-    "<code>viewer/walk.html</code>，用的是同一份空间数据。" +
-    '<a href="../viewer/walk.html?demo=1" target="_blank" rel="noopener">在新窗口打开 →</a>';
+  $("walkNote").innerHTML = "这一幕嵌的是仓库里的全景漫游页 <code>viewer/walk.html</code>，" +
+    "走的是和前面几幕同一个宴会厅。" +
+    '<a href="' + WALK_URL + '" target="_blank" rel="noopener">在新窗口打开 →</a>';
   var walkLoaded = false;
   function loadWalk(){
     if (walkLoaded) return;
     walkLoaded = true;
-    $("walkFrame").src = "../viewer/walk.html?demo=1";
+    $("walkFrame").src = WALK_URL;
     $("walkCover").classList.add("off");
   }
   $("walkGo").addEventListener("click", loadWalk);
