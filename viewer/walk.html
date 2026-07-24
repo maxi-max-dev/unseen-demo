@@ -376,10 +376,85 @@ html, body {
     });
   }
 
+  // space 模式：?space=<sid>&node=<nid>，读闭环产品的空间(server/space.py 的
+  // GET /api/space/<sid>?role=guest)。role=guest 时后端只吐已入选的照片(auto_ok/approved)，
+  // 被拒的/等新人确认的都不会到这里来——宾客走进空间看到的就是"已经进了空间"的那些。
+  // 资源路径写法照抄 bootCompose：拼一个从站点根算起的绝对前缀 /spaces/<sid>/，
+  // 拼完就是绝对路径，不需要像 node/scene 模式那样加 "../"。
+  // 同一个方位常常收到好几张照片(比如三个人都拍了舞台)，而 CLIP 只判 yaw 不判 pitch，
+  // 所有 pitch 都是 0——照片钉点会一张压一张,完全重叠,看着像只有一张。
+  // 这里按 yaw 分桶(8° 一档)，同桶里第 2 张开始按 0/-9/+9/-18/+18 这样上下错开一点。
+  // ⚠️ 只动 pitch，不动 yaw：yaw 是机器真算出来的方位，不能改；pitch 本来就没测过(恒为 0)，
+  //    错开纯粹是展示层的避让，也绝不写回 space.json。
+  function fanOutPitch(photos) {
+    var LADDER = [0, -9, 9, -18, 18, -27, 27];
+    var bucket = {};
+    return photos.map(function (p) {
+      var key = Math.round(((p.yaw || 0) % 360) / 8);
+      var k = bucket[key] = (bucket[key] === undefined ? 0 : bucket[key] + 1);
+      return {
+        src: p.src, yaw: p.yaw, contributor: p.contributor,
+        pitch: (p.pitch || 0) + LADDER[Math.min(k, LADDER.length - 1)]
+      };
+    });
+  }
+
+  function bootSpace(sid, nodeId) {
+    var backHref = "../server/join.html?space=" + encodeURIComponent(sid);
+    fetch("/api/space/" + encodeURIComponent(sid) + "?role=guest", { cache: "no-store" })
+      .then(function (r) {
+        if (!r.ok) throw new Error("http " + r.status);
+        return r.json();
+      }).then(function (data) {
+        if (!data || !data.ok) throw new Error((data && data.error) || "接口没返回 ok");
+        var space = data.space || {};
+        var nodes = space.nodes || [];
+        if (!nodes.length) throw new Error("这个空间还没有全景节点");
+        var node = null;
+        if (nodeId) {
+          for (var i = 0; i < nodes.length; i++) {
+            if (nodes[i].id === nodeId) { node = nodes[i]; break; }
+          }
+          if (!node) throw new Error("空间里找不到节点 “" + nodeId + "”");
+        }
+        node = node || nodes[0];
+
+        var prefix = "/spaces/" + encodeURIComponent(sid) + "/";
+        // 照片按节点归属过滤；nodeId 为空的(心愿任务交上来的照片可能没绑节点)算进第一个节点，
+        // 免得它们哪个空间都进不去，白交了。
+        var mine = (space.photos || []).filter(function (p) {
+          return p.nodeId ? (p.nodeId === node.id) : (node === nodes[0]);
+        });
+        var title = space.title || "我们的空间";
+        if (node.name) title = node.name + (node.time ? " · " + node.time : "");
+        startWalk({
+          panoUrl: prefix + node.panorama,
+          depthPngUrl: prefix + node.depth,
+          depthJsonUrl: prefix + node.depthJson,
+          title: title,
+          backHref: backHref,
+          // 宾客交上来的照片只有 yaw 没有 pitch(CLIP 只判方位角), 全是 0 ——
+          // 钉点必须抬到眼高那一圈, 否则人站着平视一张都看不见, 见 makePhotoSprite 里的注释。
+          photosAtEyeLevel: true,
+          photos: fanOutPitch(mine).map(function (p) {
+            return {
+              src: prefix + p.src, yaw: p.yaw, pitch: p.pitch,
+              caption: (p.contributor ? p.contributor + " 交的" : "宾客交的")
+            };
+          })
+        });
+      }).catch(function (e) {
+        showError("空间加载失败", String((e && e.message) || e), backHref);
+      });
+  }
+
   function boot() {
     var nodeId = qs("node");
     var composeUrl = qs("compose");
-    if (nodeId) {
+    var spaceId = qs("space");
+    if (spaceId) {
+      bootSpace(spaceId, nodeId);
+    } else if (nodeId) {
       loadTourScript(function (tour) {
         if (!tour || !tour.nodes) {
           showError("导览数据加载失败", "tour.js 无法读取", "index.html");
@@ -701,6 +776,16 @@ html, body {
       );
       var radius = Math.max(1.0, Math.min(2.5, 0.6 * sampleDepthMeters(dir)));
       sprite.position.copy(dir).multiplyScalar(radius);
+      // 钉点默认挂在全景球心(y=0)那一圈上，而相机眼高是 EYE_HEIGHT=1.4 米——也就是说
+      // 一个 pitch=0 的钉点其实在视线下方 1.4 米。近处的钉点(radius≈1.2)会落到视线下
+      // 约 50°，超出 75° 视场的一半，人站着直视根本看不见它。
+      // demo/scene/compose 三种模式的照片带着人工 pitch，靠"有几张挂得远"侥幸能看见，
+      // 所以这个毛病一直没暴露；space 模式的照片 pitch 全是 0(CLIP 只定 yaw)，八张钉点
+      // 就会整整齐齐全部掉出画面——发布验收的语义闸就是这么把它逮住的
+      // (报告原话:"8 个照片钉点没有一个落在画面内")。
+      // 这里只对显式要求的模式(space)把钉点抬到眼高那一圈，方位角一点没动；
+      // 不传这个开关的三种老模式行为一个字节都没变。
+      if (opts.photosAtEyeLevel) sprite.position.y += EYE_HEIGHT;
       sprite.scale.set(PHOTO_SPRITE_SCALE, PHOTO_SPRITE_SCALE, 1);
 
       scene.add(sprite);

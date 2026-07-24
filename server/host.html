@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>空间记忆 · 新人后台</title>
+<style>
+  /* ---------------- 配色: 和宾客端请柬同一套(米色底/深墨字/红金点缀),
+       但后台更"工作台": 纸白卡片 + 细线分栏 + 信息密度高 ---------------- */
+  :root{
+    --cream:#f6f2ea; --paper:#fffdf8; --ink:#3a352f; --sub:#9a9186;
+    --line:#e7dccb; --line2:#f0e8db;
+    --red:#c0392b; --gold:#b08d57; --green:#5c8a52;
+    --shadow:0 2px 10px rgba(88,72,48,.07);
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; min-height:100%; }
+  body{
+    background:
+      radial-gradient(120% 60% at 50% 0%, #fdfbf6 0%, #f7f3ec 45%, #f1eae0 100%) fixed;
+    color:var(--ink);
+    font-family:-apple-system,"PingFang SC",system-ui,sans-serif;
+    font-size:14px; line-height:1.6;
+    padding:20px 16px calc(48px + env(safe-area-inset-bottom,0));
+  }
+  .wrap{ width:100%; max-width:1120px; margin:0 auto; }
+  button{ font-family:inherit; }
+  a{ color:var(--red); }
+
+  /* ---------------- 通用卡片 / 标题 ---------------- */
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    box-shadow:var(--shadow); padding:16px 18px; margin-bottom:16px;
+  }
+  .sec-head{ display:flex; align-items:baseline; gap:10px; margin:0 0 12px; flex-wrap:wrap; }
+  .sec-title{ font-size:15px; font-weight:700; letter-spacing:.5px; margin:0; }
+  .sec-note{ font-size:11.5px; color:var(--sub); }
+  .hr{ height:1px; background:var(--line2); margin:14px 0; border:0; }
+
+  .btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    height:36px; padding:0 16px; border-radius:18px; border:1px solid var(--line);
+    background:#fff; color:var(--ink); font-size:13px; font-weight:600; cursor:pointer;
+    transition:transform .12s ease, background .12s ease, border-color .12s ease;
+  }
+  .btn:hover{ border-color:var(--gold); }
+  .btn:active{ transform:scale(.97); }
+  .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
+  .btn.primary{ background:var(--red); border-color:var(--red); color:#fff; box-shadow:0 4px 14px rgba(192,57,43,.24); }
+  .btn.primary:hover{ background:#ad3325; }
+  .btn.gold{ background:var(--gold); border-color:var(--gold); color:#fff; }
+  .btn.sm{ height:30px; padding:0 12px; font-size:12px; border-radius:15px; }
+  .btn.big{ height:44px; font-size:14.5px; padding:0 20px; border-radius:22px; }
+
+  .pill{
+    display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 9px;
+    border-radius:11px; font-size:11px; font-weight:700; letter-spacing:.3px;
+  }
+  .pill.open{ background:#fdf0ee; color:var(--red); }
+  .pill.filled{ background:#eef5ec; color:var(--green); }
+  .pill.closed{ background:#f2eee7; color:var(--sub); }
+  .pill.gold{ background:#f8f1e3; color:var(--gold); }
+
+  /* ---------------- 顶部: 空间概况 ---------------- */
+  .kicker{ font-size:10.5px; letter-spacing:4px; color:var(--gold); font-weight:700; margin-bottom:10px; }
+  .kicker span{ opacity:.55; letter-spacing:2px; }
+  .top{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+  .top h1{
+    font-family:"Songti SC","STSong",serif; font-size:24px; font-weight:600;
+    margin:0 0 4px; letter-spacing:1px;
+  }
+  .top .couple{ font-size:12.5px; color:var(--sub); }
+  .stats{ display:flex; gap:22px; flex-wrap:wrap; margin-top:14px; }
+  .stat b{ display:block; font-size:21px; font-weight:700; font-variant-numeric:tabular-nums; line-height:1.25; }
+  .stat span{ font-size:11px; color:var(--sub); letter-spacing:.5px; }
+  .top-actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
+  .pubstate{ font-size:11.5px; color:var(--sub); }
+
+  /* ---------------- 待你确认 ---------------- */
+  #reviewCard{ border-color:#e8d6ce; }
+  .banner{
+    display:flex; align-items:center; gap:14px;
+    background:linear-gradient(100deg,#fdf3f0 0%, #fdf8ef 70%, #fffdf8 100%);
+    border:1px solid #f0dcd4; border-left:4px solid var(--red);
+    border-radius:12px; padding:14px 18px; margin-bottom:16px;
+  }
+  .banner .big{
+    font-family:"Songti SC","STSong",serif; font-weight:600;
+    font-size:clamp(19px, 2.5vw, 28px); line-height:1.45; letter-spacing:.5px;
+  }
+  .banner .n{ font-variant-numeric:tabular-nums; font-weight:700; }
+  .banner .n.hot{ color:var(--red); font-size:1.5em; padding:0 2px; }
+  .banner .n.calm{ color:var(--gold); }
+  .banner .sub{ font-size:12px; color:#8a8073; margin-top:5px; letter-spacing:.3px; }
+
+  .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
+  .chk{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#6f675d; cursor:pointer; user-select:none; }
+  .chk input{ width:15px; height:15px; accent-color:var(--red); }
+
+  .review-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
+  .rcard{ border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
+  .rcard.sel{ border-color:var(--red); box-shadow:0 0 0 2px rgba(192,57,43,.14); }
+  .rcard .shot{ position:relative; aspect-ratio:4/3; background:#ece6dc; }
+  .rcard .shot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .rcard .pick{
+    position:absolute; top:8px; left:8px; width:32px; height:32px; border-radius:9px;
+    background:rgba(255,255,255,.92); display:flex; align-items:center; justify-content:center;
+    cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.2);
+  }
+  .rcard .pick input{ width:17px; height:17px; accent-color:var(--red); margin:0; }
+  .rcard .who{
+    position:absolute; right:8px; bottom:8px; background:rgba(58,53,47,.78); color:#fff;
+    font-size:11px; padding:2px 8px; border-radius:9px;
+  }
+  .rcard .meta{ padding:11px 12px 0; display:flex; align-items:center; gap:10px; }
+  .dial{
+    flex:none; position:relative; width:34px; height:34px; border-radius:50%;
+    border:1px solid var(--line); background:#fdfaf4;
+  }
+  .dial::before{
+    content:""; position:absolute; left:50%; top:50%; width:2px; height:13px;
+    background:var(--red); border-radius:1px; transform-origin:50% 100%;
+    transform:translate(-50%,-100%) rotate(var(--yaw,0deg));
+  }
+  .dial::after{
+    content:""; position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px 0 0 -2px;
+    border-radius:50%; background:var(--ink);
+  }
+  .m-line1{ font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
+  .m-line2{ font-size:11px; color:var(--sub); }
+  .robot{
+    margin:9px 12px 0; padding:8px 10px; background:#f7f3ea; border-radius:9px;
+    font-size:11.5px; color:#7b7266; line-height:1.55;
+  }
+  .robot b{ color:var(--ink); font-weight:600; }
+  .rcard .acts{ display:flex; gap:8px; padding:11px 12px 12px; margin-top:auto; }
+  .rcard .acts .btn{ flex:1; height:40px; border-radius:20px; font-size:13.5px; }
+  .empty{
+    text-align:center; padding:26px 14px; color:var(--sub); font-size:13px;
+    background:#faf7f0; border:1px dashed var(--line); border-radius:12px;
+  }
+  .empty .em{ font-size:22px; display:block; margin-bottom:8px; }
+
+  /* ---------------- 两栏 ---------------- */
+  .cols{ display:grid; grid-template-columns:minmax(0,1.5fr) minmax(0,1fr); gap:16px; align-items:start; }
+  @media (max-width:880px){ .cols{ grid-template-columns:minmax(0,1fr); } }
+  /* 手机: 发布按钮拉成整行主 CTA, 概况区左对齐, 别让按钮吊在半空 */
+  @media (max-width:640px){
+    body{ padding:16px 12px calc(40px + env(safe-area-inset-bottom,0)); }
+    .card{ padding:14px 14px; }
+    .top-actions{ width:100%; align-items:flex-start; margin-top:4px; }
+    .top-actions .btn{ width:100%; }
+    .stats{ gap:16px; }
+  }
+
+  /* ---------------- 悬赏任务 ---------------- */
+  .task{ display:flex; gap:12px; padding:12px 0; border-top:1px solid var(--line2); }
+  .task:first-child{ border-top:0; padding-top:2px; }
+  .task .wanted{
+    flex:none; position:relative; width:82px; height:62px; border-radius:9px; overflow:hidden;
+    background:#efe9de; border:1px solid var(--line);
+  }
+  .task .wanted img{ width:100%; height:100%; object-fit:cover; display:block; filter:saturate(.85) contrast(1.03); }
+  .task .wanted .cross{
+    position:absolute; inset:0;
+    background:
+      linear-gradient(to right, transparent calc(50% - .5px), rgba(255,255,255,.75) calc(50% - .5px), rgba(255,255,255,.75) calc(50% + .5px), transparent calc(50% + .5px)),
+      linear-gradient(to bottom, transparent calc(50% - .5px), rgba(255,255,255,.75) calc(50% - .5px), rgba(255,255,255,.75) calc(50% + .5px), transparent calc(50% + .5px));
+    box-shadow:inset 0 0 0 2px rgba(192,57,43,.55);
+  }
+  .task .wanted .tag{
+    position:absolute; left:0; bottom:0; background:var(--red); color:#fff;
+    font-size:9.5px; letter-spacing:1px; padding:1px 5px; border-radius:0 6px 0 0;
+  }
+  .task .wish-ico{
+    flex:none; width:82px; height:62px; border-radius:9px; background:#fdf6ec;
+    border:1px dashed var(--gold); display:flex; align-items:center; justify-content:center; font-size:22px;
+  }
+  .task .body{ min-width:0; flex:1; }
+  .task .t1{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .task .tname{ font-size:13.5px; font-weight:700; }
+  .task .tbrief{ font-size:12px; color:#7b7266; margin-top:3px; }
+  .task .tfoot{ font-size:11px; color:var(--sub); margin-top:5px; display:flex; gap:12px; flex-wrap:wrap; }
+  .bounty{ color:var(--gold); font-weight:700; font-variant-numeric:tabular-nums; }
+
+  .wishform{ background:#fdfaf3; border:1px solid var(--line2); border-radius:12px; padding:13px 14px; margin-top:14px; }
+  .wishform .fl{ font-size:11.5px; color:var(--sub); margin:0 0 6px; }
+  .inp{
+    width:100%; border:1px solid var(--line); border-radius:9px; background:#fff;
+    padding:9px 11px; font-size:13px; font-family:inherit; color:var(--ink); outline:none;
+  }
+  .inp:focus{ border-color:var(--gold); }
+  .inp::placeholder{ color:#c2b9ab; }
+  textarea.inp{ resize:vertical; min-height:52px; line-height:1.6; }
+  .wishrow{ display:flex; gap:10px; align-items:center; margin-top:9px; flex-wrap:wrap; }
+  .wishrow .bwrap{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--sub); }
+  .wishrow .bwrap .inp{ width:78px; text-align:center; font-variant-numeric:tabular-nums; }
+
+  /* ---------------- 邀请宾客 ---------------- */
+  .qrbox{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    background:#fffdf7; border:1px solid var(--line2); border-radius:12px; padding:16px 14px;
+  }
+  .qrbox canvas{ width:168px; height:168px; image-rendering:pixelated; background:#fff; border-radius:6px; }
+  .qrfallback{
+    width:168px; height:168px; border:1.5px dashed var(--line); border-radius:10px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;
+    color:var(--sub); font-size:11.5px; text-align:center; padding:12px; background:#fbf8f2;
+  }
+  .qrfallback .em{ font-size:24px; }
+  .linkrow{ display:flex; gap:8px; width:100%; }
+  .linkrow .inp{ font-size:11.5px; padding:8px 10px; min-width:0; }
+  .linkrow .btn{ flex:none; white-space:nowrap; }
+  .qrtip{ font-size:11px; color:var(--sub); text-align:center; line-height:1.6; }
+
+  /* ---------------- 贡献者排行 ---------------- */
+  .rank{ display:flex; align-items:center; gap:10px; padding:8px 0; border-top:1px solid var(--line2); }
+  .rank:first-child{ border-top:0; }
+  .rank .medal{
+    flex:none; width:24px; height:24px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:700; background:#f2ede4; color:var(--sub); font-variant-numeric:tabular-nums;
+  }
+  .rank .medal.m1{ background:#f6e5c0; color:#8a6a1f; }
+  .rank .medal.m2{ background:#e9e6e0; color:#6f6a62; }
+  .rank .medal.m3{ background:#f0dfd0; color:#8a5f3c; }
+  .rank .nm{ flex:1; font-size:13px; font-weight:600; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .rank .num{ font-size:11.5px; color:var(--sub); font-variant-numeric:tabular-nums; }
+  .rank .pts{ font-size:12.5px; font-weight:700; color:var(--gold); font-variant-numeric:tabular-nums; min-width:52px; text-align:right; }
+
+  /* ---------------- 空间列表(没有 ?space 参数时) ---------------- */
+  .slist{ display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:12px; }
+  .sitem{
+    border:1px solid var(--line); border-radius:12px; padding:13px 14px; background:#fff;
+    cursor:pointer; transition:border-color .12s ease, transform .12s ease;
+  }
+  .sitem:hover{ border-color:var(--gold); transform:translateY(-1px); }
+  .sitem .st{ font-size:14px; font-weight:700; margin-bottom:3px; }
+  .sitem .sm{ font-size:11.5px; color:var(--sub); }
+
+  /* ---------------- 提示条 ---------------- */
+  #toast{
+    position:fixed; left:50%; bottom:26px; transform:translate(-50%,14px); z-index:60;
+    background:rgba(58,53,47,.94); color:#fdfaf4; font-size:13px; padding:10px 18px;
+    border-radius:22px; opacity:0; pointer-events:none; transition:opacity .2s ease, transform .2s ease;
+    max-width:86vw; text-align:center;
+  }
+  #toast.on{ opacity:1; transform:translate(-50%,0); }
+  .mockbadge{
+    display:inline-block; margin-left:8px; background:#f2eee7; color:var(--sub);
+    font-size:10.5px; letter-spacing:1px; padding:2px 8px; border-radius:9px; vertical-align:middle;
+  }
+  footer.foot{ text-align:center; font-size:10.5px; color:#b8b0a4; letter-spacing:.5px; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div class="wrap" id="app">
+    <div class="card"><div class="empty">加载中…</div></div>
+  </div>
+  <div id="toast"></div>
+
+<!-- 同目录的自包含二维码生成器(另一个工兵产出)。没有也不影响页面, 下面会优雅降级。 -->
+<script src="qr.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  // ================================================================ 基础工具
+  var qs = new URLSearchParams(location.search);
+  var SID = qs.get("space") || "";
+  var MOCK = qs.get("mock") === "1";
+
+  var S = {          // 页面状态
+    space: null,     // space.json
+    joinUrl: "",
+    picked: {},      // 待审照片的勾选状态 photoId -> true
+    busy: false
+  };
+
+  function $(id){ return document.getElementById(id); }
+  function esc(s){
+    return String(s == null ? "" : s)
+      .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;")
+      .replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+  var toastTimer = null;
+  function toast(msg){
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("on");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ t.classList.remove("on"); }, 2400);
+  }
+
+  // 照片/裁切图路径: 契约里是相对 space 目录的相对路径, 这里补成可访问 URL;
+  // mock 模式直接给的是仓库内相对路径(../assets/...), 原样用。
+  function assetUrl(p){
+    if (!p) return "";
+    if (/^(https?:|data:|\/|\.\.?\/)/.test(p)) return p;
+    return "/spaces/" + encodeURIComponent(SID) + "/" + p;
+  }
+
+  function api(path, opts){
+    return fetch(path, opts).then(function(r){ return r.json(); });
+  }
+  function postJson(path, body){
+    return api(path, {
+      method:"POST",
+      headers:{ "Content-Type":"application/json" },
+      body: JSON.stringify(body || {})
+    });
+  }
+
+  // ================================================================ mock 假数据
+  // 后端没好也能看效果: 2 张待审 + 3 个任务(2 gap + 1 wish) + 4 个贡献者。
+  // 图片不引仓库里的测试图(那批是彩条测试卡, 看不出版式好坏), 用内联 SVG 占位图,
+  // 单文件自包含, 断网/没有 assets 目录也能看效果。
+  function ph(i, label){
+    var pal = [["#f0dcc0","#c9906a"],["#e6d8bd","#a8886a"],["#f4dfc6","#c4664f"],
+               ["#dfcfae","#8d7358"],["#f6e6cb","#b08d57"],["#eed6c6","#9b6b5a"]];
+    var c = pal[i % pal.length];
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">' +
+        '<stop offset="0" stop-color="' + c[0] + '"/><stop offset="1" stop-color="' + c[1] + '"/>' +
+      '</linearGradient></defs>' +
+      '<rect width="400" height="300" fill="url(#g)"/>' +
+      '<circle cx="' + (60 + (i * 47) % 280) + '" cy="' + (54 + (i * 23) % 40) + '" r="30" fill="#fff" opacity=".42"/>' +
+      '<rect y="206" width="400" height="94" fill="#5a4632" opacity=".16"/>' +
+      '<ellipse cx="' + (120 + (i * 31) % 90) + '" cy="240" rx="46" ry="60" fill="#5a4632" opacity=".26"/>' +
+      '<ellipse cx="' + (215 + (i * 19) % 70) + '" cy="250" rx="38" ry="50" fill="#5a4632" opacity=".2"/>' +
+      '<text x="14" y="288" font-family="sans-serif" font-size="13" fill="#fffdf8" opacity=".85">' + label + '</text>' +
+      '</svg>';
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+  // 通缉令裁切图占位: 暗一点 + 打上方位角, 像一块从全景上切下来的"没人拍过的方向"
+  function phGap(yaw){
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 240">' +
+      '<rect width="320" height="240" fill="#6d6154"/>' +
+      '<rect y="150" width="320" height="90" fill="#000" opacity=".2"/>' +
+      '<circle cx="228" cy="62" r="26" fill="#fff" opacity=".18"/>' +
+      '<text x="16" y="46" font-family="sans-serif" font-size="30" font-weight="700" fill="#fff" opacity=".55">' + yaw + '°</text>' +
+      '</svg>';
+    return "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  }
+
+  function mockSpace(){
+    var t0 = 1753340000.0;
+    var ok = [];
+    var names = ["小明","阿哲","姗姗","老王"];
+    for (var i = 0; i < 11; i++){
+      ok.push({
+        id:"p"+(i+1), src: ph(i, "宾客照片 · " + names[i%4]), thumb: ph(i, "宾客照片 · " + names[i%4]),
+        nodeId:(i%3===0?"n2":"n1"), yaw: (i*37)%360, pitch:0,
+        confidence: Math.round((0.52 + (i%5)*0.06)*10000)/10000,
+        state:"auto_ok", reason:"置信度高于阈值,自动入选",
+        contributor: names[i%4], taskId: (i%4===0?"t3":null), uploadedAt: t0 + i*60
+      });
+    }
+    ok.push({
+      id:"p12", src: ph(11, "宾客照片 · 老王"), thumb: ph(11, "宾客照片 · 老王"),
+      nodeId:"n1", yaw:0, pitch:0, confidence:0.1102,
+      state:"quarantined", reason:"自检环判定明显放错位置,已自动隔离",
+      contributor:"老王", taskId:null, uploadedAt: t0 + 800
+    });
+    var pend = [
+      { id:"p13", src: ph(2, "姗姗 · 18:42"), thumb: ph(2, "姗姗 · 18:42"),
+        nodeId:"n1", yaw:212.4, pitch:0, confidence:0.3117,
+        state:"needs_review", reason:"置信度 0.31 偏低,拿不准。画面里灯光和舞台右侧很像,但也可能是入口的射灯。",
+        contributor:"姗姗", taskId:"t1", uploadedAt: t0 + 900 },
+      { id:"p14", src: ph(5, "小明 · 16:55"), thumb: ph(5, "小明 · 16:55"),
+        nodeId:"n2", yaw:58.9, pitch:0, confidence:0.2740,
+        state:"needs_review", reason:"置信度 0.27 偏低,拿不准。人脸占满画面,背景信息太少,认不出是哪个方位。",
+        contributor:"小明", taskId:"t2", uploadedAt: t0 + 960 }
+    ];
+    return {
+      schema:"psm-space/1", id: SID || "s1",
+      title:"陈屹 ♥ 林沐 · 2026.7.26", couple:"陈屹 & 林沐",
+      createdAt:t0, published:false,
+      nodes:[
+        { id:"n1", name:"宴会厅", time:"18:00", panorama:"nodes/n1/pano.jpg", depth:"nodes/n1/depth.png", depthJson:"nodes/n1/depth.json" },
+        { id:"n2", name:"仪式草坪", time:"16:30", panorama:"nodes/n2/pano.jpg", depth:"nodes/n2/depth.png", depthJson:"nodes/n2/depth.json" }
+      ],
+      tasks:[
+        { id:"t1", nodeId:"n1", type:"gap", title:"缺这个角度", brief:"站在舞台右前方,拍向舞台",
+          yaw:210, yawRange:[190,240], briefImage: phGap(210),
+          bounty:50, status:"open", filledBy:[], createdBy:"system", createdAt:t0 },
+        { id:"t2", nodeId:"n1", type:"wish", title:"我想要一张我妈妈笑的照片", brief:"敬酒那会儿她一直在笑",
+          yaw:null, yawRange:null, briefImage:null,
+          bounty:100, status:"open", filledBy:[], createdBy:"couple", createdAt:t0 },
+        { id:"t3", nodeId:"n2", type:"gap", title:"缺这个角度", brief:"从签到台往草坪拱门方向拍",
+          yaw:45, yawRange:[30,70], briefImage: phGap(45),
+          bounty:50, status:"filled", filledBy:["小明","阿哲"], createdBy:"system", createdAt:t0 }
+      ],
+      photos: ok.concat(pend),
+      contributors:[
+        { name:"小明", photos:5, points:250 },
+        { name:"阿哲", photos:4, points:200 },
+        { name:"姗姗", photos:3, points:150 },
+        { name:"老王", photos:2, points:80 }
+      ]
+    };
+  }
+
+  // ================================================================ 统计
+  // 契约的 GET /api/space 只保证返回 space.json, 所以统计一律在前端算;
+  // 后端若额外给了 space.stats, 优先用后端的。
+  function stats(sp){
+    var s = { auto:0, pending:0, approved:0, rejected:0, total:0 };
+    (sp.photos || []).forEach(function(p){
+      s.total++;
+      if (p.state === "auto_ok" || p.state === "quarantined") s.auto++;
+      else if (p.state === "needs_review") s.pending++;
+      else if (p.state === "approved") s.approved++;
+      else if (p.state === "rejected") s.rejected++;
+    });
+    // "机器已自动处理" = 机器自己拍板的那些(自动入选 + 自动隔离)
+    s.machineHandled = (sp.stats && typeof sp.stats.machineHandled === "number") ? sp.stats.machineHandled : s.auto;
+    s.needHuman = (sp.stats && typeof sp.stats.needHuman === "number") ? sp.stats.needHuman : s.pending;
+    s.inSpace = s.auto + s.approved; // 空间里实际展示的张数(粗算)
+    return s;
+  }
+  function pendingPhotos(sp){
+    return (sp.photos || []).filter(function(p){ return p.state === "needs_review"; });
+  }
+
+  // ================================================================ 渲染: 顶部概况
+  function viewTop(sp){
+    var st = stats(sp);
+    var pub = sp.published
+      ? '<span class="pill filled">已发布</span>'
+      : '<span class="pill closed">未发布</span>';
+    var btn = sp.published
+      ? '<button class="btn sm" id="btnPublish">重新发布</button>'
+      : '<button class="btn primary big" id="btnPublish">发布空间</button>';
+    return '' +
+    '<div class="card">' +
+      '<div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span> · 新人后台' + (MOCK ? '<span class="mockbadge">MOCK 演示数据</span>' : '') + '</div>' +
+      '<div class="top">' +
+        '<div>' +
+          '<h1>' + esc(sp.title || "未命名空间") + '</h1>' +
+          '<div class="couple">' + esc(sp.couple || "") + ' · 空间 ID ' + esc(sp.id || SID) + '</div>' +
+          '<div class="stats">' +
+            '<div class="stat"><b>' + (sp.nodes || []).length + '</b><span>全景节点</span></div>' +
+            '<div class="stat"><b>' + st.total + '</b><span>收到照片</span></div>' +
+            '<div class="stat"><b>' + (sp.contributors || []).length + '</b><span>贡献者</span></div>' +
+            '<div class="stat"><b>' + (sp.tasks || []).filter(function(t){ return t.status === "open"; }).length + '</b><span>进行中任务</span></div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="top-actions">' + pub + btn +
+          '<div class="pubstate" id="pubState">' +
+            (sp.published ? '宾客扫码就能走进去了' : '发布后宾客才能进入空间漫游') +
+          '</div>' +
+          // 发布时后台会无人值守跑一遍机器验收(结构闸+渲染闸+语义闸), 报告落
+          // /spaces/<sid>/report.json。这一格由 pollReport() 填, 拿不到就一直空着, 不占地方。
+          '<div class="pubstate" id="reportSlot"></div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // ================================================================ 渲染: 待你确认
+  function viewReview(sp){
+    var st = stats(sp);
+    var pend = pendingPhotos(sp);
+    // 有待审时报"只有 N 张", 清空了就换一句话, 别出现"只有 0 张"这种别扭话
+    var line = st.needHuman > 0
+      ? ('机器已自动处理 <span class="n calm">' + st.machineHandled + '</span> 张,' +
+         '需要你看的只有 <span class="n hot">' + st.needHuman + '</span> 张')
+      : ('机器已自动处理 <span class="n calm">' + st.machineHandled + '</span> 张,' +
+         '眼下<span class="n hot">一张</span>都不用你看');
+    var sub = st.needHuman > 0
+      ? "脏活机器干完了。你只做它拿不准的那几张判断。"
+      : "新照片进来时,只有机器拿不准的才会摆到这里等你。";
+    var banner = '' +
+      '<div class="banner">' +
+        '<div>' +
+          '<div class="big">' + line + '</div>' +
+          '<div class="sub">' + sub + '</div>' +
+        '</div>' +
+      '</div>';
+
+    var body;
+    if (!pend.length){
+      body = '<div class="empty"><span class="em">☕️</span>没有需要你确认的,机器都处理好了。</div>';
+    } else {
+      var pickedCount = pend.filter(function(p){ return S.picked[p.id]; }).length;
+      var toolbar = '' +
+        '<div class="toolbar">' +
+          '<label class="chk"><input type="checkbox" id="chkAll"' + (pickedCount === pend.length ? ' checked' : '') + '>全选</label>' +
+          '<button class="btn sm" id="btnApproveSel"' + (pickedCount ? '' : ' disabled') + '>收下选中 (' + pickedCount + ')</button>' +
+          '<button class="btn sm primary" id="btnApproveAll">一键收下剩下的 ' + pend.length + ' 张</button>' +
+          '<span class="sec-note">拿不准就先收下,进空间以后还能改。</span>' +
+        '</div>';
+
+      var cards = pend.map(function(p){
+        var node = (sp.nodes || []).filter(function(n){ return n.id === p.nodeId; })[0];
+        var task = (sp.tasks || []).filter(function(t){ return t.id === p.taskId; })[0];
+        var conf = (typeof p.confidence === "number") ? p.confidence.toFixed(2) : "--";
+        var yaw = (typeof p.yaw === "number") ? Math.round(p.yaw) : null;
+        return '' +
+        '<div class="rcard' + (S.picked[p.id] ? ' sel' : '') + '" data-pid="' + esc(p.id) + '">' +
+          '<div class="shot">' +
+            '<img src="' + esc(assetUrl(p.thumb || p.src)) + '" alt="待确认照片" loading="lazy">' +
+            '<label class="pick"><input type="checkbox" class="pickbox" data-pid="' + esc(p.id) + '"' + (S.picked[p.id] ? ' checked' : '') + '></label>' +
+            '<div class="who">' + esc(p.contributor || "匿名宾客") + ' 传的</div>' +
+          '</div>' +
+          '<div class="meta">' +
+            (yaw === null ? '' : '<div class="dial" style="--yaw:' + yaw + 'deg"></div>') +
+            '<div>' +
+              '<div class="m-line1">' + (yaw === null ? '方位待定' : ('建议方位 ' + yaw + '°')) +
+                ' · 置信度 ' + conf + '</div>' +
+              '<div class="m-line2">' + esc(node ? (node.name + " " + (node.time || "")) : "未指定节点") +
+                (task ? ' · 认领了「' + esc(task.title) + '」' : '') + '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div class="robot">🤖 <b>机器说:</b>' + esc(p.reason || "没给理由") + '</div>' +
+          '<div class="acts">' +
+            '<button class="btn primary act-approve" data-pid="' + esc(p.id) + '">收下</button>' +
+            '<button class="btn act-reject" data-pid="' + esc(p.id) + '">不要</button>' +
+          '</div>' +
+        '</div>';
+      }).join("");
+
+      body = toolbar + '<div class="review-grid">' + cards + '</div>';
+    }
+
+    return '' +
+    '<div class="card" id="reviewCard">' +
+      '<div class="sec-head"><h2 class="sec-title">🎯 待你确认</h2>' +
+        '<span class="sec-note">机器拿不准的才会出现在这里</span></div>' +
+      banner + body +
+    '</div>';
+  }
+
+  // ================================================================ 渲染: 悬赏任务
+  function viewTasks(sp){
+    var tasks = (sp.tasks || []).slice().sort(function(a,b){
+      // 进行中的排前面, 其次按创建时间
+      var rank = { open:0, filled:1, closed:2 };
+      var d = (rank[a.status] || 0) - (rank[b.status] || 0);
+      return d !== 0 ? d : (a.createdAt || 0) - (b.createdAt || 0);
+    });
+
+    var rows = tasks.length ? tasks.map(function(t){
+      var node = (sp.nodes || []).filter(function(n){ return n.id === t.nodeId; })[0];
+      var isGap = t.type === "gap";
+      var thumb = isGap && t.briefImage
+        ? '<div class="wanted"><img src="' + esc(assetUrl(t.briefImage)) + '" alt="通缉的角度"><div class="cross"></div><div class="tag">通缉令</div></div>'
+        : (isGap ? '<div class="wish-ico">🧭</div>' : '<div class="wish-ico">💌</div>');
+      var statusPill = t.status === "open"
+        ? '<span class="pill open">进行中</span>'
+        : (t.status === "filled"
+            ? '<span class="pill filled">已被认领</span>'
+            : '<span class="pill closed">已关闭</span>');
+      var by = (t.filledBy && t.filledBy.length)
+        ? '认领人 ' + t.filledBy.map(esc).join("、")
+        : (t.status === "open" ? "还没人接" : "");
+      var range = (isGap && t.yawRange && t.yawRange.length === 2)
+        ? ('方位 ' + t.yawRange[0] + '°–' + t.yawRange[1] + '°')
+        : (t.createdBy === "couple" ? "新人亲自写的" : "");
+      return '' +
+      '<div class="task">' + thumb +
+        '<div class="body">' +
+          '<div class="t1">' +
+            '<span class="pill ' + (isGap ? 'gold' : 'open') + '">' + (isGap ? '🧭 空间任务' : '💌 心愿任务') + '</span>' +
+            '<span class="tname">' + esc(t.title) + '</span>' + statusPill +
+          '</div>' +
+          '<div class="tbrief">' + esc(t.brief || "") + '</div>' +
+          '<div class="tfoot">' +
+            '<span class="bounty">悬赏 ' + (t.bounty || 0) + ' 分</span>' +
+            (node ? '<span>' + esc(node.name) + '</span>' : '') +
+            (range ? '<span>' + esc(range) + '</span>' : '') +
+            (by ? '<span>' + esc(by) + '</span>' : '') +
+          '</div>' +
+        '</div>' +
+      '</div>';
+    }).join("") : '<div class="empty"><span class="em">🧭</span>还没有任务。传一张全景,系统会自动找出没人拍过的方位。</div>';
+
+    return '' +
+    '<div class="card">' +
+      '<div class="sec-head"><h2 class="sec-title">📣 悬赏任务</h2>' +
+        '<span class="sec-note">🧭 系统自动发现的缺口 · 💌 你自己写的心愿</span></div>' +
+      rows +
+      // 空间任务不是手写的, 是传全景以后系统自己算出来的 —— 入口放在任务列表下面,
+      // 让"多一个全景 = 多一批通缉令"这件事在后台是看得见的
+      '<div class="wishform">' +
+        '<p class="fl">🧭 加一个全景节点(系统会自动找出没人拍过的方位,发成通缉令)</p>' +
+        '<div class="wishrow">' +
+          '<input class="inp" id="nodeName" style="flex:1; min-width:110px" maxlength="20" placeholder="节点名,比如 宴会厅">' +
+          '<input class="inp" id="nodeTime" style="width:92px" maxlength="10" placeholder="18:00">' +
+        '</div>' +
+        '<div class="wishrow">' +
+          '<input type="file" id="nodePano" accept="image/*,video/*" style="font-size:12px; max-width:100%">' +
+          '<button class="btn" id="btnNode">传全景</button>' +
+        '</div>' +
+      '</div>' +
+      '<div class="wishform">' +
+        '<p class="fl">💌 发一个心愿任务(宾客扫码就能看到)</p>' +
+        '<input class="inp" id="wishTitle" maxlength="40" placeholder="我想要一张我妈妈笑的照片">' +
+        '<textarea class="inp" id="wishBrief" style="margin-top:9px" maxlength="120" placeholder="敬酒那会儿她一直在笑,谁拍到了求发我"></textarea>' +
+        '<div class="wishrow">' +
+          '<span class="bwrap">悬赏 <input class="inp" id="wishBounty" type="number" min="0" max="9999" value="100"> 分</span>' +
+          '<button class="btn gold" id="btnWish">发布心愿</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // ================================================================ 渲染: 邀请宾客
+  function viewInvite(){
+    return '' +
+    '<div class="card">' +
+      '<div class="sec-head"><h2 class="sec-title">📲 邀请宾客</h2>' +
+        '<span class="sec-note">扫码即用,不注册不装 app</span></div>' +
+      '<div class="qrbox">' +
+        '<div id="qrSlot"><div class="qrfallback"><span class="em">🔗</span>二维码组件没加载<br>把下面这条链接发到群里也一样</div></div>' +
+        '<div class="linkrow">' +
+          '<input class="inp" id="joinLink" readonly value="">' +
+          '<button class="btn sm" id="btnCopy">复制</button>' +
+        '</div>' +
+        '<div class="qrtip">把二维码印在桌卡或投到大屏上,<br>宾客扫一下就能看到任务、传照片。</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // ================================================================ 渲染: 贡献者排行
+  function viewRank(sp){
+    var list = (sp.contributors || []).slice().sort(function(a,b){
+      return (b.points || 0) - (a.points || 0) || (b.photos || 0) - (a.photos || 0);
+    });
+    var medals = ["🥇","🥈","🥉"];
+    var rows = list.length ? list.map(function(c, i){
+      var m = i < 3 ? '<div class="medal m' + (i+1) + '">' + medals[i] + '</div>'
+                    : '<div class="medal">' + (i+1) + '</div>';
+      return '<div class="rank">' + m +
+        '<div class="nm">' + esc(c.name) + '</div>' +
+        '<div class="num">' + (c.photos || 0) + ' 张</div>' +
+        '<div class="pts">' + (c.points || 0) + ' 分</div>' +
+      '</div>';
+    }).join("") : '<div class="empty"><span class="em">🙋</span>还没有人传照片</div>';
+
+    return '' +
+    '<div class="card">' +
+      '<div class="sec-head"><h2 class="sec-title">🏅 贡献者排行</h2>' +
+        '<span class="sec-note">完成悬赏得分</span></div>' + rows +
+    '</div>';
+  }
+
+  // ================================================================ 整页渲染
+  function render(){
+    var sp = S.space;
+    $("app").innerHTML =
+      viewTop(sp) +
+      viewReview(sp) +
+      '<div class="cols">' +
+        '<div>' + viewTasks(sp) + '</div>' +
+        '<div>' + viewInvite() + viewRank(sp) + '</div>' +
+      '</div>' +
+      '<footer class="foot">全程本地处理 · 断网可用 · AdventureX 2026</footer>';
+    bind();
+    renderQr();
+    paintReport();
+  }
+
+  // ---------------------------------------------------------------- 机器验收报告
+  // 发布之后后台会跑一遍自检环(结构闸/渲染闸/语义闸), 十几秒才有结果, 所以这里轮询
+  // /spaces/<sid>/report.json: 没出来就写"机器正在验收", 出来了就把裁决摆上去 + 给链接。
+  var REPORT = { verdict: "", tries: 0, timer: null };
+  var VERDICT_CN = { pass: "通过 ✅", reject: "不通过 ⚠️", retry: "重试中" };
+
+  function paintReport(){
+    var slot = $("reportSlot");
+    if (!slot) return;
+    if (MOCK || !S.space || !S.space.published) { slot.innerHTML = ""; return; }
+    var href = "/server/report.html?src=" + encodeURIComponent("/spaces/" + SID + "/report.json");
+    if (REPORT.verdict){
+      slot.innerHTML = '机器验收:' + esc(VERDICT_CN[REPORT.verdict] || REPORT.verdict) +
+        ' · <a href="' + href + '" target="_blank">查看机器验收报告</a>';
+    } else {
+      slot.innerHTML = '机器正在验收这个空间…(无人值守)';
+    }
+  }
+
+  function pollReport(){
+    if (MOCK || !SID) return;
+    clearTimeout(REPORT.timer);
+    REPORT.tries = 0;
+    (function tick(){
+      fetch("/spaces/" + encodeURIComponent(SID) + "/report.json", { cache: "no-store" })
+        .then(function(r){ return r.ok ? r.json() : null; })
+        .then(function(rep){
+          if (rep && rep.verdict){ REPORT.verdict = rep.verdict; paintReport(); return; }
+          throw new Error("还没出来");
+        })
+        .catch(function(){
+          // 自检环要起无头 Chrome + 截图 + 判图, 慢是正常的; 最多等 2 分钟就不刷了,
+          // 免得页面开着一直空转(报告文件一旦落盘, 刷新页面照样能看到)。
+          if (++REPORT.tries > 40) return;
+          REPORT.timer = setTimeout(tick, 3000);
+        });
+    })();
+  }
+
+  // ---------------------------------------------------------------- 二维码(可降级)
+  function renderQr(){
+    var slot = $("qrSlot");
+    var input = $("joinLink");
+    if (!slot || !input) return;
+    input.value = S.joinUrl || "";
+    if (!S.joinUrl) return;
+
+    // qr.js 没加载出来 / 生成失败 => 保留兜底文案, 只靠链接 + 复制按钮, 绝不白屏
+    if (!(window.PSMQR && typeof window.PSMQR.render === "function")) return;
+    try {
+      var cv = document.createElement("canvas");
+      slot.innerHTML = "";
+      slot.appendChild(cv);
+      window.PSMQR.render(cv, S.joinUrl);
+    } catch (e) {
+      slot.innerHTML = '<div class="qrfallback"><span class="em">🔗</span>二维码生成失败<br>' + esc(e && e.message ? e.message : e) + '</div>';
+    }
+  }
+
+  // ================================================================ 交互
+  function bind(){
+    var sp = S.space;
+
+    // ---- 发布空间
+    var bp = $("btnPublish");
+    if (bp) bp.addEventListener("click", function(){
+      if (S.busy) return;
+      S.busy = true; bp.disabled = true;
+      if (MOCK){
+        sp.published = true; S.busy = false;
+        toast("已发布(演示数据)"); render(); return;
+      }
+      postJson("/api/space/" + encodeURIComponent(SID) + "/publish", {})
+        .then(function(d){
+          S.busy = false;
+          if (d && d.ok){
+            sp.published = true;
+            REPORT.verdict = "";       // 这次发布的报告还没跑出来, 别沿用上一次的裁决
+            render();
+            pollReport();
+            toast("已发布" + (d.viewUrl ? ",宾客可以进空间了" : ""));
+          } else {
+            bp.disabled = false;
+            toast("发布失败: " + ((d && d.error) || "未知错误"));
+          }
+        })
+        .catch(function(e){ S.busy = false; bp.disabled = false; toast("发布失败: " + e.message); });
+    });
+
+    // ---- 待审: 勾选
+    var chkAll = $("chkAll");
+    if (chkAll) chkAll.addEventListener("change", function(){
+      pendingPhotos(sp).forEach(function(p){
+        if (chkAll.checked) S.picked[p.id] = true; else delete S.picked[p.id];
+      });
+      render();
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".pickbox"), function(box){
+      box.addEventListener("change", function(){
+        var pid = box.getAttribute("data-pid");
+        if (box.checked) S.picked[pid] = true; else delete S.picked[pid];
+        render();
+      });
+    });
+
+    // ---- 待审: 单张收下/不要
+    Array.prototype.forEach.call(document.querySelectorAll(".act-approve"), function(b){
+      b.addEventListener("click", function(){ review([b.getAttribute("data-pid")], "approve"); });
+    });
+    Array.prototype.forEach.call(document.querySelectorAll(".act-reject"), function(b){
+      b.addEventListener("click", function(){ review([b.getAttribute("data-pid")], "reject"); });
+    });
+
+    // ---- 待审: 批量
+    var bsel = $("btnApproveSel");
+    if (bsel) bsel.addEventListener("click", function(){
+      var ids = pendingPhotos(sp).filter(function(p){ return S.picked[p.id]; }).map(function(p){ return p.id; });
+      review(ids, "approve");
+    });
+    var ball = $("btnApproveAll");
+    if (ball) ball.addEventListener("click", function(){
+      review(pendingPhotos(sp).map(function(p){ return p.id; }), "approve");
+    });
+
+    // ---- 发心愿任务
+    var bw = $("btnWish");
+    if (bw) bw.addEventListener("click", createWish);
+
+    // ---- 传全景 = 加节点
+    var bn = $("btnNode");
+    if (bn) bn.addEventListener("click", createNode);
+
+    // ---- 复制链接
+    var bc = $("btnCopy");
+    if (bc) bc.addEventListener("click", function(){
+      var input = $("joinLink");
+      if (!input || !input.value) { toast("还没拿到链接"); return; }
+      copyText(input.value).then(function(ok){
+        toast(ok ? "链接已复制,发到群里就行" : "复制失败,长按上面的链接手动复制");
+      });
+    });
+  }
+
+  function copyText(text){
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      return navigator.clipboard.writeText(text).then(function(){ return true; }, function(){ return legacyCopy(text); });
+    }
+    return Promise.resolve(legacyCopy(text));
+  }
+  function legacyCopy(text){
+    try {
+      var ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      var ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+
+  // ---------------------------------------------------------------- 裁决
+  function review(ids, action){
+    if (!ids || !ids.length || S.busy) return;
+    var word = action === "approve" ? "收下" : "拒绝";
+
+    function applyLocal(){
+      var map = {};
+      ids.forEach(function(id){ map[id] = true; });
+      S.space.photos.forEach(function(p){
+        if (map[p.id]) p.state = (action === "approve" ? "approved" : "rejected");
+      });
+      ids.forEach(function(id){ delete S.picked[id]; });
+      render();
+    }
+
+    if (MOCK){ applyLocal(); toast("已" + word + " " + ids.length + " 张(演示数据)"); return; }
+
+    S.busy = true;
+    postJson("/api/space/" + encodeURIComponent(SID) + "/review", {
+      decisions: ids.map(function(id){ return { photoId:id, action:action }; })
+    }).then(function(d){
+      S.busy = false;
+      if (d && d.ok){ applyLocal(); toast("已" + word + " " + (d.updated != null ? d.updated : ids.length) + " 张"); }
+      else toast("操作失败: " + ((d && d.error) || "未知错误"));
+    }).catch(function(e){ S.busy = false; toast("操作失败: " + e.message); });
+  }
+
+  // ---------------------------------------------------------------- 发心愿任务
+  function createWish(){
+    var title = ($("wishTitle").value || "").trim();
+    var brief = ($("wishBrief").value || "").trim();
+    var bounty = parseInt($("wishBounty").value, 10);
+    if (!title){ toast("先写一句你想要什么照片"); $("wishTitle").focus(); return; }
+    if (!(bounty >= 0)) bounty = 0;
+    if (S.busy) return;
+
+    function applyLocal(task){
+      S.space.tasks.push(task);
+      render();
+      toast("心愿已发布,宾客马上能看到");
+    }
+
+    if (MOCK){
+      applyLocal({
+        id:"t" + (S.space.tasks.length + 1), nodeId:null, type:"wish",
+        title:title, brief:brief, yaw:null, yawRange:null, briefImage:null,
+        bounty:bounty, status:"open", filledBy:[], createdBy:"couple", createdAt: Date.now()/1000
+      });
+      return;
+    }
+
+    S.busy = true;
+    postJson("/api/space/" + encodeURIComponent(SID) + "/task", { title:title, brief:brief, bounty:bounty })
+      .then(function(d){
+        S.busy = false;
+        if (d && d.ok && d.task) applyLocal(d.task);
+        else toast("发布失败: " + ((d && d.error) || "未知错误"));
+      })
+      .catch(function(e){ S.busy = false; toast("发布失败: " + e.message); });
+  }
+
+  // ---------------------------------------------------------------- 加全景节点
+  // 后端跑 CLIP 切图 + DAP 深度, 慢, 所以按钮要变成"处理中"状态别让人乱点
+  function createNode(){
+    var name = ($("nodeName").value || "").trim();
+    var time = ($("nodeTime").value || "").trim();
+    var f = $("nodePano").files && $("nodePano").files[0];
+    if (!f){ toast("先选一张全景图(或全景视频)"); return; }
+    if (!name) name = "新节点";
+    if (S.busy) return;
+
+    var btn = $("btnNode");
+    btn.disabled = true; btn.textContent = "AI 正在切图找缺口…";
+
+    if (MOCK){
+      var nid = "n" + (S.space.nodes.length + 1);
+      S.space.nodes.push({ id:nid, name:name, time:time, panorama:"nodes/"+nid+"/pano.jpg",
+                           depth:"nodes/"+nid+"/depth.png", depthJson:"nodes/"+nid+"/depth.json" });
+      [120, 300].forEach(function(yaw, k){
+        S.space.tasks.push({
+          id:"t" + (S.space.tasks.length + 1), nodeId:nid, type:"gap", title:"缺这个角度",
+          brief:"站在 " + name + ",拍向 " + yaw + "° 方向", yaw:yaw, yawRange:[yaw-20, yaw+20],
+          briefImage: phGap(yaw), bounty:50, status:"open", filledBy:[],
+          createdBy:"system", createdAt: Date.now()/1000 + k
+        });
+      });
+      render();
+      toast("节点已建,系统自动发现 2 个缺口(演示数据)");
+      return;
+    }
+
+    var fd = new FormData();
+    fd.append("panorama", f, f.name);
+    fd.append("name", name);
+    fd.append("time", time);
+
+    S.busy = true;
+    fetch("/api/space/" + encodeURIComponent(SID) + "/node", { method:"POST", body: fd })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        S.busy = false;
+        if (!(d && d.ok)) { btn.disabled = false; btn.textContent = "传全景";
+                            toast("加节点失败: " + ((d && d.error) || "未知错误")); return; }
+        S.space.nodes.push({ id:d.nodeId, name:name, time:time });
+        (d.tasks || []).forEach(function(t){ S.space.tasks.push(t); });
+        render();
+        toast("节点已建,系统自动发现 " + (d.tasks || []).length + " 个缺口");
+      })
+      .catch(function(e){
+        S.busy = false; btn.disabled = false; btn.textContent = "传全景";
+        toast("加节点失败: " + e.message);
+      });
+  }
+
+  // ================================================================ 空间列表(没有 ?space)
+  function renderSpaceList(spaces){
+    var items = (spaces || []).length ? (spaces || []).map(function(s){
+      return '<div class="sitem" data-sid="' + esc(s.id) + '">' +
+        '<div class="st">' + esc(s.title || s.id) + '</div>' +
+        '<div class="sm">' + esc(s.couple || "") + ' · ' + (s.photoCount || 0) + ' 张照片 · ' + (s.taskCount || 0) + ' 个任务</div>' +
+      '</div>';
+    }).join("") : '<div class="empty"><span class="em">📦</span>还没有空间,先建一个</div>';
+
+    $("app").innerHTML = '' +
+      '<div class="card">' +
+        '<div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span> · 新人后台</div>' +
+        '<div class="sec-head"><h2 class="sec-title">我的空间</h2><span class="sec-note">点一个进后台</span></div>' +
+        '<div class="slist">' + items + '</div>' +
+        '<hr class="hr">' +
+        '<div class="sec-head"><h2 class="sec-title">新建一个空间</h2></div>' +
+        '<input class="inp" id="newTitle" maxlength="40" placeholder="陈屹 ♥ 林沐 · 2026.7.26">' +
+        '<input class="inp" id="newCouple" style="margin-top:9px" maxlength="30" placeholder="陈屹 &amp; 林沐">' +
+        '<div class="wishrow"><button class="btn primary" id="btnNew">建空间</button></div>' +
+      '</div>' +
+      '<footer class="foot">全程本地处理 · 断网可用 · AdventureX 2026</footer>';
+
+    Array.prototype.forEach.call(document.querySelectorAll(".sitem"), function(it){
+      it.addEventListener("click", function(){
+        location.search = "?space=" + encodeURIComponent(it.getAttribute("data-sid")) + (MOCK ? "&mock=1" : "");
+      });
+    });
+    $("btnNew").addEventListener("click", function(){
+      var title = ($("newTitle").value || "").trim();
+      var couple = ($("newCouple").value || "").trim();
+      if (!title){ toast("先给空间起个名"); return; }
+      postJson("/api/space", { title:title, couple:couple })
+        .then(function(d){
+          if (d && d.ok && d.spaceId) location.search = "?space=" + encodeURIComponent(d.spaceId);
+          else toast("创建失败: " + ((d && d.error) || "未知错误"));
+        })
+        .catch(function(e){ toast("创建失败: " + e.message); });
+    });
+  }
+
+  // ================================================================ 启动
+  function fallbackJoinUrl(){
+    return location.origin + "/server/join.html?space=" + encodeURIComponent(SID);
+  }
+
+  function boot(){
+    if (!SID){
+      if (MOCK){
+        renderSpaceList([
+          { id:"s1", title:"陈屹 ♥ 林沐 · 2026.7.26", couple:"陈屹 & 林沐", photoCount:14, taskCount:3 }
+        ]);
+        return;
+      }
+      api("/api/spaces")
+        .then(function(d){ renderSpaceList((d && d.ok) ? d.spaces : []); })
+        .catch(function(){ renderSpaceList([]); });
+      return;
+    }
+
+    if (MOCK){
+      S.space = mockSpace();
+      S.joinUrl = fallbackJoinUrl();
+      render();
+      return;
+    }
+
+    api("/api/space/" + encodeURIComponent(SID) + "?role=host")
+      .then(function(d){
+        if (!(d && d.ok && d.space)) throw new Error((d && d.error) || "读不到这个空间");
+        S.space = d.space;
+        if (!S.space.photos) S.space.photos = [];
+        if (!S.space.tasks) S.space.tasks = [];
+        S.joinUrl = fallbackJoinUrl();
+        render();
+        // 已经发布过的空间: 进页面就去看看机器验收报告出了没(可能是上一次发布留下的)
+        if (S.space.published) pollReport();
+        // 加入链接以后端为准, 拿到了再刷新二维码
+        return api("/api/space/" + encodeURIComponent(SID) + "/joinurl");
+      })
+      .then(function(d){
+        if (d && d.ok && d.url){ S.joinUrl = d.url; renderQr(); }
+      })
+      .catch(function(e){
+        $("app").innerHTML = '<div class="card"><div class="empty"><span class="em">⚠️</span>' +
+          esc(e.message || e) + '<br><br>后端没起也没关系,在网址后面加 <b>&amp;mock=1</b> 可以看演示数据。</div></div>';
+      });
+  }
+
+  boot();
+})();
+</script>
+</body>
+</html>

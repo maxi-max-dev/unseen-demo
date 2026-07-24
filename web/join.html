@@ -1,0 +1,1644 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>空间记忆 · 他们请你交一张照片</title>
+<!--
+  公开版宾客页(云版)。和 server/join.html 的区别只有一个:这一页【一个后端接口都不调】。
+    读 = fetch(<OSS基址>/spaces/<sid>/space.json)
+    写 = 照片直接 POST 进 OSS(用 space.json 里那段 upload 直传策略)
+  所以这一页可以静静躺在 GitHub Pages 上,Max 的电脑不用暴露到公网,
+  也不用跟宾客的手机在同一个 wifi 里。电脑只是在旁边轮询 OSS、算完再把结果写回 space.json 的后台工人。
+
+  入口:  join.html?s=<空间id>&b=<OSS基址>   (b 可省, 用下面的默认值)
+  调试:  &mock=1 整页假数据   &screen=welcome|mine|upload|waiting|result 停在某一屏
+-->
+<style>
+  :root{
+    --cream:#f6f2ea; --ink:#3a352f; --sub:#9a9186; --red:#c0392b; --gold:#b08d57;
+    --paper:#fffdf8; --line:#e6dccb;
+    --bar-h:74px;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; min-height:100%; }
+  body{
+    background: radial-gradient(120% 60% at 50% 0%, #fbf8f2 0%, var(--cream) 55%, #efe8dc 100%);
+    background-attachment:fixed;
+    color:var(--ink); font-family:-apple-system,"PingFang SC",system-ui,sans-serif;
+    font-size:15px; line-height:1.6;
+    padding:0 0 calc(var(--bar-h) + env(safe-area-inset-bottom,0));
+  }
+  .wrap{ width:100%; max-width:460px; margin:0 auto; padding:0 18px; }
+  img{ display:block; max-width:100%; }
+  button{ font-family:inherit; }
+
+  /* ============ 开场:填昵称(一屏一件事) ============ */
+  #welcome{
+    position:fixed; inset:0; z-index:60; overflow-y:auto;
+    background: radial-gradient(120% 70% at 50% 0%, #fbf8f2 0%, var(--cream) 55%, #eae1d2 100%);
+    display:flex; flex-direction:column; justify-content:center;
+    padding:40px 22px calc(34px + env(safe-area-inset-bottom,0));
+    text-align:center;
+  }
+  #welcome.off{ display:none; }
+  .kicker{ font-size:11px; letter-spacing:4px; color:var(--gold); font-weight:700; }
+  .kicker span{ opacity:.6; letter-spacing:2px; }
+  .names{
+    font-family:"Songti SC","STSong",serif; font-size:34px; font-weight:600; line-height:1.2;
+    letter-spacing:2px; margin:22px 0 6px;
+  }
+  .names .heart{ color:var(--red); font-size:22px; vertical-align:middle; margin:0 9px; }
+  .subdate{ font-size:12px; letter-spacing:3px; color:var(--sub); }
+  .invite-line{
+    font-family:"Songti SC","STSong",serif; font-size:20px; letter-spacing:1px;
+    margin:26px 0 8px; color:var(--ink);
+  }
+  .invite-sub{ font-size:13px; color:#6f675d; line-height:1.9; max-width:300px; margin:0 auto; }
+  .proof{
+    display:inline-flex; align-items:center; gap:8px; margin:22px auto 0;
+    background:#fffaf0; border:1px solid var(--line); border-radius:999px;
+    padding:8px 16px; font-size:12.5px; color:#6f675d;
+  }
+  .proof b{ color:var(--red); font-size:15px; font-family:"Songti SC",serif; }
+  .faces{ display:flex; }
+  .faces i{
+    width:22px; height:22px; border-radius:50%; margin-left:-7px; border:2px solid #fffaf0;
+    font-style:normal; font-size:10px; font-weight:700; color:#fff; line-height:19px; text-align:center;
+  }
+  .faces i:first-child{ margin-left:0; }
+
+  .nick-box{ margin:30px auto 0; max-width:320px; }
+  .nick-label{ font-size:12px; color:var(--sub); margin-bottom:10px; letter-spacing:1px; }
+  input[type=text]{
+    width:100%; height:56px; border-radius:16px; border:1.5px solid var(--line);
+    background:var(--paper); color:var(--ink); font-size:17px; text-align:center;
+    outline:none; font-family:inherit;
+  }
+  input[type=text]:focus{ border-color:var(--gold); }
+  .btn-main{
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%;
+    background:var(--red); color:#fff; font-size:16px; font-weight:700; letter-spacing:1px;
+    border:none; height:56px; border-radius:28px; margin-top:14px; cursor:pointer;
+    box-shadow:0 8px 24px rgba(192,57,43,.3); transition:transform .15s ease, opacity .15s ease;
+  }
+  .btn-main:active{ transform:scale(.975); }
+  .btn-main:disabled{ opacity:.4; box-shadow:none; }
+  .tiny{ font-size:11px; color:#b8b0a4; margin-top:16px; letter-spacing:.5px; }
+
+  /* ============ 顶部条 ============ */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:rgba(246,242,234,.93); backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--line);
+  }
+  .head-in{ max-width:460px; margin:0 auto; padding:12px 18px 0; }
+  .head-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .head-names{ font-family:"Songti SC","STSong",serif; font-size:17px; font-weight:600; letter-spacing:1px; }
+  .head-names .heart{ color:var(--red); font-size:12px; margin:0 5px; }
+  .head-me{
+    display:flex; align-items:center; gap:6px; font-size:12px; color:var(--sub);
+    background:#fffaf0; border:1px solid var(--line); border-radius:999px; padding:5px 11px;
+    cursor:pointer; flex:none;
+  }
+  .head-me b{ color:var(--ink); font-weight:700; }
+  .tabs{ display:flex; gap:26px; margin-top:12px; }
+  .tab{
+    background:none; border:none; padding:0 0 10px; font-size:14px; font-weight:700;
+    color:var(--sub); cursor:pointer; position:relative; letter-spacing:.5px;
+  }
+  .tab.on{ color:var(--ink); }
+  .tab.on::after{
+    content:""; position:absolute; left:0; right:0; bottom:0; height:3px; border-radius:2px;
+    background:var(--red);
+  }
+  .tab .dot{
+    display:inline-block; min-width:17px; height:17px; line-height:17px; border-radius:9px;
+    background:var(--red); color:#fff; font-size:10.5px; margin-left:5px; padding:0 5px;
+  }
+
+  /* 微信里 <input type=file> 偶尔会被拦,给一条不吓人的小提示,别做成大横幅 */
+  .wxhint{
+    margin:12px 0 -6px; font-size:11px; color:#b0a698; letter-spacing:.3px; line-height:1.5;
+  }
+  .wxhint.off{ display:none; }
+
+  /* 加载态:现场网烂的时候不能让人对着空白页猜。骨架卡先占住位置。 */
+  .skel{ border:1px solid var(--line); border-radius:18px; background:var(--paper);
+    overflow:hidden; margin-bottom:16px; box-shadow:0 4px 16px rgba(120,100,70,.07); }
+  .skel .sk-img{ height:180px; background:#efe8dc; }
+  .skel .sk-body{ padding:16px; }
+  .skel .sk-line{ height:12px; border-radius:6px; background:#efe8dc; margin-bottom:10px; }
+  .skel .sk-line.s{ width:45%; } .skel .sk-line.m{ width:72%; }
+  .skel, .loading-note{ animation:fade 1.5s ease-in-out infinite; }
+  @keyframes fade{ 0%,100%{ opacity:.55; } 50%{ opacity:1; } }
+  .loading-note{ text-align:center; font-size:12.5px; color:var(--sub); padding:6px 0 14px; }
+
+  /* 弱网没传上去的那几张,顶部挂一条可点的细带 */
+  .redo{
+    max-width:460px; margin:10px auto 0; display:flex; align-items:center; gap:10px;
+    background:#fdf3e3; border:1px solid #efdcbb; border-radius:14px; padding:10px 13px;
+    font-size:12.5px; color:#8a6b2c;
+  }
+  .redo.off{ display:none; }
+  .redo button{
+    margin-left:auto; flex:none; border:none; background:#a3762a; color:#fff;
+    font-size:12px; font-weight:700; border-radius:999px; padding:7px 14px; cursor:pointer;
+  }
+
+  /* ============ 任务墙 ============ */
+  .sect{ margin:22px 0 12px; }
+  .sect h2{ font-size:13px; font-weight:700; margin:0 0 3px; letter-spacing:1px; }
+  .sect p{ font-size:12px; color:var(--sub); margin:0; }
+
+  .card{
+    background:var(--paper); border:1px solid var(--line); border-radius:18px;
+    overflow:hidden; margin-bottom:16px; position:relative;
+    box-shadow:0 4px 16px rgba(120,100,70,.07);
+  }
+  .card.done{ opacity:.5; }
+
+  /* 空间任务 = 通缉令 */
+  .card.gap{ border-color:#dfd2ba; }
+  .poster{ position:relative; background:#241d19; }
+  .poster img{ width:100%; height:180px; object-fit:cover; }
+  .poster::after{
+    content:""; position:absolute; inset:8px; border:1.5px dashed rgba(255,250,240,.5);
+    border-radius:6px; pointer-events:none;
+  }
+  .poster .stamp{
+    position:absolute; right:12px; top:12px; transform:rotate(-9deg);
+    border:2px solid rgba(255,255,255,.85); color:#fff; border-radius:6px;
+    font-size:11px; font-weight:700; letter-spacing:3px; padding:4px 9px 4px 12px;
+    background:rgba(192,57,43,.72);
+  }
+  .poster .yawtag{
+    position:absolute; left:14px; bottom:14px; color:#f4ece0; font-size:11px; letter-spacing:1px;
+    background:rgba(0,0,0,.45); border-radius:999px; padding:4px 10px;
+  }
+  .card-body{ padding:15px 16px 16px; }
+  .badge{
+    display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:700;
+    letter-spacing:1px; padding:4px 10px; border-radius:999px; margin-bottom:9px;
+  }
+  .badge.gap{ background:#f1ece1; color:#7d6c50; }
+  .badge.wish{ background:#fbeceb; color:var(--red); }
+  .card-title{ font-size:18px; font-weight:700; margin:0 0 6px; letter-spacing:.5px; }
+  .card.wish .card-title{ font-family:"Kaiti SC","STKaiti","Songti SC",serif; font-size:20px; line-height:1.45; }
+  .card-brief{ font-size:13px; color:#6f675d; line-height:1.7; margin:0; }
+  .card-foot{ display:flex; align-items:center; gap:12px; margin-top:15px; }
+  .bounty{
+    font-family:"Songti SC",serif; font-size:15px; color:var(--gold); font-weight:700;
+    flex:none; letter-spacing:.5px;
+  }
+  .bounty i{ font-style:normal; font-size:11px; color:var(--sub); font-family:inherit; margin-left:2px; }
+  .btn-take{
+    flex:1; height:48px; border-radius:24px; border:none; cursor:pointer;
+    background:var(--red); color:#fff; font-size:15px; font-weight:700; letter-spacing:1px;
+    box-shadow:0 6px 16px rgba(192,57,43,.26); transition:transform .15s ease;
+  }
+  .btn-take:active{ transform:scale(.97); }
+  .card.wish .btn-take{ background:#a8443a; }
+  .claimed{
+    flex:1; height:48px; border-radius:24px; background:#f0ebe1; color:var(--sub);
+    font-size:13.5px; display:flex; align-items:center; justify-content:center; gap:6px;
+  }
+
+  /* 心愿任务 = 暖色手写卡 */
+  .card.wish{
+    background:linear-gradient(160deg, #fdf5ec 0%, #fbeadf 100%);
+    border-color:#eed9c6;
+  }
+  .card.wish .card-body{ padding:18px 18px 18px; }
+  .wish-quote{ font-size:26px; color:#e0bda2; font-family:"Songti SC",serif; line-height:.6; }
+  .wish-from{ font-size:11.5px; color:#9c7a63; margin-top:12px; letter-spacing:1px; }
+
+  .compass{ flex:none; }
+
+  .empty{
+    text-align:center; color:var(--sub); font-size:13px; line-height:2;
+    padding:46px 20px; border:1.5px dashed var(--line); border-radius:18px; background:rgba(255,255,255,.4);
+  }
+  .empty .big{ font-size:26px; display:block; margin-bottom:10px; opacity:.5; }
+
+  /* ============ 我的贡献 ============ */
+  .stats{
+    display:flex; background:var(--paper); border:1px solid var(--line); border-radius:18px;
+    padding:18px 0; margin:22px 0 18px; box-shadow:0 4px 16px rgba(120,100,70,.07);
+  }
+  .stat{ flex:1; text-align:center; border-right:1px solid var(--line); }
+  .stat:last-child{ border-right:none; }
+  .stat b{ display:block; font-family:"Songti SC",serif; font-size:26px; font-weight:600; line-height:1.1; }
+  .stat span{ font-size:11px; color:var(--sub); letter-spacing:1px; }
+  .stat.hi b{ color:var(--red); }
+
+  .mine-row{
+    display:flex; gap:12px; align-items:center; background:var(--paper);
+    border:1px solid var(--line); border-radius:14px; padding:10px; margin-bottom:10px;
+  }
+  .mine-row img{ width:60px; height:60px; border-radius:10px; object-fit:cover; flex:none; background:#eee; }
+  .mine-meta{ flex:1; min-width:0; }
+  .mine-dir{ font-size:14.5px; font-weight:700; }
+  /* 机器给的理由可能很长,一行截断就够了,别把卡片撑成两行 */
+  .mine-sub{ font-size:11.5px; color:var(--sub); margin-top:3px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .pill{
+    display:inline-block; font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:999px;
+    letter-spacing:.5px; flex:none;
+  }
+  .pill.ok{ background:#eaf3ec; color:#3f7a52; }
+  .pill.wait{ background:#fdf3e3; color:#a3762a; }
+  .pill.no{ background:#f3eae9; color:#96625c; }
+
+  /* ============ 上传抽屉 ============ */
+  .mask{
+    position:fixed; inset:0; z-index:40; background:rgba(45,39,34,.5);
+    opacity:0; pointer-events:none; transition:opacity .25s ease;
+  }
+  .mask.on{ opacity:1; pointer-events:auto; }
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; z-index:50;
+    background:var(--cream); border-radius:24px 24px 0 0;
+    padding:8px 18px calc(24px + env(safe-area-inset-bottom,0));
+    max-height:88vh; overflow-y:auto;
+    transform:translateY(102%); transition:transform .3s cubic-bezier(.2,.8,.3,1);
+    box-shadow:0 -8px 40px rgba(58,53,47,.25);
+  }
+  .sheet.on{ transform:translateY(0); }
+  .sheet-in{ max-width:460px; margin:0 auto; }
+  .grab{ width:38px; height:4px; border-radius:2px; background:#d8cfc0; margin:6px auto 16px; }
+  .sheet h3{ font-size:17px; margin:0 0 5px; letter-spacing:.5px; }
+  .sheet .sh-sub{ font-size:12.5px; color:var(--sub); margin:0 0 18px; line-height:1.7; }
+
+  .picker{
+    position:relative; border:1.5px dashed #d9cfbe; border-radius:16px; background:var(--paper);
+    padding:26px 16px; text-align:center; cursor:pointer;
+  }
+  .picker input[type=file]{ position:absolute; inset:0; opacity:0; width:100%; height:100%; }
+  .picker .pi{ font-size:26px; margin-bottom:8px; }
+  .picker .pt{ font-size:14px; font-weight:700; }
+  .picker .ps{ font-size:11.5px; color:var(--sub); margin-top:4px; }
+  .picks{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .picks img{ width:64px; height:64px; border-radius:10px; object-fit:cover; }
+
+  .prog-wrap{ padding:26px 0 8px; text-align:center; }
+  .bar{ height:6px; border-radius:3px; background:#e6dccb; overflow:hidden; margin:16px 0 10px; }
+  .bar i{ display:block; height:100%; width:0%; background:var(--red); border-radius:3px; transition:width .25s ease; }
+  .prog-txt{ font-size:13px; color:#6f675d; }
+
+  .res{
+    display:flex; gap:12px; align-items:center; background:var(--paper); border:1px solid var(--line);
+    border-radius:14px; padding:11px; margin-bottom:10px;
+    opacity:0; transform:translateY(10px); transition:opacity .4s ease, transform .4s ease;
+  }
+  .res.in{ opacity:1; transform:none; }
+  .res img{ width:56px; height:56px; border-radius:10px; object-fit:cover; flex:none; background:#eee; }
+  .res-main{ flex:1; min-width:0; }
+  .res-t{ font-size:14px; line-height:1.5; }
+  .res-t b{ color:var(--red); font-weight:700; }
+  .res-s{ font-size:11.5px; color:var(--sub); margin-top:4px; }
+  /* 等机器算的时候那颗一直在呼吸的小点,让人知道这页没死 */
+  .res.pending .res-t::after{
+    content:""; display:inline-block; width:6px; height:6px; border-radius:50%;
+    background:var(--gold); margin-left:7px; vertical-align:middle;
+    animation:breathe 1.3s ease-in-out infinite;
+  }
+  @keyframes breathe{ 0%,100%{ opacity:.25; } 50%{ opacity:1; } }
+  .res-sum{
+    text-align:center; font-size:13.5px; color:#6f675d; margin:16px 0 4px;
+    opacity:0; transition:opacity .4s ease;
+  }
+  .res-sum.in{ opacity:1; }
+  .res-sum b{ font-family:"Songti SC",serif; font-size:19px; color:var(--gold); }
+  .waitbar{
+    height:3px; border-radius:2px; background:#e6dccb; overflow:hidden; margin:2px 0 14px;
+  }
+  .waitbar i{
+    display:block; height:100%; width:38%; border-radius:2px; background:var(--gold);
+    animation:slide 1.6s ease-in-out infinite;
+  }
+  @keyframes slide{ 0%{ transform:translateX(-100%); } 100%{ transform:translateX(300%); } }
+  .btn-ghost{
+    width:100%; height:50px; border-radius:25px; background:none; border:1.5px solid var(--line);
+    color:#6f675d; font-size:14px; font-weight:700; margin-top:10px; cursor:pointer;
+  }
+
+  /* ============ 底部常驻 ============ */
+  .bottom{
+    position:fixed; left:0; right:0; bottom:0; z-index:30; height:calc(var(--bar-h) + env(safe-area-inset-bottom,0));
+    padding:0 18px env(safe-area-inset-bottom,0);
+    background:rgba(246,242,234,.94); backdrop-filter:blur(10px); border-top:1px solid var(--line);
+    display:flex; align-items:center;
+  }
+  .bottom a{
+    max-width:424px; margin:0 auto; width:100%; height:50px; border-radius:25px;
+    background:var(--ink); color:#f6f2ea; text-decoration:none; font-size:15px; font-weight:700;
+    letter-spacing:1px; display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  .bottom a:active{ transform:scale(.98); }
+
+  .toast{
+    position:fixed; left:50%; bottom:calc(var(--bar-h) + 22px); transform:translate(-50%,10px);
+    z-index:70; background:rgba(58,53,47,.94); color:#f6f2ea; font-size:13px;
+    padding:11px 18px; border-radius:999px; opacity:0; pointer-events:none;
+    transition:opacity .25s ease, transform .25s ease; max-width:86vw; text-align:center;
+  }
+  .toast.on{ opacity:1; transform:translate(-50%,0); }
+
+  footer{ text-align:center; font-size:10.5px; color:#b8b0a4; padding:26px 0 6px; letter-spacing:.5px; }
+
+  @media (max-width:340px){
+    .names{ font-size:28px; } .card-title{ font-size:16.5px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ==================== 开场:一屏只干一件事,填个昵称 ==================== -->
+<div id="welcome" class="off">
+  <div style="max-width:400px;margin:0 auto;width:100%">
+    <div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span></div>
+    <h1 class="names" id="wNames">— <span class="heart">♥</span> —</h1>
+    <div class="subdate" id="wDate">&nbsp;</div>
+
+    <div class="invite-line">他们请你交一张照片</div>
+    <p class="invite-sub">那一天散在每个人手机里。<br>你交的这张,会被放回它被拍下的位置。</p>
+
+    <div class="proof" id="wProof" style="display:none">
+      <span class="faces" id="wFaces"></span>
+      <span>已有 <b id="wPeople">0</b> 位宾客交了 <b id="wPhotos">0</b> 张</span>
+    </div>
+
+    <div class="nick-box">
+      <div class="nick-label">照片上写谁的名字?</div>
+      <input type="text" id="nickInput" maxlength="12" placeholder="比如:新郎表弟 小明" autocomplete="off">
+      <button class="btn-main" id="nickGo" disabled>好了,带我去看看 →</button>
+      <div class="tiny">不用注册、不用装 app,名字只存在你这台手机里</div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 主体 ==================== -->
+<header>
+  <div class="head-in">
+    <div class="head-row">
+      <div class="head-names" id="hNames">空间记忆</div>
+      <div class="head-me" id="hMe" style="visibility:hidden"><span>你好,</span><b id="hNick">—</b></div>
+    </div>
+    <div class="tabs">
+      <button class="tab on" data-view="tasks" id="tabTasks">任务墙<span class="dot" id="tabCount">0</span></button>
+      <button class="tab" data-view="mine" id="tabMine">我的贡献</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="wxhint off" id="wxHint">传不上去的话,点右上角 ··· 选「在浏览器打开」</div>
+
+  <div class="redo off" id="redoBar">
+    <span id="redoTxt">有 0 张没传上去</span>
+    <button id="redoBtn">重新传</button>
+  </div>
+
+  <div id="viewTasks">
+    <div class="sect">
+      <h2 id="wallTitle">还缺这些</h2>
+      <p id="wallSub">挑一个去拍,或者从相册里翻一张出来</p>
+    </div>
+    <div id="taskList">
+      <div class="loading-note">正在打开这个空间…</div>
+      <div class="skel"><div class="sk-img"></div>
+        <div class="sk-body"><div class="sk-line m"></div><div class="sk-line s"></div></div></div>
+      <div class="skel"><div class="sk-img"></div>
+        <div class="sk-body"><div class="sk-line m"></div><div class="sk-line s"></div></div></div>
+    </div>
+  </div>
+
+  <div id="viewMine" style="display:none">
+    <div class="stats">
+      <div class="stat"><b id="stPhotos">0</b><span>张照片</span></div>
+      <div class="stat hi"><b id="stPoints">0</b><span>分</span></div>
+      <div class="stat"><b id="stDirs">0</b><span>个方位</span></div>
+    </div>
+    <div id="mineList"></div>
+  </div>
+
+  <footer>照片直传杭州机房 · 现场同城 · AdventureX 2026</footer>
+</main>
+
+<div class="bottom"><a id="btnWalk" href="#">🚶 进空间看看 <span style="font-size:12px">→</span></a></div>
+
+<div class="mask" id="mask"></div>
+<div class="sheet" id="sheet"><div class="sheet-in" id="sheetIn"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ================================================================ 基础
+  var Q = new URLSearchParams(location.search);
+  // 二维码里带的是 ?s=<空间id>&b=<OSS基址>。b 省略就用默认桶,方便手打链接。
+  var SID = Q.get("s") || Q.get("space") || "s1";
+  var BASE = (Q.get("b") || "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com").replace(/\/+$/, "");
+  var MOCK = Q.get("mock") === "1";
+  var FORCE = Q.get("screen") || "";      // 截图/演示用:强制停在某个界面
+  var NICK_KEY = "psm_nick";
+  // 假数据模式单独存一份,别把演示记录混进真实空间的账本里
+  var MINE_KEY = "psm_mine_" + SID + (MOCK ? "_mock" : "");
+
+  // 轮询:传完不是终点,Mac 上的工人算完才会写回 space.json
+  var POLL_EVERY_MS = 5000;
+  var POLL_MAX_MS = 120000;
+
+  function $(id) { return document.getElementById(id); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+  function uid() { return Math.random().toString(36).slice(2, 8); }
+  function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  var state = { space: null, nick: "", task: null, files: [], view: "tasks", poller: null };
+
+  // "陈屹 & 林沐" -> "陈屹 ♥ 林沐"。注意必须先切再转义,先转义的话 & 会变成 &amp; 再被切坏
+  function coupleHtml(couple) {
+    return String(couple || "两位新人").split("&").map(function (s) {
+      return esc(s.trim());
+    }).join(' <span class="heart">♥</span> ');
+  }
+
+  // 八方位口语化:让"yaw 210°"变成人话"左后方"
+  var DIRS = [
+    [0, "正前方"], [45, "右前方"], [90, "正右方"], [135, "右后方"],
+    [180, "正后方"], [225, "左后方"], [270, "正左方"], [315, "左前方"]
+  ];
+  function dirWord(yaw) {
+    if (yaw == null) return "";
+    var y = ((yaw % 360) + 360) % 360, best = DIRS[0], bd = 999;
+    DIRS.forEach(function (d) {
+      // 环形距离:0° 和 350° 只差 10°,不能直接相减
+      var diff = Math.abs(((y - d[0] + 540) % 360) - 180);
+      if (diff < bd) { bd = diff; best = d; }
+    });
+    return best[1];
+  }
+
+  // 小罗盘:红针指向任务要求的方位,比写"210°"直观
+  function compass(yaw, size) {
+    var s = size || 44, r = s / 2, a = (yaw || 0) * Math.PI / 180;
+    var x = r + Math.sin(a) * (r - 8), y = r - Math.cos(a) * (r - 8);
+    return '<svg class="compass" width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '">' +
+      '<circle cx="' + r + '" cy="' + r + '" r="' + (r - 1) + '" fill="#fffaf0" stroke="#e6dccb"/>' +
+      '<circle cx="' + r + '" cy="' + r + '" r="2" fill="#9a9186"/>' +
+      '<line x1="' + r + '" y1="' + r + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) +
+      '" stroke="#c0392b" stroke-width="2.5" stroke-linecap="round"/>' +
+      '<text x="' + r + '" y="8" font-size="6" fill="#b8b0a4" text-anchor="middle">前</text></svg>';
+  }
+
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg; t.classList.add("on");
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { t.classList.remove("on"); }, 2400);
+  }
+
+  // 头像色块:同一个名字永远同一个颜色,不用存任何东西
+  var AV = ["#c0392b", "#b08d57", "#7d6c50", "#8a5a44", "#a8443a", "#6f7d5a"];
+  function avatar(name) {
+    var h = 0; for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997;
+    return { color: AV[h % AV.length], ch: name.slice(0, 1) };
+  }
+
+  // space.json 里的图片路径是相对空间目录的,拼成完整 OSS 地址。
+  // (工人以后要是直接写绝对地址,这里原样放行,不用改。)
+  function assetUrl(p) {
+    if (!p) return "";
+    if (/^(https?:|data:|blob:)/.test(p)) return p;
+    // 逐段编码:路径里万一真出现了中文或 % 也能拼出正确的地址(斜杠得留着当分隔符)
+    var rel = String(p).replace(/^\/+/, "").split("/").map(encodeURIComponent).join("/");
+    return BASE + "/spaces/" + encodeURIComponent(SID) + "/" + rel;
+  }
+
+  // ================================================================ 云:读 space.json
+  // 加时间戳是给轮询用的:OSS 会把 space.json 缓存住,不打掉的话永远读到旧的一份。
+  function loadSpace() {
+    if (MOCK) return sleep(120).then(function () { return MOCK_SPACE; });
+    var url = BASE + "/spaces/" + encodeURIComponent(SID) + "/space.json?t=" + Date.now();
+    // 现场网可能烂到请求永远挂着。20 秒还没回来就当它死了, 让人看到一句人话而不是一直转圈。
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var killed = false;
+    var timer = setTimeout(function () { killed = true; if (ctrl) ctrl.abort(); }, 20000);
+    return fetch(url, { cache: "no-store", signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
+      clearTimeout(timer);
+      if (!r.ok) throw new Error(r.status === 403 || r.status === 404
+        ? "这个空间还没发布(" + r.status + ")" : "读不到空间数据(HTTP " + r.status + ")");
+      return r.json();
+    }).catch(function (e) {
+      clearTimeout(timer);
+      throw new Error(killed ? "网太慢,20 秒都没读到这个空间" : (e.message || "连不上杭州机房"));
+    });
+  }
+
+  // ================================================================ 云:直传 OSS
+  // 关键的一步:照片【不经过任何服务器】,浏览器拿着 space.json 里那段策略直接 POST 进 OSS。
+  // 策略本身限死了前缀、大小和有效期,所以放在公开页面里是安全的 —— 页面里没有、也不需要密钥。
+  function policyOf(sp) {
+    var up = (sp && (sp.upload || sp.post || sp.direct)) || null;
+    if (!up || !up.policy) return null;
+    return {
+      host: (up.host || BASE).replace(/\/+$/, ""),
+      accessKeyId: up.OSSAccessKeyId || up.accessKeyId || up.ossAccessKeyId || "",
+      policy: up.policy,
+      // post_policy() 里叫 signature,OSS 表单字段叫 Signature,两种写法都认
+      signature: up.Signature || up.signature || "",
+      keyPrefix: up.keyPrefix || ("spaces/" + SID + "/inbox/"),
+      expiresAt: up.expiresAt || 0,
+      maxSize: up.maxSize || 12 * 1024 * 1024
+    };
+  }
+
+  // 昵称 -> base64url(UTF-8),不带 = 补位。
+  // 为什么不用 encodeURIComponent:那样 key 里会留下真正的 % 字符,
+  // 之后任何人想把这个 key 拼回 URL 都得再编码一次(%E5 -> %25E5),漏一次图就 404。
+  // 自验时就是这么翻的车。base64url 全是 ASCII 安全字符,拼 URL 不用动。
+  // 工人那边解码:base64.urlsafe_b64decode(s + "=" * (-len(s) % 4)).decode("utf-8")
+  function encNick(nick) {
+    var s = String(nick || "匿名");
+    try {
+      var bytes = new TextEncoder().encode(s), bin = "";
+      for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    } catch (e) {
+      // 极老浏览器没有 TextEncoder,退回到只留 ASCII,大不了名字丑一点,别让上传挂掉
+      return s.replace(/[^A-Za-z0-9_-]/g, "") || "guest";
+    }
+  }
+
+  // key 命名约定(和 Mac 上那个后台工人对齐):
+  //     <keyPrefix><毫秒时间戳>_<短id>__<base64url昵称>__<taskId>.jpg
+  // 前缀直接取策略里的 keyPrefix —— 策略本身就限制了只能往这个前缀底下写,
+  // 以它为准,工人哪天改了前缀这边一行都不用动。taskId 为空时写 free(自由投稿)。
+  function buildKey(prefix, shortId, nick, taskId) {
+    return prefix + Date.now() + "_" + shortId + "__" + encNick(nick) +
+           "__" + (taskId || "free") + ".jpg";
+  }
+
+  // 带上传进度的 POST。fetch 至今拿不到可靠的上传进度,弱网下进度条是刚需,所以用 XHR。
+  function ossPost(pol, key, blob, onProgress) {
+    return new Promise(function (resolve, reject) {
+      var fd = new FormData();
+      fd.append("key", key);
+      fd.append("OSSAccessKeyId", pol.accessKeyId);
+      fd.append("policy", pol.policy);
+      fd.append("Signature", pol.signature);
+      // 桶是私有的,只有带这个头传上去的文件才可以被公开读到 ——
+      // 别人列不了目录,只有我们自己传的这些能被看见。
+      fd.append("x-oss-object-acl", "public-read");
+      fd.append("file", blob, "photo.jpg");   // file 必须是最后一个字段,这是 OSS 的硬要求
+
+      var xhr = new XMLHttpRequest();
+      xhr.open("POST", pol.host, true);
+      xhr.timeout = 60000;
+      xhr.upload.onprogress = function (e) {
+        if (e.lengthComputable && onProgress) onProgress(e.loaded / e.total);
+      };
+      xhr.onload = function () {
+        if (xhr.status >= 200 && xhr.status < 300) return resolve(xhr.status);
+        var err = new Error("HTTP_" + xhr.status);
+        err.status = xhr.status;
+        err.body = (xhr.responseText || "").slice(0, 300);
+        reject(err);
+      };
+      xhr.onerror = function () { reject(tagged("NETWORK")); };
+      xhr.ontimeout = function () { reject(tagged("TIMEOUT")); };
+      xhr.send(fd);
+    });
+  }
+  function tagged(kind) { var e = new Error(kind); e.kind = kind; return e; }
+
+  // 值得重试的:网断了、超时、429、5xx。403(策略过期)/400 这类重试一百次也一样,直接判死。
+  function retryable(err) {
+    if (!err) return false;
+    if (err.kind === "NETWORK" || err.kind === "TIMEOUT") return true;
+    var s = err.status;
+    if (!s) return true;
+    return s === 408 || s === 429 || s >= 500;
+  }
+
+  // 失败自动退避重试 2 次(共 3 次机会)
+  function postWithRetry(pol, key, blob, onProgress) {
+    var tries = 0;
+    function attempt() {
+      return ossPost(pol, key, blob, onProgress).catch(function (err) {
+        if (retryable(err) && tries < 2) {
+          var wait = Math.round(1200 * Math.pow(2, tries) * (0.7 + Math.random() * 0.6));
+          tries++;
+          return sleep(wait).then(attempt);
+        }
+        throw err;
+      });
+    }
+    return attempt();
+  }
+
+  // ================================================================ 压缩
+  // 现场是移动网络,手机原图 3-8MB 传上去会把演示毁掉。长边压到 1600、JPEG q0.82,目标 <300KB。
+  // (这段逻辑照搬另一路工兵实测过的 upload_client.js,断言 13/13 全过。)
+
+  /* 2x1 像素的红色 JPEG,EXIF Orientation=6(应显示成 1x2)。
+     用它一次性探测「这个浏览器会不会自己按 EXIF 摆正」。
+     Chrome 81+/Firefox 77+/Safari 13.1+ 都会摆正,老的不会 ——
+     探出来才敢决定要不要自己动手转,否则容易转两次,反而把正的图转歪。 */
+  var PROBE_EXIF6 =
+    'data:image/jpeg;base64,/9j/4QAiRXhpZgAATU0AKgAAAAgAAQESAAMAAAABAAYAAAAAAAD/' +
+    '4AAQSkZJRgABAQAAAQABAAD/2wBDAAMCAgICAgMCAgIDAwMDBAYEBAQEBAgGBgUGCQgKCgkICQkK' +
+    'DA8MCgsOCwkJDRENDg8QEBEQCgwSExIQEw8QEBD/2wBDAQMDAwQDBAgEBAgQCwkLEBAQEBAQEBAQ' +
+    'EBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBD/wAARCAABAAIDAREAAhEB' +
+    'AxEB/8QAFAABAAAAAAAAAAAAAAAAAAAACP/EABQQAQAAAAAAAAAAAAAAAAAAAAD/xAAVAQEBAAAA' +
+    'AAAAAAAAAAAAAAAHCf/EABQRAQAAAAAAAAAAAAAAAAAAAAD/2gAMAwEAAhEDEQA/ADoDFU3/2Q==';
+
+  var _autoOrient = null;
+  function browserAutoOrients() {
+    if (_autoOrient) return _autoOrient;
+    _autoOrient = new Promise(function (resolve) {
+      var img = new Image();
+      img.onload = function () { resolve(img.naturalWidth === 1 && img.naturalHeight === 2); };
+      img.onerror = function () { resolve(false); };
+      img.src = PROBE_EXIF6;
+    });
+    return _autoOrient;
+  }
+
+  // 从 JPEG 字节里读 EXIF Orientation(1-8),读不到就当 1。只扫头 128KB,够了。
+  function readExifOrientation(blob) {
+    return new Promise(function (resolve) {
+      var slice = blob.slice(0, Math.min(blob.size, 128 * 1024));
+      var reader = new FileReader();
+      reader.onerror = function () { resolve(1); };
+      reader.onload = function (e) {
+        try { resolve(parseOrientation(new DataView(e.target.result))); }
+        catch (err) { resolve(1); }
+      };
+      reader.readAsArrayBuffer(slice);
+    });
+  }
+  function parseOrientation(view) {
+    if (view.byteLength < 4 || view.getUint16(0, false) !== 0xFFD8) return 1;   // 不是 JPEG
+    var offset = 2;
+    while (offset + 4 <= view.byteLength) {
+      if (view.getUint8(offset) !== 0xFF) return 1;
+      var marker = view.getUint8(offset + 1);
+      if (marker === 0xDA || marker === 0xD9) return 1;   // 到图像数据了,没找到
+      var size = view.getUint16(offset + 2, false);
+      if (size < 2) return 1;
+      if (marker === 0xE1 && offset + 10 <= view.byteLength &&
+          view.getUint32(offset + 4, false) === 0x45786966) {   // "Exif"
+        return parseTiff(view, offset + 10);
+      }
+      offset += 2 + size;
+    }
+    return 1;
+  }
+  function parseTiff(view, start) {
+    if (start + 8 > view.byteLength) return 1;
+    var bom = view.getUint16(start, false), little;
+    if (bom === 0x4949) little = true;          // "II"
+    else if (bom === 0x4D4D) little = false;    // "MM"
+    else return 1;
+    if (view.getUint16(start + 2, little) !== 42) return 1;
+    var ifd = start + view.getUint32(start + 4, little);
+    if (ifd + 2 > view.byteLength) return 1;
+    var count = view.getUint16(ifd, little);
+    for (var i = 0; i < count; i++) {
+      var entry = ifd + 2 + i * 12;
+      if (entry + 12 > view.byteLength) break;
+      if (view.getUint16(entry, little) === 0x0112) {   // Orientation
+        var v = view.getUint16(entry + 8, little);
+        return (v >= 1 && v <= 8) ? v : 1;
+      }
+    }
+    return 1;
+  }
+  // 把 EXIF 方向变成 canvas 变换。width/height 是「输出画布」的尺寸。
+  function applyOrientation(ctx, o, width, height) {
+    switch (o) {
+      case 2: ctx.transform(-1, 0, 0, 1, width, 0); break;        // 水平镜像
+      case 3: ctx.transform(-1, 0, 0, -1, width, height); break;  // 转 180
+      case 4: ctx.transform(1, 0, 0, -1, 0, height); break;       // 垂直镜像
+      case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;             // 转置
+      case 6: ctx.transform(0, 1, -1, 0, width, 0); break;        // 顺时针 90(最常见:竖着拍)
+      case 7: ctx.transform(0, -1, -1, 0, width, height); break;  // 反转置
+      case 8: ctx.transform(0, -1, 1, 0, 0, height); break;       // 逆时针 90
+      default: break;                                             // 1 = 不用动
+    }
+  }
+
+  function makeCanvas(w, h) {
+    var c = document.createElement("canvas"); c.width = w; c.height = h; return c;
+  }
+  // iOS Safari 的 canvas 不主动释放显存,用完手动清零,防止连传十几张后崩页面
+  function releaseCanvas(c) { try { c.width = 0; c.height = 0; } catch (e) { /* 无所谓 */ } }
+
+  function loadImage(blob) {
+    return new Promise(function (resolve, reject) {
+      var url = URL.createObjectURL(blob), img = new Image();
+      img.onload = function () { resolve({ img: img, revoke: function () { URL.revokeObjectURL(url); } }); };
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("DECODE_FAILED")); };
+      img.src = url;
+    });
+  }
+  function toBlob(canvas, quality) {
+    return new Promise(function (resolve, reject) {
+      canvas.toBlob(function (b) { b ? resolve(b) : reject(new Error("ENCODE_FAILED")); }, "image/jpeg", quality);
+    });
+  }
+
+  var CFG = { maxEdge: 1600, quality: 0.82, maxBytes: 300 * 1024, minQuality: 0.6 };
+
+  function compressImage(file) {
+    return Promise.all([browserAutoOrients(), readExifOrientation(file)]).then(function (r) {
+      var autoOrients = r[0], orientation = r[1];
+      return loadImage(file).then(function (loaded) {
+        try { return drawAndEncode(loaded.img, orientation, autoOrients); }
+        finally { loaded.revoke(); }
+      });
+    }).catch(function () {
+      // 解不开(HEIC 在 Chrome/Firefox 上就解不开)就原样传上去,让 Mac 那边转
+      return { blob: file, width: 0, height: 0, compressed: false };
+    });
+  }
+
+  function drawAndEncode(img, orientation, autoOrients) {
+    var sW = img.naturalWidth || img.width, sH = img.naturalHeight || img.height;
+    if (!sW || !sH) throw new Error("DECODE_FAILED");
+
+    // 浏览器已经替我们摆正了就别再转,否则转两次
+    var effective = (!autoOrients && orientation > 1) ? orientation : 1;
+    var swap = effective >= 5;
+    var orientedW = swap ? sH : sW, orientedH = swap ? sW : sH;
+
+    // 质量阶梯 0.82 -> 0.72 -> 0.62
+    var qualities = [CFG.quality], q = CFG.quality;
+    while (q - 0.1 >= CFG.minQuality) { q = Math.round((q - 0.1) * 100) / 100; qualities.push(q); }
+    // 尺寸阶梯:光降质不一定压得进预算(实测 1600px 的细节照片 q=0.62 仍有 186KB),
+    // 质量降到底还超标就再缩边长 1280 / 1024。
+    var edges = [CFG.maxEdge, Math.round(CFG.maxEdge * 0.8), Math.round(CFG.maxEdge * 0.64)];
+
+    function render(maxEdge) {
+      var k = Math.min(1, maxEdge / Math.max(orientedW, orientedH));
+      var outW = Math.max(1, Math.round(orientedW * k)), outH = Math.max(1, Math.round(orientedH * k));
+      var drawW = swap ? outH : outW, drawH = swap ? outW : outH;
+
+      // 一步从 4000px 缩到 1600px 会发糊,先逐次减半再最后一步,画质明显好
+      var cur = img, curW = sW, curH = sH, tmp = null;
+      while (curW >= drawW * 2 && curH >= drawH * 2) {
+        var nw = Math.max(drawW, Math.round(curW / 2)), nh = Math.max(drawH, Math.round(curH / 2));
+        var step = makeCanvas(nw, nh), sctx = step.getContext("2d");
+        sctx.imageSmoothingEnabled = true; sctx.imageSmoothingQuality = "high";
+        sctx.drawImage(cur, 0, 0, nw, nh);
+        if (tmp) releaseCanvas(tmp);
+        cur = step; tmp = step; curW = nw; curH = nh;
+      }
+      var canvas = makeCanvas(outW, outH), ctx = canvas.getContext("2d");
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
+      applyOrientation(ctx, effective, outW, outH);
+      ctx.drawImage(cur, 0, 0, drawW, drawH);
+      if (tmp) releaseCanvas(tmp);
+      return { canvas: canvas, w: outW, h: outH };
+    }
+
+    var ei = 0;
+    function tryEdge() {
+      var r = render(edges[ei]), qi = 0;
+      function finish(blob) {
+        releaseCanvas(r.canvas);
+        return { blob: blob, width: r.w, height: r.h, compressed: true, quality: qualities[qi] };
+      }
+      function attempt() {
+        return toBlob(r.canvas, qualities[qi]).then(function (blob) {
+          if (blob.size <= CFG.maxBytes) return finish(blob);
+          if (qi < qualities.length - 1) { qi++; return attempt(); }
+          if (ei < edges.length - 1) { releaseCanvas(r.canvas); ei++; return tryEdge(); }
+          return finish(blob);   // 尽力了,如实传上去
+        });
+      }
+      return attempt();
+    }
+    return tryEdge();
+  }
+
+  // ================================================================ 待重传队列(IndexedDB)
+  // 为什么不用 localStorage:它只能存字符串、总量 5MB,一张 300KB 的图转 base64 要 400KB,
+  // 存十几张就满。IndexedDB 能直接存 Blob。localStorage 只用来记昵称和小账本。
+  var DB_NAME = "psm-cloud-upload", STORE = "pending", DB_VER = 1, _db = null;
+  function openDb() {
+    if (_db) return _db;
+    _db = new Promise(function (resolve) {
+      if (!window.indexedDB) return resolve(null);
+      var req;
+      try { req = indexedDB.open(DB_NAME, DB_VER); } catch (e) { return resolve(null); }
+      req.onupgradeneeded = function () {
+        var db = req.result;
+        if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+      };
+      req.onsuccess = function () { resolve(req.result); };
+      req.onerror = req.onblocked = function () { resolve(null); };   // 存不了就纯内存跑
+    });
+    return _db;
+  }
+  function dbRun(mode, fn) {
+    return openDb().then(function (db) {
+      if (!db) return null;
+      return new Promise(function (resolve) {
+        try {
+          var tx = db.transaction(STORE, mode), out = fn(tx.objectStore(STORE));
+          tx.oncomplete = function () { resolve(out && out.result !== undefined ? out.result : null); };
+          tx.onerror = tx.onabort = function () { resolve(null); };
+        } catch (e) { resolve(null); }
+      });
+    });
+  }
+  function dbPut(rec) { return dbRun("readwrite", function (s) { return s.put(rec); }); }
+  function dbDel(id) { return dbRun("readwrite", function (s) { return s.delete(id); }); }
+  function dbAll() {
+    return dbRun("readonly", function (s) { return s.getAll(); }).then(function (all) {
+      return (all || []).filter(function (r) { return r && r.sid === SID && r.blob; });
+    });
+  }
+
+  // ================================================================ 本地小账本
+  // space.json 里只有算完的照片,刚传上去那几张要等 Mac 算完才出现。
+  // 所以自己这台手机上记一份,「我的贡献」里才看得到「⏳ 机器正在算」的那几张。
+  function loadMine() {
+    try { return JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveMine(list) {
+    try { localStorage.setItem(MINE_KEY, JSON.stringify(list.slice(-24))); } catch (e) { /* 存满了就算了 */ }
+  }
+  function patchMine(shortId, patch) {
+    var list = loadMine(), hit = false;
+    list.forEach(function (m) {
+      if (m.shortId === shortId) { Object.keys(patch).forEach(function (k) { m[k] = patch[k]; }); hit = true; }
+    });
+    if (hit) saveMine(list);
+  }
+
+  // 缩到 120px 存 localStorage,原图 dataURL 会把配额撑爆
+  function shrink(file) {
+    return new Promise(function (resolve) {
+      var url = URL.createObjectURL(file), img = new Image();
+      img.onload = function () {
+        try {
+          var side = 120, c = makeCanvas(side, side), ctx = c.getContext("2d");
+          var m = Math.min(img.width, img.height);
+          ctx.drawImage(img, (img.width - m) / 2, (img.height - m) / 2, m, m, 0, 0, side, side);
+          URL.revokeObjectURL(url);
+          var d = c.toDataURL("image/jpeg", 0.7);
+          releaseCanvas(c);
+          resolve(d);
+        } catch (e) { resolve(""); }
+      };
+      img.onerror = function () { URL.revokeObjectURL(url); resolve(""); };
+      img.src = url;
+    });
+  }
+
+  // ================================================================ 渲染:开场
+  function renderWelcome() {
+    var sp = state.space || {};
+    $("wNames").innerHTML = coupleHtml(sp.couple);
+    $("wDate").textContent = (sp.title || "").split("·").pop().trim() || "";
+
+    var people = (sp.contributors || []).length;
+    // 用 contributors 的累计张数,不用 photos.length:待审核的那些宾客视角看不到,会少报
+    var photos = (sp.contributors || []).reduce(function (a, c) { return a + (c.photos || 0); }, 0);
+    if (people > 0) {
+      $("wProof").style.display = "inline-flex";
+      $("wPeople").textContent = people;
+      $("wPhotos").textContent = photos;
+      $("wFaces").innerHTML = (sp.contributors || []).slice(0, 4).map(function (c) {
+        var a = avatar(c.name || "?");
+        return '<i style="background:' + a.color + '">' + esc(a.ch) + "</i>";
+      }).join("");
+    }
+  }
+
+  // ================================================================ 渲染:任务墙
+  function taskCard(t) {
+    var done = t.status !== "open";
+    var who = (t.filledBy || []).join("、");
+    var foot = done
+      ? '<div class="claimed">✅ 已被 ' + esc(who || "宾客") + " 认领</div>"
+      : '<button class="btn-take" data-task="' + esc(t.id) + '">' +
+        (t.type === "gap" ? "我去拍这张" : "我有这张") + "</button>";
+    var bounty = '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>";
+
+    if (t.type === "gap") {
+      var img = t.briefImage ? assetUrl(t.briefImage) : posterPlaceholder(t.yaw);
+      return '<div class="card gap' + (done ? " done" : "") + '">' +
+        '<div class="poster">' +
+          '<img src="' + esc(img) + '" alt="缺失方位的全景裁切" ' +
+          'onerror="this.src=\'' + posterPlaceholder(t.yaw) + '\'">' +
+          '<div class="stamp">' + (done ? "已认领" : "待认领") + "</div>" +
+          '<div class="yawtag">全景裁切 · ' + Math.round(t.yaw || 0) + "° " + dirWord(t.yaw) + "</div>" +
+        "</div>" +
+        '<div class="card-body">' +
+          '<span class="badge gap">🧭 空间任务 · 系统发现的空洞</span>' +
+          '<h3 class="card-title">' + esc(t.title || "缺这个角度") + "</h3>" +
+          '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
+          '<div class="card-foot">' + compass(t.yaw) + bounty + foot + "</div>" +
+        "</div></div>";
+    }
+    return '<div class="card wish' + (done ? " done" : "") + '">' +
+      '<div class="card-body">' +
+        '<span class="badge wish">💌 心愿任务 · 新人亲手写的</span>' +
+        '<h3 class="card-title"><span class="wish-quote">“</span>' + esc(t.title || "") + "</h3>" +
+        '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
+        '<div class="wish-from">— ' + esc((state.space && state.space.couple) || "新人") + " 写的</div>" +
+        '<div class="card-foot">' + bounty + foot + "</div>" +
+      "</div></div>";
+  }
+
+  // 后端还没切出"通缉令"裁切图时的占位:内联 SVG,不外链任何东西
+  function posterPlaceholder(yaw) {
+    // 按方位换个构图,免得几张任务卡长得一模一样(真的裁切图到位后这段就用不上了)
+    var y = ((yaw || 0) % 360 + 360) % 360;
+    var ax = 90 + (y % 120) * 3.2, bx = 380 + ((y * 7) % 180);
+    var svg =
+      '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360">' +
+      '<defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0" stop-color="#3a2a22"/><stop offset="1" stop-color="#17110e"/></linearGradient>' +
+      '<radialGradient id="l"><stop offset="0" stop-color="#f2c98a" stop-opacity=".9"/>' +
+      '<stop offset="1" stop-color="#f2c98a" stop-opacity="0"/></radialGradient></defs>' +
+      '<rect width="640" height="360" fill="url(#g)"/>' +
+      '<circle cx="' + ax + '" cy="90" r="70" fill="url(#l)"/>' +
+      '<circle cx="' + bx + '" cy="60" r="55" fill="url(#l)"/>' +
+      '<circle cx="' + ax + '" cy="90" r="7" fill="#ffe6b8"/>' +
+      '<circle cx="' + bx + '" cy="60" r="5" fill="#ffe6b8"/>' +
+      '<path d="M' + (ax - 60) + ' 360 L' + (ax - 60) + ' 215 Q' + (ax + 80) + ' 150 ' +
+      (ax + 220) + ' 215 L' + (ax + 220) + ' 360 Z" fill="#2a1d18"/>' +
+      '<ellipse cx="' + (bx - 40) + '" cy="335" rx="86" ry="26" fill="#241813"/>' +
+      '<ellipse cx="' + (ax - 120) + '" cy="345" rx="80" ry="28" fill="#241813"/>' +
+      '<text x="320" y="200" font-size="20" fill="#8a7462" text-anchor="middle" ' +
+      'font-family="sans-serif">此方位暂无照片 · ' + Math.round(yaw || 0) + "°</text></svg>";
+    return "data:image/svg+xml," + encodeURIComponent(svg);
+  }
+
+  function renderTasks() {
+    var tasks = (state.space && state.space.tasks) || [];
+    var open = tasks.filter(function (t) { return t.status === "open"; });
+    var done = tasks.filter(function (t) { return t.status !== "open"; });
+    $("tabCount").textContent = open.length;
+    $("wallTitle").textContent = open.length ? "还缺这 " + open.length + " 张" : "全都补齐了";
+    $("wallSub").textContent = open.length
+      ? "挑一个去拍,或者从相册里翻一张出来"
+      : "所有任务都被认领了,进空间看看吧";
+
+    var html = open.map(taskCard).join("");
+    if (done.length) {
+      html += '<div class="sect"><h2>已经有人交了</h2><p>他们的照片已经在空间里</p></div>' +
+        done.map(taskCard).join("");
+    }
+    $("taskList").innerHTML = html ||
+      '<div class="empty"><span class="big">🎐</span>新人还没发任务<br>过一会儿再来看看</div>';
+  }
+
+  // ================================================================ 渲染:我的贡献
+  function renderMine() {
+    var mine = loadMine(), sp = state.space || {};
+    var byId = {};
+    (sp.photos || []).forEach(function (p) { byId[p.id] = p; });
+
+    // 服务端记着我交过、但这台手机的账本里没有的(换了设备 / 清了缓存)也得显示出来,
+    // 否则会出现"上面写着 3 张、下面说你还没交"这种自相矛盾
+    var seen = {};
+    mine.forEach(function (m) { if (m.photoId) seen[m.photoId] = 1; });
+    var fromServer = (sp.photos || []).filter(function (p) {
+      return p.contributor === state.nick && !seen[p.id];
+    }).map(function (p) {
+      return { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason,
+               thumb: assetUrl(p.thumb || p.src), taskTitle: "" };
+    });
+
+    var merged = fromServer.concat(mine).map(function (m) {
+      var s = m.photoId ? byId[m.photoId] : null;
+      return {
+        photoId: m.photoId,
+        thumb: (s && assetUrl(s.thumb || s.src)) || m.thumb,
+        yaw: s ? s.yaw : m.yaw,
+        state: s ? s.state : m.state,
+        reason: s ? s.reason : m.reason,
+        taskTitle: m.taskTitle
+      };
+    });
+
+    var me = (sp.contributors || []).filter(function (c) { return c.name === state.nick; })[0];
+    var dirs = {};
+    merged.forEach(function (m) { if (m.yaw != null) dirs[dirWord(m.yaw)] = 1; });
+
+    // 张数就用下面这张列表的长度:它已经把服务端认的和本机记的并过一遍了。
+    // 用 contributors 里的数字会出现"上面写 3 张、下面列了 4 条"这种当场露馅的矛盾。
+    $("stPhotos").textContent = merged.length;
+    $("stPoints").textContent = me ? me.points : merged.reduce(function (a, m) {
+      return a + (m.state === "rejected" ? 0 : 10);
+    }, 0);
+    $("stDirs").textContent = Object.keys(dirs).length;
+
+    if (!merged.length) {
+      $("mineList").innerHTML =
+        '<div class="empty"><span class="big">📷</span>你还没交照片<br>去任务墙挑一个,一分钟的事</div>';
+      return;
+    }
+    $("mineList").innerHTML = merged.slice().reverse().map(function (m) {
+      var st = stateLabel(m.state);
+      // 没有 yaw 的两种情况得分开说:还在算 ≠ 心愿任务(心愿任务本来就不算方位)
+      var dir = m.yaw != null ? esc(dirWord(m.yaw)) + " · " + Math.round(m.yaw) + "°"
+              : (m.state === "uploaded" ? "机器正在认方位…" : "送给新人");
+      return '<div class="mine-row">' +
+        '<img src="' + esc(m.thumb || "") + '" alt="">' +
+        '<div class="mine-meta">' +
+          '<div class="mine-dir">' + dir + "</div>" +
+          '<div class="mine-sub">' + esc(m.taskTitle || m.reason || "") + "</div>" +
+        "</div>" +
+        '<span class="pill ' + st.cls + '">' + st.txt + "</span></div>";
+    }).join("");
+  }
+
+  function stateLabel(s) {
+    if (s === "auto_ok") return { cls: "ok", txt: "已进空间" };
+    if (s === "approved") return { cls: "ok", txt: "新人通过" };
+    if (s === "needs_review") return { cls: "wait", txt: "等新人确认" };
+    if (s === "rejected") return { cls: "no", txt: "没被选上" };
+    if (s === "quarantined") return { cls: "no", txt: "放错地方了" };
+    if (s === "uploaded") return { cls: "wait", txt: "机器算着呢" };
+    return { cls: "wait", txt: "处理中" };
+  }
+
+  // ================================================================ 上传抽屉
+  function openSheet(html) {
+    $("sheetIn").innerHTML = html;
+    $("sheet").classList.add("on");
+    $("mask").classList.add("on");
+  }
+  function closeSheet() {
+    $("sheet").classList.remove("on");
+    $("mask").classList.remove("on");
+    state.files = []; state.task = null;
+    stopPoll();
+  }
+
+  function sheetPick(task) {
+    state.task = task; state.files = [];
+    var isGap = task.type === "gap";
+    openSheet(
+      '<div class="grab"></div>' +
+      "<h3>" + esc(task.title) + "</h3>" +
+      '<p class="sh-sub">' + (isGap
+        ? "拍好了直接选,或者从相册里翻一张 " + dirWord(task.yaw) + " 的照片。"
+        : "从相册里挑一张,能对上这份心愿就行。") + "</p>" +
+      '<div class="picker"><input type="file" id="fInput" accept="image/jpeg,image/png,image/webp" multiple>' +
+        '<div class="pi">📷</div><div class="pt">拍一张 / 从相册选</div>' +
+        '<div class="ps">可以一次选好几张</div></div>' +
+      '<div class="picks" id="picks"></div>' +
+      '<button class="btn-main" id="btnSend" disabled>传上去</button>' +
+      '<button class="btn-ghost" id="btnCancel">先不传</button>'
+    );
+
+    $("fInput").addEventListener("change", function (e) {
+      var fs = e.target.files || [];
+      for (var i = 0; i < fs.length; i++) {
+        var f = fs[i];
+        if (f.type && f.type.indexOf("image/") !== 0) continue;
+        // 选好几次的时候会累加,同一张别加两遍 —— 现场流量很贵,传重了纯属浪费
+        var key = [f.name, f.size, f.lastModified].join("|");
+        if (state.files.some(function (x) {
+          return [x.name, x.size, x.lastModified].join("|") === key;
+        })) continue;
+        state.files.push(f);
+      }
+      $("picks").innerHTML = state.files.map(function (f) {
+        return '<img src="' + URL.createObjectURL(f) + '" alt="">';
+      }).join("");
+      $("btnSend").disabled = state.files.length === 0;
+      $("btnSend").textContent = "传上去(" + state.files.length + " 张)";
+    });
+    $("btnCancel").addEventListener("click", closeSheet);
+    $("btnSend").addEventListener("click", doUpload);
+  }
+
+  function sheetProgress(n) {
+    openSheet(
+      '<div class="grab"></div>' +
+      '<div class="prog-wrap">' +
+        "<h3>正在传去杭州机房…</h3>" +
+        '<div class="bar"><i id="barFill"></i></div>' +
+        '<div class="prog-txt" id="progTxt">先把 ' + n + ' 张压小一点</div>' +
+      "</div>"
+    );
+  }
+
+  // ---------------------------------------------------------------- 上传主流程
+  function doUpload() {
+    var task = state.task, files = state.files.slice();
+    if (!files.length) return;
+
+    var pol = policyOf(state.space);
+    if (!MOCK && !pol) {
+      closeSheet();
+      toast("这个空间还没开上传通道,找新人问一下");
+      return;
+    }
+    if (!MOCK && pol.expiresAt && pol.expiresAt * 1000 < Date.now()) {
+      closeSheet();
+      toast("上传通道过期了,让新人重新发一次二维码");
+      return;
+    }
+
+    sheetProgress(files.length);
+    var total = files.length, sentUnits = 0;
+    function bump(frac) {
+      // 压缩算 30%、上传算 70%,进度条不会先冲到头再干等
+      var el = $("barFill");
+      if (el) el.style.width = Math.min(99, Math.round((sentUnits + frac) / total * 100)) + "%";
+    }
+
+    var recs = [];
+    // 一张一张来:现场是移动网络,并发三条只会互相抢带宽,还看不出谁传到哪了
+    var chain = Promise.resolve();
+    files.forEach(function (file, i) {
+      chain = chain.then(function () {
+        var el = $("progTxt");
+        if (el) el.textContent = "第 " + (i + 1) + "/" + total + " 张:压缩中";
+        return Promise.all([compressImage(file), shrink(file)]).then(function (r) {
+          var out = r[0], thumb = r[1];
+          sentUnits += 0.3; bump(0);
+          var el2 = $("progTxt");
+          if (el2) el2.textContent = "第 " + (i + 1) + "/" + total + " 张:上传中(" +
+            Math.round(out.blob.size / 1024) + "KB)";
+
+          var shortId = uid();
+          var key = buildKey(MOCK ? "spaces/mock/inbox/" : pol.keyPrefix, shortId, state.nick, task.id);
+          var rec = {
+            id: shortId, sid: SID, shortId: shortId, key: key, blob: out.blob,
+            nick: state.nick, taskId: task.id || "", taskTitle: task.title || "",
+            thumb: thumb, at: Date.now()
+          };
+
+          var sender = MOCK ? mockPost(function (p) { bump(0.7 * p); })
+                            : postWithRetry(pol, key, out.blob, function (p) { bump(0.7 * p); });
+          return sender.then(function (status) {
+            sentUnits += 0.7; bump(0);
+            rec.status = status;
+            recs.push(rec);
+            // 传成功就从"待重传"里划掉(重传路径会用到)
+            return dbDel(shortId);
+          }).catch(function (err) {
+            sentUnits += 0.7; bump(0);
+            // 传不上去的存进 IndexedDB,恢复网络自动接着传
+            rec.error = err.message || "传不上去";
+            return dbPut(rec).then(function () { recs.push(rec); });
+          });
+        });
+      });
+    });
+
+    chain.then(function () {
+      var okRecs = recs.filter(function (r) { return !r.error; });
+      var bad = recs.length - okRecs.length;
+
+      // 记进本地小账本(状态先是 uploaded,轮询到结果再改)
+      var mine = loadMine();
+      okRecs.forEach(function (r) {
+        mine.push({
+          shortId: r.shortId, key: r.key, photoId: null, yaw: null,
+          state: "uploaded", reason: "机器正在算方位",
+          thumb: r.thumb, taskTitle: r.taskTitle, at: r.at
+        });
+      });
+      saveMine(mine);
+      refreshRedo();
+
+      if (!okRecs.length) {
+        closeSheet();
+        toast("这几张都没传上去,网好一点会自动重传");
+        return;
+      }
+      sheetWaiting(okRecs, task, bad);
+    }).catch(function (e) {
+      closeSheet();
+      toast("传失败了:" + (e.message || e));
+    });
+  }
+
+  // ---------------------------------------------------------------- 等结果那一屏
+  // 上传完不是终点:照片要等 Mac 上的工人算完才会出现在空间里。
+  // 这一屏就是那段等待 —— 不能让人对着转圈不知道在等什么。
+  function sheetWaiting(recs, task, badCount) {
+    var rows = recs.map(function (r, i) {
+      return '<div class="res pending in" data-sid="' + esc(r.shortId) + '">' +
+        '<img src="' + esc(r.thumb || "") + '" alt="">' +
+        '<div class="res-main">' +
+          '<div class="res-t">已收到,机器正在把它放回空间…</div>' +
+          '<div class="res-s">照片已经到杭州机房了</div>' +
+        "</div></div>";
+    }).join("");
+
+    openSheet(
+      '<div class="grab"></div>' +
+      "<h3>收到了,一共 " + recs.length + " 张</h3>" +
+      '<p class="sh-sub">照片已经躺在杭州机房里了。<br>' +
+      "现在是机器在认它拍的是哪个方向,一般十几秒到一分钟。" +
+      (badCount ? "<br>另有 " + badCount + " 张没传上去,网好一点会自动重传。" : "") + "</p>" +
+      '<div class="waitbar" id="waitBar"><i></i></div>' +
+      rows +
+      '<div class="res-sum" id="resSum"></div>' +
+      '<button class="btn-main" id="btnGoWalk">先去空间里逛逛 →</button>' +
+      '<button class="btn-ghost" id="btnMore">再传几张</button>'
+    );
+    $("btnGoWalk").addEventListener("click", function () { location.href = walkUrl(); });
+    $("btnMore").addEventListener("click", function () { closeSheet(); sheetPick(task); });
+
+    startPoll(recs, task);
+  }
+
+  // 在 space.json 里认领"哪一条是我刚传的那张":
+  // key 里带着我们自己生成的短 id,工人不管把它改名成什么,只要保留来源都能对上。
+  function findMine(sp, shortId) {
+    var ps = (sp && sp.photos) || [];
+    for (var i = 0; i < ps.length; i++) {
+      var p = ps[i];
+      var hay = [p.id, p.src, p.thumb, p.key, p.inboxKey, p.origin, p.source].join("|");
+      if (hay.indexOf(shortId) >= 0) return p;
+    }
+    return null;
+  }
+
+  function startPoll(recs, task) {
+    stopPoll();
+    var t0 = Date.now(), left = {};
+    recs.forEach(function (r) { left[r.shortId] = r; });
+
+    function tick() {
+      loadSpace().then(function (sp) {
+        state.space = sp;
+        Object.keys(left).forEach(function (sid) {
+          var p = findMine(sp, sid);
+          if (!p) return;
+          settleRow(sid, p, task);
+          patchMine(sid, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+          delete left[sid];
+        });
+        renderTasks();
+        if (!Object.keys(left).length) { stopPoll(); finishSum(recs, task); return; }
+        if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); }
+      }).catch(function () {
+        // 轮询失败不吭声,下一轮再来;真超时了自然会走 timeoutRows
+        if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); }
+      });
+    }
+    state.poller = setInterval(tick, POLL_EVERY_MS);
+    setTimeout(tick, 1500);   // 先来一发快的,万一工人手快呢
+  }
+  function stopPoll() {
+    if (state.poller) { clearInterval(state.poller); state.poller = null; }
+  }
+
+  function rowEl(shortId) {
+    return document.querySelector('.res[data-sid="' + shortId + '"]');
+  }
+
+  // 有结果了,把那一行从"正在算"翻成结论
+  function settleRow(shortId, p, task) {
+    var el = rowEl(shortId);
+    if (!el) return;
+    var head, sub;
+    if (p.state === "auto_ok" || p.state === "approved") {
+      head = "你这张放在了 <b>" + esc(dirWord(p.yaw)) + "</b> · 已进入空间 ✅";
+      sub = "匹配度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "—") +
+            " · " + Math.round(p.yaw || 0) + "°";
+    } else if (p.state === "needs_review") {
+      head = "机器拿不准,已交给新人确认 ⏳";
+      sub = p.reason || "两项判据没同时达标,等新人裁决";
+    } else if (p.state === "quarantined") {
+      head = "这张看着不像这个场地,先放一边了";
+      sub = p.reason || "自检环自动隔离";
+    } else if (p.state === "rejected") {
+      head = "新人这次没选上它";
+      sub = p.reason || "";
+    } else {
+      head = "已收到,正在处理";
+      sub = p.reason || "";
+    }
+    if (task && task.type === "wish" && p.state !== "quarantined") {
+      head = "已经送到新人手上 💌";
+      sub = p.reason || "心愿任务由新人亲自看";
+    }
+    el.classList.remove("pending");
+    el.querySelector(".res-t").innerHTML = head;
+    el.querySelector(".res-s").textContent = sub;
+  }
+
+  // 两分钟还没算完:如实说,别装作成功了
+  function timeoutRows(left) {
+    Object.keys(left).forEach(function (sid) {
+      var el = rowEl(sid);
+      if (!el) return;
+      el.classList.remove("pending");
+      el.querySelector(".res-t").textContent = "机器还在算,待会儿再看一眼";
+      el.querySelector(".res-s").textContent = "照片没丢,已经在机房里了 · 「我的贡献」里能看到";
+    });
+    var w = $("waitBar"); if (w) w.style.display = "none";
+    var s = $("resSum");
+    if (s) { s.innerHTML = "结果会自己出现在「我的贡献」里"; s.classList.add("in"); }
+  }
+
+  function finishSum(recs, task) {
+    // 全算完了就把那根还在跑的等待条收掉,别让人以为还有东西没好
+    var w = $("waitBar"); if (w) w.style.display = "none";
+    var b = $("btnGoWalk"); if (b) b.textContent = "看看它在空间里 →";
+    var s = $("resSum");
+    if (!s) return;
+    var sp = state.space || {};
+    var filled = recs.some(function (r) {
+      var p = findMine(sp, r.shortId);
+      return p && (p.state === "auto_ok" || p.state === "approved") && p.taskId === task.id;
+    });
+    var gained = filled ? (task.bounty || 0) : recs.length * 10;
+    s.innerHTML = (filled ? "悬赏到账 " : "这次拿到 ") + "<b>+" + gained + "</b> 分" +
+      (filled ? " · 这个任务被你补上了 🎉" : "");
+    s.classList.add("in");
+    if (state.view === "mine") renderMine();
+  }
+
+  // ================================================================ 待重传
+  function refreshRedo() {
+    return dbAll().then(function (all) {
+      var n = all.length;
+      $("redoBar").classList.toggle("off", n === 0);
+      $("redoTxt").textContent = "有 " + n + " 张没传上去,先存在这台手机里";
+      return all;
+    });
+  }
+
+  // 补传同一时间只准跑一趟。手机在弱网下会连着甩好几个 online 事件,
+  // 不挡的话每个事件都会把同一张再传一遍 —— 自验时实测传出了两份。
+  var retrying = false;
+  function retryPending(silent) {
+    var pol = policyOf(state.space);
+    if (!pol) { if (!silent) toast("上传通道还没开,等一下"); return Promise.resolve(); }
+    if (retrying) { if (!silent) toast("正在补传,别急"); return Promise.resolve(); }
+    retrying = true;
+    return dbAll().then(function (all) {
+      if (!all.length) { if (!silent) toast("没有要重传的"); return; }
+      if (!silent) toast("重新传 " + all.length + " 张…");
+      var chain = Promise.resolve(), ok = 0;
+      all.forEach(function (rec) {
+        chain = chain.then(function () {
+          // 策略换过一轮的话前缀可能变了,按新前缀把文件名接回去
+          var key = rec.key.indexOf(pol.keyPrefix) === 0
+            ? rec.key : pol.keyPrefix + rec.key.split("/").pop();
+          return postWithRetry(pol, key, rec.blob, null).then(function () {
+            ok++;
+            var mine = loadMine();
+            mine.push({
+              shortId: rec.shortId, key: key, photoId: null, yaw: null,
+              state: "uploaded", reason: "机器正在算方位",
+              thumb: rec.thumb, taskTitle: rec.taskTitle, at: Date.now()
+            });
+            saveMine(mine);
+            return dbDel(rec.id);
+          }).catch(function () { /* 还是不行就留着,下次网好再说 */ });
+        });
+      });
+      return chain.then(function () {
+        refreshRedo();
+        if (ok) toast("补传成功 " + ok + " 张,机器正在算");
+        else if (!silent) toast("网还是不行,等会儿自动再试");
+        if (state.view === "mine") renderMine();
+      });
+    }).then(function () { retrying = false; }, function () { retrying = false; });
+  }
+
+  // ================================================================ 视图切换
+  function walkUrl() {
+    // walk.html 和这一页一起躺在 GitHub Pages 上,基址一路带过去
+    var u = Q.get("walk") || "../viewer/walk.html";
+    return u + (u.indexOf("?") >= 0 ? "&" : "?") +
+      "space=" + encodeURIComponent(SID) + "&b=" + encodeURIComponent(BASE);
+  }
+
+  function setView(v) {
+    state.view = v;
+    $("viewTasks").style.display = v === "tasks" ? "" : "none";
+    $("viewMine").style.display = v === "mine" ? "" : "none";
+    $("tabTasks").classList.toggle("on", v === "tasks");
+    $("tabMine").classList.toggle("on", v === "mine");
+    if (v === "mine") { renderMine(); syncMine(); }
+    window.scrollTo(0, 0);
+  }
+
+  // 切到「我的贡献」顺手拉一次最新的 space.json:
+  // 补传成功的那几张不在轮询窗口里,不拉一次的话会一直卡在"机器算着呢"。
+  function syncMine() {
+    loadSpace().then(function (sp) {
+      if (!sp || !sp.id) return;
+      state.space = sp;
+      // 把本机账本里还没有结论的那些对一遍答案
+      loadMine().forEach(function (m) {
+        if (m.photoId || !m.shortId) return;
+        var p = findMine(sp, m.shortId);
+        if (p) patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+      });
+      if (state.view === "mine") renderMine();
+      renderTasks();
+    }).catch(function () { /* 拉不到就用旧的,别打扰宾客 */ });
+  }
+
+  function bootMain() {
+    var sp = state.space || {};
+    $("hNames").innerHTML = coupleHtml(sp.couple);
+    $("hNick").textContent = state.nick;
+    $("hMe").style.visibility = "visible";
+    $("btnWalk").href = walkUrl();
+    renderTasks();
+  }
+
+  // ================================================================ 事件
+  $("nickInput").addEventListener("input", function () {
+    $("nickGo").disabled = this.value.trim().length === 0;
+  });
+  $("nickGo").addEventListener("click", function () {
+    var v = $("nickInput").value.trim();
+    if (!v) return;
+    state.nick = v;
+    try { localStorage.setItem(NICK_KEY, v); } catch (e) { /* 隐私模式下存不了也能用 */ }
+    $("welcome").classList.add("off");
+    bootMain();
+    toast("好的 " + v + ",挑一个任务吧");
+  });
+  $("hMe").addEventListener("click", function () {
+    $("nickInput").value = state.nick;
+    $("nickGo").disabled = false;
+    $("welcome").classList.remove("off");
+  });
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest && e.target.closest("[data-task]");
+    if (t) {
+      var id = t.getAttribute("data-task");
+      var task = ((state.space && state.space.tasks) || []).filter(function (x) { return x.id === id; })[0];
+      if (task) sheetPick(task);
+      return;
+    }
+    var tab = e.target.closest && e.target.closest(".tab");
+    if (tab) setView(tab.getAttribute("data-view"));
+  });
+  $("mask").addEventListener("click", closeSheet);
+  $("redoBtn").addEventListener("click", function () { retryPending(false); });
+  // 网回来了自动补传,不用宾客自己想起来这回事
+  window.addEventListener("online", function () { retryPending(true); });
+
+  // 微信里 <input type=file> 偶尔会被拦。只在微信里提这一句,别的浏览器看了反而糊涂。
+  if (/MicroMessenger/i.test(navigator.userAgent) || Q.get("wx") === "1") {
+    $("wxHint").classList.remove("off");
+  }
+
+  // ================================================================ 启动
+  try { state.nick = localStorage.getItem(NICK_KEY) || ""; } catch (e) { state.nick = ""; }
+
+  loadSpace().then(function (sp) {
+    if (!sp || !sp.id) throw new Error("这个空间的数据是坏的");
+    state.space = sp;
+    renderWelcome();
+
+    // ?screen=xxx 是给截图/演示用的:除了 welcome 本身,其余都当作"名字已经填过"
+    if (FORCE && FORCE !== "welcome" && !state.nick) state.nick = "小明";
+    if (MOCK) mockSeedMine();
+
+    var needNick = !state.nick || FORCE === "welcome";
+    $("welcome").classList.toggle("off", !needNick);
+    if (state.nick) { $("nickInput").value = state.nick; $("nickGo").disabled = false; }
+    bootMain();                 // 背景先渲染好,关掉开场就是完整页面
+
+    refreshRedo().then(function (all) {
+      if (all.length && navigator.onLine) retryPending(true);   // 上次没传完的,进来就接着传
+    });
+
+    if (FORCE === "mine") setView("mine");
+    if (FORCE === "upload") sheetPick(state.space.tasks[0]);
+    if (FORCE === "waiting") mockShowWaiting();
+    if (FORCE === "result") mockShowResult();
+  }).catch(function (e) {
+    // 空间没加载出来时别留一堆占位骨架,把头部收干净,只留一句人话 + 一个能按的重试
+    $("hNames").textContent = "空间记忆";
+    $("hMe").style.display = "none";
+    $("welcome").classList.add("off");
+    $("taskList").innerHTML = '<div class="empty"><span class="big">🥀</span>' +
+      esc(e.message || "加载失败") + "<br>换个网,或者把二维码再扫一次" +
+      '<br><br><button class="btn-ghost" style="max-width:200px;margin:0 auto" ' +
+      'onclick="location.reload()">再试一次</button></div>';
+  });
+
+  // ================================================================ 假数据
+  // ?mock=1:真 space.json 还没发布时,整页用写死的数据跑通全流程(含上传等待动画)
+  var MOCK_SPACE = {
+    schema: "psm-space/1",
+    id: "s-mock",
+    title: "陈屹 ♥ 林沐 · 2026.7.26",
+    couple: "陈屹 & 林沐",
+    published: true,
+    upload: { host: "https://example.invalid", OSSAccessKeyId: "MOCK", policy: "MOCK",
+              signature: "MOCK", keyPrefix: "spaces/mock/inbox/", maxSize: 12582912 },
+    nodes: [
+      { id: "n1", name: "宴会厅", time: "18:00", panorama: "nodes/n1/pano.jpg" },
+      { id: "n2", name: "仪式区", time: "16:30", panorama: "nodes/n2/pano.jpg" }
+    ],
+    tasks: [
+      { id: "t1", nodeId: "n1", type: "gap", title: "缺这个角度",
+        brief: "站在舞台右前方,回头拍向主桌那一片", yaw: 210, yawRange: [190, 240],
+        briefImage: null, bounty: 50, status: "open", filledBy: [], createdBy: "system" },
+      { id: "t2", nodeId: "n1", type: "wish", title: "我想要一张我妈妈笑的照片",
+        brief: "敬酒那会儿她一直在笑,我自己一张都没拍到", yaw: null, yawRange: null,
+        briefImage: null, bounty: 100, status: "open", filledBy: [], createdBy: "couple" },
+      { id: "t3", nodeId: "n2", type: "gap", title: "缺这个角度",
+        brief: "从入口门廊往里拍,要拍到整排花门", yaw: 45, yawRange: [25, 70],
+        briefImage: null, bounty: 60, status: "open", filledBy: [], createdBy: "system" },
+      { id: "t4", nodeId: "n1", type: "gap", title: "缺这个角度",
+        brief: "背对舞台,拍向签到台那面墙", yaw: 300, yawRange: [280, 320],
+        briefImage: null, bounty: 40, status: "filled", filledBy: ["小雨"], createdBy: "system" }
+    ],
+    photos: [
+      { id: "p1", src: "photos/p1.jpg", thumb: "thumbs/p1.jpg", nodeId: "n1", yaw: 105.6,
+        confidence: 0.9158, margin: 0.1019, state: "auto_ok",
+        reason: "匹配度 0.92、辨识度 0.102,两项都达标,自动入选",
+        contributor: "小雨", taskId: null },
+      { id: "p2", src: "photos/p2.jpg", thumb: "thumbs/p2.jpg", nodeId: "n1", yaw: 298.0,
+        confidence: 0.8841, margin: 0.0722, state: "auto_ok",
+        reason: "匹配度 0.88、辨识度 0.072,两项都达标,自动入选",
+        contributor: "小雨", taskId: "t4" }
+    ],
+    contributors: [
+      { name: "小雨", photos: 5, points: 240 },
+      { name: "阿哲", photos: 3, points: 150 },
+      { name: "婷婷", photos: 2, points: 90 },
+      { name: "老王", photos: 1, points: 40 }
+    ]
+  };
+
+  // 假上传:走一遍进度条,不碰网络
+  function mockPost(onProgress) {
+    return new Promise(function (resolve) {
+      var p = 0;
+      var tick = setInterval(function () {
+        p = Math.min(1, p + 0.2); onProgress(p);
+        if (p >= 1) { clearInterval(tick); setTimeout(function () { resolve(204); }, 250); }
+      }, 140);
+    });
+  }
+
+  // 假数据模式下先垫几条"我交过的照片",不然"我的贡献"永远是空状态,看不出效果
+  function mockSeedMine() {
+    if (!loadMine().length) {
+      saveMine([
+        { shortId: "d1", photoId: "d1", yaw: 213.4, state: "auto_ok",
+          reason: "匹配度 0.91、辨识度 0.088,两项都达标,自动入选",
+          thumb: posterPlaceholder(213), taskTitle: "缺这个角度 · 舞台右前方", at: 1 },
+        { shortId: "d2", photoId: "d2", yaw: 118.9, state: "needs_review",
+          reason: "辨识度 0.031 偏低,交给新人裁决",
+          thumb: posterPlaceholder(119), taskTitle: "自由投稿", at: 2 },
+        { shortId: "d3", photoId: null, yaw: null, state: "uploaded",
+          reason: "机器正在算方位", thumb: posterPlaceholder(47), taskTitle: "缺这个角度 · 入口花门", at: 3 }
+      ]);
+    }
+    var mine = loadMine(), name = state.nick || "小明";
+    MOCK_SPACE.contributors = MOCK_SPACE.contributors.filter(function (c) { return c.name !== name; });
+    MOCK_SPACE.contributors.unshift({ name: name, photos: mine.length, points: mine.length * 50 });
+  }
+
+  // ?screen=waiting:停在"等机器算"那一屏
+  function mockShowWaiting() {
+    sheetWaiting([
+      { shortId: "w1", thumb: posterPlaceholder(210), taskTitle: "缺这个角度" },
+      { shortId: "w2", thumb: posterPlaceholder(120), taskTitle: "缺这个角度" }
+    ], MOCK_SPACE.tasks[0], 0);
+    stopPoll();   // 截图用,别让它真去轮询
+  }
+
+  // ?screen=result:停在"机器算完了"那一屏
+  function mockShowResult() {
+    mockShowWaiting();
+    setTimeout(function () {
+      settleRow("w1", { id: "x1", yaw: 213.4, confidence: 0.9142, state: "auto_ok",
+        reason: "匹配度 0.91、辨识度 0.088,两项都达标,自动入选", taskId: "t1" }, MOCK_SPACE.tasks[0]);
+      settleRow("w2", { id: "x2", yaw: 118.9, confidence: 0.8310, state: "needs_review",
+        reason: "辨识度 0.031 偏低,交给新人裁决" }, MOCK_SPACE.tasks[0]);
+      var s = $("resSum");
+      s.innerHTML = "悬赏到账 <b>+50</b> 分 · 这个任务被你补上了 🎉";
+      s.classList.add("in");
+    }, 700);
+  }
+})();
+</script>
+</body>
+</html>

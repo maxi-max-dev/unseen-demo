@@ -6,3 +6,8 @@ __pycache__/
 *.pyc
 *.bak
 server/sessions/
+server/spaces/
+film/out/memory-film.mp4
+film/*/_frames/
+film/assets/flythrough.mp4
+film/.hf-tmp/

@@ -1,0 +1,833 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>空间记忆 · 自检环审计报告</title>
+<style>
+  /* ============================================================
+     配色:近黑机器验收台。青绿=通过 / 琥珀=重试 / 红=拒绝。
+     只用系统字体,零外链(项目要求断网可跑)。
+     ============================================================ */
+  :root {
+    --bg: #0b0d10;
+    --panel: #12161b;
+    --panel-2: #171d24;
+    --line: #232b34;
+    --line-soft: #1b222a;
+    --text: #e6ebf0;
+    --dim: #8b97a4;
+    --dim-2: #63707d;
+    --pass: #3ddc97;
+    --retry: #f0a202;
+    --reject: #e5484d;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+            "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+    min-height: 100vh;
+  }
+
+  /* 底纹:细网格 + 扫描线,纯装饰,不挡点击 */
+  #bgGrid, #bgScan {
+    position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  }
+  #bgGrid {
+    background-image:
+      linear-gradient(rgba(255,255,255,.022) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.022) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: radial-gradient(ellipse 100% 80% at 50% 0%, #000 30%, transparent 85%);
+    -webkit-mask-image: radial-gradient(ellipse 100% 80% at 50% 0%, #000 30%, transparent 85%);
+  }
+  #bgScan {
+    opacity: .035;
+    background: repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 3px);
+  }
+
+  .wrap {
+    position: relative; z-index: 1;
+    max-width: 1080px; margin: 0 auto;
+    padding: 26px 18px calc(60px + env(safe-area-inset-bottom, 0px));
+  }
+
+  /* ---------------- 页眉 ---------------- */
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 11px; letter-spacing: .18em;
+    color: var(--dim-2); text-transform: uppercase;
+    padding-bottom: 14px; border-bottom: 1px solid var(--line-soft); margin-bottom: 22px;
+  }
+  .brand .live { width: 7px; height: 7px; border-radius: 50%; background: var(--pass);
+                 box-shadow: 0 0 8px currentColor; color: var(--pass); flex: 0 0 auto; }
+  .brand b { color: var(--dim); font-weight: 600; letter-spacing: .1em; }
+  .brand .spacer { flex: 1 1 auto; }
+  .brand #brandSrc {
+    text-transform: none; letter-spacing: .04em;
+    max-width: 46%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  /* ---------------- 裁决区 ---------------- */
+  .verdict-row {
+    display: flex; gap: 22px; align-items: stretch; flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .stamp {
+    flex: 0 0 auto;
+    position: relative;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    min-width: 178px; padding: 16px 22px;
+    border: 2px solid var(--vc); border-radius: 6px;
+    background: rgba(255,255,255,.035);
+    background: color-mix(in srgb, var(--vc) 8%, transparent);
+    color: var(--vc);
+    transform: rotate(-2.4deg);
+    box-shadow: 0 0 26px color-mix(in srgb, var(--vc) 12%, transparent);
+  }
+  .stamp::after {
+    content: ""; position: absolute; inset: 4px; border: 1px solid currentColor;
+    opacity: .38; border-radius: 3px; pointer-events: none;
+  }
+  .stamp .zh { font-size: 40px; font-weight: 800; letter-spacing: .22em; text-indent: .22em; line-height: 1.1; }
+  .stamp .en { font-family: var(--mono); font-size: 11px; letter-spacing: .3em; opacity: .8; margin-top: 4px; }
+  .verdict-text { flex: 1 1 300px; min-width: 260px; display: flex; flex-direction: column; justify-content: center; }
+  .verdict-text h1 { font-size: 19px; font-weight: 700; margin: 0 0 8px; line-height: 1.5; }
+  .verdict-meta { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .chip {
+    font-family: var(--mono); font-size: 11.5px; letter-spacing: .04em;
+    color: var(--dim); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 999px; padding: 3px 11px;
+    white-space: nowrap;
+  }
+  .chip b { color: var(--text); font-weight: 600; }
+  /* 每处 color-mix 前面都留一行 rgba 兜底,老 Safari(<16.2)不认 color-mix 时颜色不至于全丢 */
+  .chip.warn { color: var(--retry); border-color: rgba(240,162,2,.45); border-color: color-mix(in srgb, var(--retry) 40%, var(--line)); }
+
+  /* ---------------- 题眼:人工介入 0 次 ---------------- */
+  .kpi-row { display: grid; grid-template-columns: 1.35fr 1fr; gap: 14px; margin: 20px 0 26px; }
+  .hero {
+    position: relative; overflow: hidden;
+    background: linear-gradient(135deg, var(--panel) 0%, #0e1317 100%);
+    border: 1px solid var(--line);
+    border: 1px solid color-mix(in srgb, var(--hc) 32%, var(--line));
+    border-radius: 10px; padding: 20px 22px;
+    display: flex; align-items: center; gap: 20px;
+  }
+  .hero::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--hc);
+  }
+  .hero-num {
+    font-family: var(--mono); font-size: 78px; font-weight: 700; line-height: .92;
+    color: var(--hc); text-shadow: 0 0 30px color-mix(in srgb, var(--hc) 35%, transparent);
+  }
+  .hero-txt .lb { font-size: 15px; font-weight: 700; letter-spacing: .06em; }
+  .hero-txt .sub { font-size: 12.5px; color: var(--dim); margin-top: 5px; line-height: 1.55; }
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; display: flex; flex-direction: column; justify-content: center;
+  }
+  .stat .k { font-size: 11px; color: var(--dim-2); letter-spacing: .08em; }
+  .stat .v { font-family: var(--mono); font-size: 20px; font-weight: 700; margin-top: 3px; }
+  .stat .v small { font-size: 11px; color: var(--dim); font-weight: 400; margin-left: 2px; }
+
+  /* ---------------- 区块标题 ---------------- */
+  .sec-head {
+    display: flex; align-items: center; gap: 12px; margin: 30px 0 14px;
+  }
+  .sec-head h2 { font-size: 14px; font-weight: 700; letter-spacing: .14em; margin: 0; color: var(--dim); }
+  .sec-head .rule { flex: 1 1 auto; height: 1px; background: var(--line-soft); }
+
+  /* ---------------- 尝试切换 ---------------- */
+  .tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+  .tab {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .06em;
+    background: var(--panel); color: var(--dim); border: 1px solid var(--line);
+    border-radius: 6px; padding: 6px 14px; cursor: pointer;
+  }
+  .tab:hover { color: var(--text); border-color: #2f3944; }
+  .tab.on { background: var(--panel-2); color: var(--text); border-color: #3a4652; }
+
+  /* ---------------- 单次尝试 ---------------- */
+  .attempt {
+    border: 1px solid var(--line); border-radius: 12px; background: rgba(18,22,27,.55);
+    margin-bottom: 22px; overflow: hidden;
+  }
+  .att-head {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 13px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+  }
+  .att-no { font-family: var(--mono); font-size: 12.5px; letter-spacing: .1em; color: var(--text); font-weight: 700; }
+  .att-act {
+    font-size: 11.5px; font-family: var(--mono); letter-spacing: .06em;
+    border: 1px solid var(--ac); color: var(--ac); border-radius: 5px; padding: 2px 9px;
+    background: rgba(255,255,255,.04);
+    background: color-mix(in srgb, var(--ac) 10%, transparent);
+  }
+  /* 迷你三闸流水线 */
+  .mini-pipe { display: flex; align-items: center; gap: 7px; margin-left: auto; flex-wrap: wrap; }
+  .mini-gate { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px; color: var(--dim); }
+  .mini-gate .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--gc); box-shadow: 0 0 8px var(--gc); }
+  .mini-arrow { color: var(--dim-2); font-size: 12px; }
+
+  /* 闸门块:左侧竖线 + 节点,自上而下读成流水线 */
+  .gates { padding: 4px 16px 16px; }
+  .gate { position: relative; padding-left: 30px; }
+  .gate::before {
+    content: ""; position: absolute; left: 6px; top: 0; bottom: 0; width: 1px; background: var(--line);
+  }
+  .gate:last-child::before { bottom: auto; height: 22px; }
+  .gate .node {
+    position: absolute; left: 0; top: 16px; width: 13px; height: 13px; border-radius: 50%;
+    background: var(--bg); border: 2px solid var(--gc); box-shadow: 0 0 9px color-mix(in srgb, var(--gc) 55%, transparent);
+  }
+  details.gate-box { border-bottom: 1px solid var(--line-soft); }
+  .gate:last-child details.gate-box { border-bottom: 0; }
+  details.gate-box > summary {
+    list-style: none; cursor: pointer; padding: 13px 0;
+    display: flex; align-items: center; gap: 11px; flex-wrap: wrap;
+  }
+  details.gate-box > summary::-webkit-details-marker { display: none; }
+  .gate-name { font-size: 14.5px; font-weight: 700; letter-spacing: .04em; }
+  .gate-verdict { font-family: var(--mono); font-size: 11.5px; color: var(--gc); letter-spacing: .06em; }
+  .gate-sum { font-family: var(--mono); font-size: 11.5px; color: var(--dim-2); margin-left: auto; }
+  .caret { color: var(--dim-2); font-size: 10px; transition: transform .18s ease; }
+  details[open] .caret { transform: rotate(90deg); }
+  .gate-body { padding: 2px 0 18px; }
+
+  /* ---------------- 结构闸:6 项 check ---------------- */
+  .check {
+    display: flex; gap: 10px; align-items: flex-start;
+    padding: 8px 10px; border-radius: 7px; background: var(--panel); margin-bottom: 6px;
+    border: 1px solid transparent;
+  }
+  .check.bad {
+    border-color: rgba(229,72,77,.42); background: rgba(229,72,77,.07);
+    border-color: color-mix(in srgb, var(--reject) 42%, transparent);
+    background: color-mix(in srgb, var(--reject) 7%, var(--panel));
+  }
+  .check .mk { font-family: var(--mono); font-weight: 700; flex: 0 0 auto; width: 15px; text-align: center; }
+  .check.good .mk { color: var(--pass); }
+  .check.bad .mk { color: var(--reject); }
+  .check .cn { font-size: 13.5px; font-weight: 600; flex: 0 0 auto; min-width: 92px; }
+  .check .id { font-family: var(--mono); font-size: 10.5px; color: var(--dim-2); flex: 0 0 auto; }
+  .check .dt { font-family: var(--mono); font-size: 12px; color: var(--dim); flex: 1 1 200px; min-width: 0; word-break: break-word; }
+
+  /* ---------------- 渲染闸:截图墙 ---------------- */
+  .metric-line { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .shots { display: grid; grid-template-columns: repeat(auto-fill, minmax(148px, 1fr)); gap: 10px; }
+  .shot { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .shot .thumb {
+    position: relative; width: 100%; aspect-ratio: 4 / 3; background: #05070a;
+    display: block; cursor: zoom-in; border: 0; padding: 0;
+  }
+  .shot .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .shot .ph {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 4px;
+    color: var(--dim-2); font-family: var(--mono); font-size: 10.5px; text-align: center; padding: 6px;
+    background: repeating-linear-gradient(45deg, #0d1116 0 8px, #10151b 8px 16px);
+  }
+  .shot .ph .x { font-size: 18px; opacity: .5; }
+  .shot .cap { padding: 7px 9px; font-family: var(--mono); font-size: 10.8px; color: var(--dim); line-height: 1.55; }
+  .shot .cap .yaw { color: var(--text); font-weight: 700; }
+  .badge-black {
+    position: absolute; left: 6px; top: 6px; background: var(--reject); color: #fff;
+    font-family: var(--mono); font-size: 10px; padding: 1px 6px; border-radius: 4px; letter-spacing: .05em;
+  }
+  .errlist { margin: 12px 0 0; padding: 10px 12px; border-radius: 8px;
+             background: rgba(229,72,77,.1); border: 1px solid rgba(229,72,77,.38);
+             background: color-mix(in srgb, var(--reject) 9%, var(--panel));
+             border: 1px solid color-mix(in srgb, var(--reject) 38%, transparent); }
+  .errlist .t { font-size: 12px; font-weight: 700; color: var(--reject); margin-bottom: 5px; letter-spacing: .05em; }
+  .errlist div.e { font-family: var(--mono); font-size: 11.5px; color: #ffb4b6; word-break: break-word; margin-top: 3px; }
+  .sprite-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+  .sp {
+    font-family: var(--mono); font-size: 10.8px; padding: 2px 8px; border-radius: 5px;
+    border: 1px solid var(--line); background: var(--panel); color: var(--dim);
+  }
+  .sp.off { color: var(--retry); border-color: rgba(240,162,2,.45);
+            border-color: color-mix(in srgb, var(--retry) 42%, var(--line)); }
+
+  /* ---------------- 语义闸 ---------------- */
+  .conf-wrap { margin: 12px 0 14px; }
+  .conf-bar { height: 7px; border-radius: 4px; background: #0b0f13; border: 1px solid var(--line); overflow: hidden; }
+  .conf-bar i { display: block; height: 100%; background: var(--gc); }
+  .conf-label { font-family: var(--mono); font-size: 11.5px; color: var(--dim); margin-bottom: 5px; }
+  .conf-label b { color: var(--gc); font-size: 14px; }
+  .reason-box {
+    background: var(--panel); border-left: 2px solid var(--gc); border-radius: 0 7px 7px 0;
+    padding: 10px 13px; font-size: 13.5px; line-height: 1.65; color: #cfd8e0;
+  }
+  ul.issues { margin: 12px 0 0; padding-left: 0; list-style: none; }
+  ul.issues li {
+    font-size: 13px; color: #ffc9ba; padding: 6px 11px; border-radius: 6px; margin-bottom: 5px;
+    background: rgba(240,162,2,.1); border: 1px solid rgba(240,162,2,.3);
+    background: color-mix(in srgb, var(--retry) 9%, var(--panel));
+    border: 1px solid color-mix(in srgb, var(--retry) 30%, transparent);
+  }
+  ul.issues li::before { content: "! "; font-family: var(--mono); font-weight: 700; color: var(--retry); }
+  .pershot { margin-top: 14px; display: flex; flex-direction: column; gap: 5px; }
+  .ps { display: flex; gap: 9px; align-items: flex-start; padding: 6px 10px; background: var(--panel); border-radius: 6px; }
+  .ps .mk { font-family: var(--mono); font-weight: 700; }
+  .ps.good .mk { color: var(--pass); }
+  .ps.bad .mk { color: var(--reject); }
+  .ps .f { font-family: var(--mono); font-size: 11px; color: var(--dim-2); flex: 0 0 auto; }
+  .ps .r { font-size: 12.5px; color: var(--dim); flex: 1 1 160px; }
+
+  /* ---------------- 自愈表 ---------------- */
+  .repairs { padding: 0 16px 18px; }
+  .repairs .t {
+    font-size: 12.5px; font-weight: 700; letter-spacing: .1em; color: var(--retry);
+    margin: 4px 0 9px; display: flex; align-items: center; gap: 8px;
+  }
+  .tbl-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  table.rep { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; min-width: 520px; }
+  table.rep th {
+    text-align: left; font-weight: 600; color: var(--dim-2); font-size: 11px; letter-spacing: .08em;
+    padding: 7px 10px; border-bottom: 1px solid var(--line); white-space: nowrap;
+  }
+  table.rep td { padding: 9px 10px; border-bottom: 1px solid var(--line-soft); color: var(--dim); white-space: nowrap; }
+  table.rep td.tgt { color: var(--text); }
+  .delta { color: var(--dim-2); }
+  .num-before { color: var(--reject); }
+  .num-after.up { color: var(--pass); }
+  .num-after.down { color: var(--retry); }
+  .res { font-family: var(--mono); font-size: 11px; padding: 2px 8px; border-radius: 5px; }
+  .res.improved {
+    color: var(--pass); background: rgba(61,220,151,.12); border: 1px solid rgba(61,220,151,.4);
+    background: color-mix(in srgb, var(--pass) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--pass) 40%, transparent);
+  }
+  .res.dropped {
+    color: var(--retry); background: rgba(240,162,2,.12); border: 1px solid rgba(240,162,2,.4);
+    background: color-mix(in srgb, var(--retry) 12%, transparent);
+    border: 1px solid color-mix(in srgb, var(--retry) 40%, transparent);
+  }
+
+  /* ---------------- 原始 JSON / 页脚 ---------------- */
+  details.raw { margin-top: 26px; border-top: 1px solid var(--line-soft); padding-top: 14px; }
+  details.raw > summary {
+    cursor: pointer; list-style: none; font-family: var(--mono); font-size: 11.5px;
+    color: var(--dim-2); letter-spacing: .1em;
+  }
+  details.raw > summary::-webkit-details-marker { display: none; }
+  details.raw pre {
+    margin: 12px 0 0; padding: 14px; background: #080b0e; border: 1px solid var(--line);
+    border-radius: 8px; overflow: auto; font-family: var(--mono); font-size: 11px;
+    color: var(--dim); max-height: 420px; line-height: 1.5;
+  }
+  .foot { margin-top: 22px; font-family: var(--mono); font-size: 10.5px; color: var(--dim-2); letter-spacing: .08em; }
+
+  /* ---------------- 状态页(加载/报错) ---------------- */
+  .state {
+    border: 1px dashed var(--line); border-radius: 10px; padding: 28px 22px;
+    color: var(--dim); font-family: var(--mono); font-size: 13px; line-height: 1.9;
+  }
+  .state b { color: var(--text); }
+  .state code { color: var(--pass); }
+
+  /* ---------------- 灯箱 ---------------- */
+  #lb {
+    position: fixed; inset: 0; z-index: 50; background: rgba(3,5,7,.95);
+    display: none; align-items: center; justify-content: center; flex-direction: column;
+    padding: 26px; cursor: zoom-out;
+  }
+  #lb.open { display: flex; }
+  #lb img { max-width: 94vw; max-height: 80vh; object-fit: contain; border: 1px solid var(--line); }
+  #lb .cap { margin-top: 12px; font-family: var(--mono); font-size: 12px; color: var(--dim); text-align: center; }
+
+  /* ---------------- 移动端 ---------------- */
+  @media (max-width: 720px) {
+    .wrap { padding: 18px 13px 50px; }
+    .kpi-row { grid-template-columns: 1fr; }
+    .stamp { min-width: 0; width: 100%; padding: 13px 16px; transform: rotate(-1.4deg); }
+    .stamp .zh { font-size: 32px; }
+    .hero-num { font-size: 60px; }
+    .verdict-text h1 { font-size: 16.5px; }
+    .att-head { gap: 9px; }
+    .mini-pipe { margin-left: 0; width: 100%; }
+    .gate-sum { margin-left: 0; width: 100%; }
+    .check { flex-wrap: wrap; }
+    .shots { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+    .brand-en { display: none; }        /* 窄屏把页眉压成一行 */
+  }
+</style>
+</head>
+<body>
+<div id="bgGrid"></div>
+<div id="bgScan"></div>
+
+<div class="wrap">
+  <div class="brand">
+    <span class="live"></span>
+    <b>空间记忆 · 自检环</b>
+    <span class="brand-en">AUTO-VERIFY REPORT</span>
+    <span class="spacer"></span>
+    <span id="brandSrc"></span>
+  </div>
+  <div id="app"><div class="state">正在读取报告…</div></div>
+</div>
+
+<div id="lb"><img alt=""><div class="cap"></div></div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ============================================================
+  // 数据来源:?session=<id> 读 /sessions/<id>/report.json;
+  // ?src=<任意 json 路径> 直接喂文件(本地开发用,比如 ?src=sample_report.json)。
+  // session 模式下按两种服务方式各试一次:
+  //   1) compose_server.py 的挂载点 /sessions/<id>/report.json
+  //   2) 裸静态服务(python -m http.server)下的 ./sessions/<id>/report.json
+  // 谁先拿到就用谁,免得开发时还要换 URL。
+  // ============================================================
+  var params = new URLSearchParams(location.search);
+  var SRC = params.get("src");
+  var SESSION = params.get("session");
+
+  var app = document.getElementById("app");
+  var lb = document.getElementById("lb");
+  var TOP_JUDGE = {};      // 顶层 judge,语义闸自己没带 backend 时拿它兜底
+
+  // 6 项结构闸 check 的中文名,id 是死约定,只能是这 6 个
+  var CHECK_CN = {
+    manifest_fields: "清单字段",
+    assets_exist: "素材可读",
+    pano_ratio: "全景比例",
+    depth_sane: "深度图有效",
+    photo_coords: "坐标合法",
+    photo_confidence: "放置置信度"
+  };
+
+  var VERDICT_CN = {
+    pass:   { zh: "通过", en: "PASS",   color: "var(--pass)" },
+    retry:  { zh: "重试", en: "RETRY",  color: "var(--retry)" },
+    reject: { zh: "拒绝", en: "REJECT", color: "var(--reject)" }
+  };
+
+  var ACTION_CN = {
+    accept:  { cn: "判定合格", color: "var(--pass)" },
+    repair:  { cn: "自行修复", color: "var(--retry)" },
+    give_up: { cn: "放弃退回", color: "var(--reject)" }
+  };
+
+  var BACKEND_CN = {
+    stepfun: "阶跃视觉模型",
+    local: "离线像素规则"
+  };
+
+  var REPAIR_CN = {
+    rematch_dense: "稠密重匹配",
+    drop_photo: "隔离照片",
+    redepth: "重算深度"
+  };
+
+  var RESULT_CN = { improved: "已修好", dropped: "已隔离" };
+
+  // ---------------------------------------------------------- 小工具
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function num(v, d) {
+    return (typeof v === "number" && isFinite(v)) ? v.toFixed(d == null ? 1 : d) : "-";
+  }
+  function pad3(v) {
+    var n = Math.round(Number(v) || 0);
+    return (n < 0 ? "-" : "") + String(Math.abs(n)).padStart(3, "0");
+  }
+  function el(html) {
+    var d = document.createElement("div");
+    d.innerHTML = html.trim();
+    return d.firstElementChild;
+  }
+
+  // 截图路径按报告 json 自身所在目录解析,这样 shots/xxx.png 和 ../assets/xxx.jpg 都能对
+  var BASE_URL = location.href;
+  function resolve(p) {
+    if (!p) return "";
+    try { return new URL(p, BASE_URL).href; } catch (e) { return p; }
+  }
+  function basename(p) {
+    var s = String(p || "");
+    var i = s.lastIndexOf("/");
+    return i >= 0 ? s.slice(i + 1) : s;
+  }
+
+  // ---------------------------------------------------------- 取数据
+  function fetchJson(url) {
+    return fetch(url, { cache: "no-store" }).then(function (r) {
+      if (!r.ok) throw new Error(url + " -> HTTP " + r.status);
+      return r.json().then(function (j) { return { data: j, url: r.url }; });
+    });
+  }
+
+  function boot() {
+    if (SRC) return fetchJson(SRC);
+    if (SESSION) {
+      var a = "/sessions/" + encodeURIComponent(SESSION) + "/report.json";
+      var b = "sessions/" + encodeURIComponent(SESSION) + "/report.json";
+      return fetchJson(a).catch(function () { return fetchJson(b); });
+    }
+    return Promise.reject(new Error("NO_PARAM"));
+  }
+
+  boot().then(function (res) {
+    BASE_URL = res.url;                       // 后续所有相对图片路径以 json 所在位置为基准
+    document.getElementById("brandSrc").textContent = res.url.replace(location.origin, "");
+    render(res.data);
+  }).catch(function (err) {
+    if (err && err.message === "NO_PARAM") {
+      app.innerHTML =
+        '<div class="state">缺少参数。<br><br>' +
+        '看某个会话的报告:<b>report.html?session=<code>fixture</code></b><br>' +
+        '直接喂一个 json 文件:<b>report.html?src=<code>sample_report.json</code></b></div>';
+    } else {
+      app.innerHTML = '<div class="state">读不到报告:<b>' + esc(err && err.message) + '</b><br><br>' +
+        '确认自检环已经跑完并写出 report.json,或者用 ?src= 直接指一个文件。</div>';
+    }
+  });
+
+  // ---------------------------------------------------------- 主渲染
+  function render(rep) {
+    var v = VERDICT_CN[rep.verdict] || { zh: "未知", en: String(rep.verdict || "-").toUpperCase(), color: "var(--dim)" };
+    var attempts = Array.isArray(rep.attempts) ? rep.attempts : [];
+    var judge = rep.judge || {};
+    TOP_JUDGE = judge;
+    var manual = rep.humanInLoop ? "有" : 0;          // 题眼:false 就是 0 次
+    var heroColor = rep.humanInLoop ? "var(--retry)" : "var(--pass)";
+
+    var html = "";
+
+    // 裁决图章 + 一句话结论
+    html +=
+      '<div class="verdict-row">' +
+        '<div class="stamp" style="--vc:' + v.color + '">' +
+          '<div class="zh">' + esc(v.zh) + '</div>' +
+          '<div class="en">' + esc(v.en) + '</div>' +
+        '</div>' +
+        '<div class="verdict-text">' +
+          '<h1>' + esc(rep.reason || "(无结论)") + '</h1>' +
+          '<div class="verdict-meta">' +
+            '<span class="chip">会话 <b>' + esc(rep.session || "-") + '</b></span>' +
+            '<span class="chip">总耗时 <b>' + num(rep.elapsedS) + 's</b></span>' +
+            '<span class="chip">尝试 <b>' + attempts.length + '</b> 次</span>' +
+            '<span class="chip">' + esc(rep.schema || "psm-verify/1") + '</span>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+
+    // 题眼:人工介入 0 次
+    var judgeName = BACKEND_CN[judge.backend] || judge.backend || "未知";
+    html +=
+      '<div class="kpi-row">' +
+        '<div class="hero" style="--hc:' + heroColor + '">' +
+          '<div class="hero-num">' + esc(manual) + '</div>' +
+          '<div class="hero-txt">' +
+            '<div class="lb">' + (rep.humanInLoop ? "有人工介入" : "人工介入 0 次") + '</div>' +
+            '<div class="sub">' +
+              (rep.humanInLoop
+                ? "本次验收过程中有人工参与判定,不算全自动。"
+                : "从渲染到判定到重试,全程没有人看过一眼。机器自己判、自己修、自己认。") +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div class="stats">' +
+          '<div class="stat"><div class="k">判官后端</div><div class="v" style="font-size:15px">' + esc(judgeName) +
+            (judge.degraded ? ' <small style="color:var(--retry)">已降级</small>' : '') + '</div></div>' +
+          '<div class="stat"><div class="k">判官模型</div><div class="v" style="font-size:13px">' + esc(judge.model || "无(离线规则)") + '</div></div>' +
+          '<div class="stat"><div class="k">总耗时</div><div class="v">' + num(rep.elapsedS) + '<small>s</small></div></div>' +
+          '<div class="stat"><div class="k">修复动作</div><div class="v">' + countRepairs(attempts) + '<small>次</small></div></div>' +
+        '</div>' +
+      '</div>';
+
+    // 尝试区
+    html += '<div class="sec-head"><h2>三闸流水线</h2><div class="rule"></div></div>';
+    if (attempts.length > 1) {
+      html += '<div class="tabs" id="tabs"><button class="tab on" data-i="-1">全部 ' + attempts.length + ' 次</button>';
+      attempts.forEach(function (a, i) {
+        html += '<button class="tab" data-i="' + i + '">第 ' + (a.n || i + 1) + ' 次</button>';
+      });
+      html += '</div>';
+    }
+    html += '<div id="attempts">' + attempts.map(renderAttempt).join("") + '</div>';
+
+    // 原始 json,给较真的人看
+    html += '<details class="raw"><summary>▸ 原始 report.json</summary><pre>' +
+            esc(JSON.stringify(rep, null, 2)) + '</pre></details>';
+    html += '<div class="foot">本页由自检环自动生成,数据来自 report.json,未经人工编辑。</div>';
+
+    app.innerHTML = html;
+    bindTabs();
+    bindThumbs();
+  }
+
+  function countRepairs(attempts) {
+    return attempts.reduce(function (s, a) { return s + ((a.repairs || []).length); }, 0);
+  }
+
+  // ---------------------------------------------------------- 单次尝试
+  function renderAttempt(a, idx) {
+    var g = a.gates || {};
+    var act = ACTION_CN[a.action] || { cn: String(a.action || "-"), color: "var(--dim)" };
+    var gates = [
+      { key: "structural", name: "结构闸", data: g.structural },
+      { key: "render",     name: "渲染闸", data: g.render },
+      { key: "semantic",   name: "语义闸", data: g.semantic }
+    ];
+
+    // 头部:序号 + 动作 + 迷你三闸灯
+    var mini = gates.map(function (x, i) {
+      var c = gateColor(x.data);
+      return (i ? '<span class="mini-arrow">→</span>' : '') +
+        '<span class="mini-gate" style="--gc:' + c + '"><span class="dot"></span>' + x.name + '</span>';
+    }).join("");
+
+    var body = gates.map(function (x) { return renderGate(x, a); }).join("");
+
+    var repairs = (a.repairs || []).length ? renderRepairs(a.repairs) : "";
+
+    return '<div class="attempt" data-att="' + idx + '">' +
+      '<div class="att-head">' +
+        '<span class="att-no">第 ' + (a.n || idx + 1) + ' 次尝试</span>' +
+        '<span class="att-act" style="--ac:' + act.color + '">' + esc(act.cn) + '</span>' +
+        '<div class="mini-pipe">' + mini + '</div>' +
+      '</div>' +
+      '<div class="gates">' + body + '</div>' +
+      repairs +
+    '</div>';
+  }
+
+  function gateColor(d) {
+    if (!d) return "var(--dim-2)";
+    return d.ok ? "var(--pass)" : "var(--reject)";
+  }
+
+  function renderGate(x, attempt) {
+    var d = x.data;
+    var c = gateColor(d);
+    if (!d) {
+      return '<div class="gate" style="--gc:var(--dim-2)"><span class="node"></span>' +
+        '<details class="gate-box"><summary><span class="gate-name">' + x.name +
+        '</span><span class="gate-verdict">未执行</span></summary></details></div>';
+    }
+    // 没过的闸默认展开,把问题顶到眼前;渲染闸永远展开,截图墙是最直白的证据
+    var openAttr = (d.ok && x.key !== "render") ? "" : " open";
+    var head = summaryOf(x.key, d);
+    var inner =
+      x.key === "structural" ? structuralBody(d) :
+      x.key === "render" ? renderBody(d) :
+      semanticBody(d, attempt);
+
+    return '<div class="gate" style="--gc:' + c + '"><span class="node"></span>' +
+      '<details class="gate-box"' + openAttr + '>' +
+        '<summary>' +
+          '<span class="caret">▶</span>' +
+          '<span class="gate-name">' + x.name + '</span>' +
+          '<span class="gate-verdict">' + (d.ok ? "通过" : "未通过") + '</span>' +
+          '<span class="gate-sum">' + head + '</span>' +
+        '</summary>' +
+        '<div class="gate-body">' + inner + '</div>' +
+      '</details></div>';
+  }
+
+  function summaryOf(key, d) {
+    if (key === "structural") {
+      var cs = d.checks || [];
+      var okN = cs.filter(function (c) { return c.ok; }).length;
+      return okN + "/" + cs.length + " 项通过";
+    }
+    if (key === "render") {
+      var e = (d.consoleErrors || []).length + (d.pageErrors || []).length;
+      return (d.shots || []).length + " 张截图 · 就绪 " + (d.readyMs == null ? "-" : d.readyMs) + "ms" +
+             (e ? " · " + e + " 条报错" : "");
+    }
+    return "置信度 " + num(d.confidence, 2) + (((d.issues || []).length) ? " · " + d.issues.length + " 个问题" : "");
+  }
+
+  // ---------------------------------------------------------- 结构闸
+  function structuralBody(d) {
+    var checks = d.checks || [];
+    var order = ["manifest_fields", "assets_exist", "pano_ratio", "depth_sane", "photo_coords", "photo_confidence"];
+    // 按固定 id 顺序排,报告每次长得一样,好对照
+    checks = checks.slice().sort(function (a, b) {
+      return order.indexOf(a.id) - order.indexOf(b.id);
+    });
+    return checks.map(function (c) {
+      return '<div class="check ' + (c.ok ? "good" : "bad") + '">' +
+        '<span class="mk">' + (c.ok ? "✓" : "✗") + '</span>' +
+        '<span class="cn">' + esc(CHECK_CN[c.id] || c.id) + '</span>' +
+        '<span class="id">' + esc(c.id) + '</span>' +
+        '<span class="dt">' + esc(c.detail || "") + '</span>' +
+      '</div>';
+    }).join("") || '<div class="check good"><span class="dt">没有 check 记录</span></div>';
+  }
+
+  // ---------------------------------------------------------- 渲染闸
+  function renderBody(d) {
+    var out = '<div class="metric-line">' +
+      '<span class="chip">页面就绪 <b>' + (d.readyMs == null ? "-" : d.readyMs) + ' ms</b></span>' +
+      '<span class="chip">截图 <b>' + (d.shots || []).length + '</b> 张</span>' +
+      '<span class="chip' + ((d.shots || []).some(function (s) { return s.black; }) ? " warn" : "") + '">黑屏 <b>' +
+        (d.shots || []).filter(function (s) { return s.black; }).length + '</b> 张</span>' +
+    '</div>';
+
+    out += '<div class="shots">' + (d.shots || []).map(function (s) {
+      return '<div class="shot">' +
+        '<button class="thumb" data-full="' + esc(resolve(s.file)) + '" data-cap="' +
+          esc("yaw " + pad3(s.yaw) + "° · " + basename(s.file)) + '">' +
+          '<img alt="" src="' + esc(resolve(s.file)) + '">' +
+          (s.black ? '<span class="badge-black">黑屏</span>' : '') +
+        '</button>' +
+        '<div class="cap"><span class="yaw">yaw ' + pad3(s.yaw) + '°</span><br>' +
+          (s.decodeError
+            ? '<span style="color:var(--reject)">解码失败</span>'
+            : '亮度 ' + num(s.meanLuma) + ' · σ ' + num(s.stdLuma)) + '</div>' +
+      '</div>';
+    }).join("") + '</div>';
+
+    if (!(d.shots || []).length) out += '<div class="state">这一轮没有截到图。</div>';
+
+    var errs = [];
+    (d.pageErrors || []).forEach(function (e) { errs.push(["页面异常", e]); });
+    (d.consoleErrors || []).forEach(function (e) { errs.push(["控制台", e]); });
+    if (d.error) errs.push(["渲染器", d.error]);
+    if (errs.length) {
+      out += '<div class="errlist"><div class="t">渲染期报错 ' + errs.length + ' 条</div>' +
+        errs.map(function (p) { return '<div class="e">[' + esc(p[0]) + '] ' + esc(p[1]) + '</div>'; }).join("") +
+      '</div>';
+    }
+
+    var sp = d.sprites || [];
+    if (sp.length) {
+      var on = sp.filter(function (s) { return s.onScreen; }).length;
+      out += '<div class="metric-line" style="margin:14px 0 0"><span class="chip">照片贴片 <b>' + sp.length +
+        '</b> 个,在画面内 <b>' + on + '</b> 个</span></div>';
+      out += '<div class="sprite-chips">' + sp.map(function (s) {
+        return '<span class="sp' + (s.onScreen ? "" : " off") + '">#' + esc(s.i) + ' (' +
+          Math.round(s.x) + "," + Math.round(s.y) + ')' + (s.onScreen ? "" : " 出画") + '</span>';
+      }).join("") + '</div>';
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------- 语义闸
+  function semanticBody(d) {
+    var c = d.ok ? "var(--pass)" : "var(--reject)";
+    var pct = Math.max(0, Math.min(1, Number(d.confidence) || 0)) * 100;
+
+    // 判官身份优先看语义闸自己写的 backend/degraded(judge.py 会带),没有再退回顶层 judge
+    var bk = d.backend || TOP_JUDGE.backend;
+    var dg = (d.degraded == null) ? TOP_JUDGE.degraded : d.degraded;
+    var mdl = d.model || (bk === TOP_JUDGE.backend ? TOP_JUDGE.model : null);
+    var out = '<div class="metric-line">' +
+      '<span class="chip">判官 <b>' + esc(BACKEND_CN[bk] || bk || "未知") + '</b></span>' +
+      (mdl ? '<span class="chip">' + esc(mdl) + '</span>' : '') +
+      (dg ? '<span class="chip warn">已降级(视觉模型没用上,退回离线规则)</span>' : '') +
+    '</div>';
+
+    out += '<div class="conf-wrap" style="--gc:' + c + '">' +
+      '<div class="conf-label">判定置信度 <b>' + num(d.confidence, 2) + '</b></div>' +
+      '<div class="conf-bar"><i style="width:' + pct.toFixed(1) + '%"></i></div>' +
+    '</div>';
+    out += '<div class="reason-box" style="--gc:' + c + '">' + esc(d.reason || "(无结论)") + '</div>';
+
+    if ((d.issues || []).length) {
+      out += '<ul class="issues">' + d.issues.map(function (i) {
+        return '<li>' + esc(i) + '</li>';
+      }).join("") + '</ul>';
+    }
+    if ((d.perShot || []).length) {
+      out += '<div class="pershot">' + d.perShot.map(function (p) {
+        return '<div class="ps ' + (p.ok ? "good" : "bad") + '">' +
+          '<span class="mk">' + (p.ok ? "✓" : "✗") + '</span>' +
+          '<span class="f">' + esc(basename(p.file)) + '</span>' +
+          '<span class="r">' + esc(p.reason || (p.issues || []).join(";") || "") + '</span>' +
+        '</div>';
+      }).join("") + '</div>';
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------- 自愈表
+  function renderRepairs(reps) {
+    var rows = reps.map(function (r) {
+      var up = (Number(r.after) || 0) >= (Number(r.before) || 0);
+      var rescn = RESULT_CN[r.result] || r.result || "-";
+      return '<tr>' +
+        '<td class="tgt">' + esc(basename(r.target)) + '</td>' +
+        '<td>' + esc(REPAIR_CN[r.type] || r.type || "-") + '</td>' +
+        '<td class="num-before">' + num(r.before, 2) + '</td>' +
+        '<td class="delta">→</td>' +
+        '<td class="num-after ' + (up ? "up" : "down") + '">' + num(r.after, 2) + '</td>' +
+        '<td><span class="res ' + esc(r.result) + '">' + esc(rescn) + '</span></td>' +
+      '</tr>';
+    }).join("");
+
+    return '<div class="repairs">' +
+      '<div class="t">自愈动作 ' + reps.length + ' 条(机器自己改的,没人插手)</div>' +
+      '<div class="tbl-scroll"><table class="rep"><thead><tr>' +
+        '<th>照片</th><th>手段</th><th>修前置信度</th><th></th><th>修后置信度</th><th>结果</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '</div>';
+  }
+
+  // ---------------------------------------------------------- 交互
+  function bindTabs() {
+    var tabs = document.getElementById("tabs");
+    if (!tabs) return;
+    tabs.addEventListener("click", function (e) {
+      var b = e.target.closest(".tab");
+      if (!b) return;
+      var i = b.dataset.i;
+      tabs.querySelectorAll(".tab").forEach(function (t) { t.classList.toggle("on", t === b); });
+      document.querySelectorAll("#attempts .attempt").forEach(function (a) {
+        a.style.display = (i === "-1" || a.dataset.att === i) ? "" : "none";
+      });
+    });
+  }
+
+  function bindThumbs() {
+    // 缺图容错:加载失败就换成占位斜纹块,别在评委面前留一个破图标
+    document.querySelectorAll(".shot .thumb img").forEach(function (img) {
+      img.addEventListener("error", function () {
+        var btn = img.parentElement;
+        img.remove();
+        btn.style.cursor = "default";
+        btn.dataset.full = "";
+        btn.insertAdjacentHTML("afterbegin",
+          '<div class="ph"><div class="x">▨</div><div>截图缺失</div><div>' +
+          esc(basename(btn.dataset.cap.split("· ").pop())) + '</div></div>');
+      });
+    });
+    document.addEventListener("click", function (e) {
+      var t = e.target.closest(".shot .thumb");
+      if (t && t.dataset.full) {
+        lb.querySelector("img").src = t.dataset.full;
+        lb.querySelector(".cap").textContent = t.dataset.cap;
+        lb.classList.add("open");
+        return;
+      }
+      if (e.target.closest("#lb")) lb.classList.remove("open");
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") lb.classList.remove("open");
+    });
+  }
+})();
+</script>
+</body>
+</html>

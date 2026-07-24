@@ -1,0 +1,120 @@
+{
+  "schema": "psm-verify/1",
+  "session": "fixture",
+  "verdict": "pass",
+  "reason": "第 2 次尝试三闸全过:结构完整、渲染无黑屏无报错、照片方位与全景内容一致,机器自行判合格。",
+  "humanInLoop": false,
+  "elapsedS": 46.8,
+  "judge": { "backend": "stepfun", "model": "step-1o-turbo-vision", "degraded": false },
+  "attempts": [
+    {
+      "n": 1,
+      "gates": {
+        "structural": {
+          "ok": false,
+          "checks": [
+            { "id": "manifest_fields", "ok": true, "detail": "panorama / depth / depthJson / title / photos 必填字段齐全,photos 共 4 条" },
+            { "id": "assets_exist", "ok": true, "detail": "pano.jpg、depth.png、depth.json 与 4 张照片全部可读,合计 2.7 MB" },
+            { "id": "pano_ratio", "ok": true, "detail": "全景 4096×2048,宽高比 2.000,等距圆柱投影合规" },
+            { "id": "depth_sane", "ok": true, "detail": "深度图 1024×512,取值 0.0137 至 0.0966,非常数,有效像素 100%" },
+            { "id": "photo_coords", "ok": true, "detail": "4 张照片 yaw 落在 [0,360),pitch 落在 [-90,90],坐标全部合法" },
+            { "id": "photo_confidence", "ok": false, "detail": "photos/004.jpg 置信度 0.311 低于阈值 0.45;其余 3 张为 0.520 至 0.610" }
+          ],
+          "failed": ["photo_confidence"]
+        },
+        "render": {
+          "ok": true,
+          "readyMs": 1830,
+          "shots": [
+            { "yaw": 0,   "file": "../assets/walkdemo/ballroom_j1.jpg", "meanLuma": 72.4, "stdLuma": 41.2, "black": false },
+            { "yaw": 90,  "file": "../assets/walkdemo/ballroom_j3.jpg", "meanLuma": 66.1, "stdLuma": 38.7, "black": false },
+            { "yaw": 180, "file": "../assets/walkdemo/ballroom_j5.jpg", "meanLuma": 88.9, "stdLuma": 45.3, "black": false },
+            { "yaw": 270, "file": "../assets/walkdemo/ballroom_j7.jpg", "meanLuma": 59.6, "stdLuma": 36.4, "black": false }
+          ],
+          "consoleErrors": [],
+          "pageErrors": [],
+          "error": null,
+          "sprites": [
+            { "i": 0, "x": 640, "y": 400, "onScreen": true },
+            { "i": 1, "x": 913, "y": 366, "onScreen": true },
+            { "i": 2, "x": 1122, "y": 421, "onScreen": true },
+            { "i": 3, "x": 1731, "y": 288, "onScreen": false }
+          ]
+        },
+        "semantic": {
+          "ok": false,
+          "confidence": 0.62,
+          "reason": "3 个方位的照片贴片与背景内容一致;yaw=145 的第 4 张贴在了侧墙空白处,和背景的宴会厅主桌区域对不上。",
+          "issues": [
+            "photos/004.jpg 贴片内容(舞台灯光)与所在方位背景(侧墙)不符",
+            "该贴片边缘与背景亮度落差过大,像贴纸浮在画面上"
+          ],
+          "perShot": [
+            { "file": "../assets/walkdemo/ballroom_j1.jpg", "ok": true,  "issues": [], "reason": "贴片是同一张圆桌,和背景桌布花纹对得上" },
+            { "file": "../assets/walkdemo/ballroom_j3.jpg", "ok": true,  "issues": [], "reason": "背景吊灯与贴片天花板连续,无错位" },
+            { "file": "../assets/walkdemo/ballroom_j5.jpg", "ok": false, "issues": ["贴片与背景不是同一处场景"], "reason": "背景是侧墙,贴片却是舞台灯光,方位判错" },
+            { "file": "../assets/walkdemo/ballroom_j7.jpg", "ok": true,  "issues": [], "reason": "过道与地毯纹理连续,画面干净" }
+          ]
+        }
+      },
+      "action": "repair",
+      "repairs": [
+        { "type": "rematch_dense", "target": "photos/004.jpg", "before": 0.31, "after": 0.58, "result": "improved" },
+        { "type": "rematch_dense", "target": "photos/002.jpg", "before": 0.52, "after": 0.34, "result": "dropped" }
+      ]
+    },
+    {
+      "n": 2,
+      "gates": {
+        "structural": {
+          "ok": true,
+          "checks": [
+            { "id": "manifest_fields", "ok": true, "detail": "必填字段齐全;photos 由 4 条变 3 条(1 条被隔离)" },
+            { "id": "assets_exist", "ok": true, "detail": "全景、深度图与在册 3 张照片全部可读,合计 2.6 MB" },
+            { "id": "pano_ratio", "ok": true, "detail": "全景 4096×2048,宽高比 2.000,等距圆柱投影合规" },
+            { "id": "depth_sane", "ok": true, "detail": "深度图 1024×512,取值 0.0137 至 0.0966,非常数,有效像素 100%" },
+            { "id": "photo_coords", "ok": true, "detail": "3 张照片坐标全部合法;004 重匹配后 yaw 由 145.0 改为 212.5" },
+            { "id": "photo_confidence", "ok": true, "detail": "在册 3 张置信度 0.580 至 0.610,最低 0.580 高于阈值 0.45" }
+          ],
+          "failed": []
+        },
+        "render": {
+          "ok": true,
+          "readyMs": 1640,
+          "shots": [
+            { "yaw": 0,   "file": "../assets/walkdemo/ballroom_j1.jpg", "meanLuma": 72.4, "stdLuma": 41.2, "black": false },
+            { "yaw": 60,  "file": "../assets/walkdemo/ballroom_j2.jpg", "meanLuma": 69.8, "stdLuma": 39.9, "black": false },
+            { "yaw": 120, "file": "../assets/walkdemo/ballroom_j3.jpg", "meanLuma": 66.1, "stdLuma": 38.7, "black": false },
+            { "yaw": 180, "file": "../assets/walkdemo/ballroom_j4.jpg", "meanLuma": 81.5, "stdLuma": 43.0, "black": false },
+            { "yaw": 240, "file": "../assets/walkdemo/ballroom_j5.jpg", "meanLuma": 88.9, "stdLuma": 45.3, "black": false },
+            { "yaw": 300, "file": "../assets/walkdemo/ballroom_j6.jpg", "meanLuma": 74.2, "stdLuma": 40.6, "black": false }
+          ],
+          "consoleErrors": [],
+          "pageErrors": [],
+          "error": null,
+          "sprites": [
+            { "i": 0, "x": 640, "y": 400, "onScreen": true },
+            { "i": 1, "x": 913, "y": 366, "onScreen": true },
+            { "i": 2, "x": 1088, "y": 452, "onScreen": true }
+          ]
+        },
+        "semantic": {
+          "ok": true,
+          "confidence": 0.91,
+          "reason": "6 个方位逐张核对,3 张照片贴片的内容都和所在方位的背景对得上,没有浮贴、黑屏或错位。",
+          "issues": [],
+          "perShot": [
+            { "file": "../assets/walkdemo/ballroom_j1.jpg", "ok": true, "issues": [], "reason": "贴片圆桌与背景桌布花纹一致" },
+            { "file": "../assets/walkdemo/ballroom_j2.jpg", "ok": true, "issues": [], "reason": "画面干净,无贴片,背景连续" },
+            { "file": "../assets/walkdemo/ballroom_j3.jpg", "ok": true, "issues": [], "reason": "吊灯与贴片天花板连续" },
+            { "file": "../assets/walkdemo/ballroom_j4.jpg", "ok": true, "issues": [], "reason": "重匹配后的 004 落在主桌区域,和背景对上了" },
+            { "file": "../assets/walkdemo/ballroom_j5.jpg", "ok": true, "issues": [], "reason": "侧墙恢复干净,原先的浮贴已移走" },
+            { "file": "../assets/walkdemo/ballroom_j6.jpg", "ok": true, "issues": [], "reason": "过道与地毯纹理连续" }
+          ]
+        }
+      },
+      "action": "accept",
+      "repairs": []
+    }
+  ]
+}

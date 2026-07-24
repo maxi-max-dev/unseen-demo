@@ -1,0 +1,10 @@
+{
+  "name": "memory-film",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "npx --yes hyperframes@0.7.70 check",
+    "render": "npx --yes hyperframes@0.7.70 render --output out/memory-film.mp4",
+    "preview": "npx --yes hyperframes@0.7.70 preview"
+  }
+}

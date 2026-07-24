@@ -26,7 +26,7 @@ import time
 from contextlib import asynccontextmanager
 
 import numpy as np
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, Request, UploadFile
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -43,14 +43,20 @@ if REPO_ROOT not in sys.path:
 
 from tools.slice import equirect_to_perspective, FOV, CROP_W, CROP_H, YAWS  # noqa: E402
 from tools.match import match_one  # noqa: E402
+from server.verify import verify_session  # noqa: E402
+from server import space as space_mod  # noqa: E402  闭环产品(新人建空间/宾客交照片)的数据层 + API
 
 os.makedirs(SESSIONS_DIR, exist_ok=True)
 
 VIDEO_EXTS = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".webm"}
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
+# 自检环回头要用无头浏览器访问本服务自己的页面, 所以要知道自己的地址
+SELF_URL = os.environ.get("PSM_SELF_URL", "http://127.0.0.1:8777")
+
 _session_lock = threading.Lock()
 _clip_state = {}  # 启动时加载一次,别每次请求重加载
+_verify_stage = {}  # 会话 id -> 自检环当前跑到哪一闸, 给上传页那条进度条读
 
 
 @asynccontextmanager
@@ -60,11 +66,21 @@ async def lifespan(app: FastAPI):
     from sentence_transformers import SentenceTransformer
     _clip_state["model"] = SentenceTransformer("clip-ViT-B-32")
     print(f"  CLIP 就绪, 耗时 {time.time()-t0:.1f}s", flush=True)
+    # 闭环那套(server/space.py)复用同一份 CLIP —— 不注入的话它会自己再加载一份,
+    # 白等十几秒不说, 两份模型同时在 MPS 上跑还容易把进程打死。
+    space_mod.set_clip_model(_clip_state["model"])
+    # 发布时后台跑自检环, 要用它自己的地址去访问自己的页面, 和这里的 SELF_URL 保持一致。
+    space_mod.set_self_url(SELF_URL)
+    print("  闭环 API(/api/space/...) 已就绪, CLIP 已注入", flush=True)
     yield
     _clip_state.clear()
 
 
 app = FastAPI(lifespan=lifespan)
+
+# 闭环产品的全部 /api/... 接口。必须在下面的 app.mount("/") 之前 include ——
+# 挂载点是按注册顺序匹配的, 根挂载一旦排在前面就会把所有路径都吃掉。
+app.include_router(space_mod.router)
 
 
 # ---------------------------------------------------------------- 工具函数
@@ -124,8 +140,12 @@ def save_panorama(raw_bytes, filename, content_type, session_dir):
 def clip_place_photos(pano_path, photo_paths):
     """CLIP 放置: 12 个 yaw 裁切 + 每张照片编码 + match_one 挑最佳 yaw/confidence。
     返回 (results, elapsed_s), results = [{yaw, confidence, sim}, ...] 与 photo_paths 一一对应。
+
+    🚨 编码一律走 space.clip_encode(), 别改回 model.encode()。
+       整合之后这里和闭环那套(宾客上传)用的是【同一个】CLIP 模型对象, 而 PyTorch 的 MPS
+       后端不是线程安全的 —— 两边各自开线程同时 encode, 进程会直接被 SIGSEGV 打死(退出码 139)。
+       space.clip_encode() 是全服务唯一的串行入口, 谁绕过它谁就把整台服务器带走。
     """
-    model = _clip_state["model"]
     t0 = time.time()
 
     pano_img = Image.open(pano_path).convert("RGB")
@@ -138,18 +158,14 @@ def clip_place_photos(pano_path, photo_paths):
         )
         crops.append(Image.fromarray(persp_np))
 
-    crop_embs = model.encode(
-        crops, batch_size=12, convert_to_numpy=True, normalize_embeddings=True,
-    )
+    crop_embs = space_mod.clip_encode(crops, batch_size=12)
     crop_nodes = np.array(["pano"] * len(YAWS))
     crop_yaws = np.array(list(YAWS), dtype=np.int32)
 
     results = []
     if photo_paths:
         photo_imgs = [Image.open(p).convert("RGB") for p in photo_paths]
-        photo_embs = model.encode(
-            photo_imgs, batch_size=32, convert_to_numpy=True, normalize_embeddings=True,
-        )
+        photo_embs = space_mod.clip_encode(photo_imgs, batch_size=32)
         for emb in photo_embs:
             sims = crop_embs @ emb
             _node, yaw, confidence, sim0 = match_one(sims, crop_nodes, crop_yaws)
@@ -208,8 +224,84 @@ def run_depth(pano_path, session_dir, session_id):
     return time.time() - t0, stdout_tail
 
 
+# ---------------------------------------------------------------- 自检环
+def session_path(session_id):
+    """会话目录的绝对路径; 路径逃出 sessions/ 就返回 None(sid 是 URL 里传进来的, 不能信)。"""
+    root = os.path.realpath(SESSIONS_DIR)
+    path = os.path.realpath(os.path.join(SESSIONS_DIR, session_id))
+    return path if path == root or path.startswith(root + os.sep) else None
+
+
+def kick_verify(session_id, fault=None):
+    """后台线程里跑一遍自检环。绝不能阻塞 /compose 的返回 —— 用户那边等的是"合成好了",
+    验收是合成之后机器自己的事, 慢慢跑就行。CLIP 用启动时加载好的那份, 别再加载一遍。"""
+    def run():
+        try:
+            _verify_stage[session_id] = "queued"
+            report = verify_session(
+                session_id, base_url=SELF_URL, model=_clip_state.get("model"),
+                inject_fault_kind=fault,
+                on_stage=lambda stage, n: _verify_stage.__setitem__(session_id, stage),
+            )
+            print(f"== [{session_id}] 自检环裁决: {report['verdict']} — {report['reason']} ==", flush=True)
+        except Exception as e:
+            print(f"== [{session_id}] 自检环自己炸了: {type(e).__name__}: {e} ==", flush=True)
+        finally:
+            _verify_stage.pop(session_id, None)
+
+    threading.Thread(target=run, daemon=True, name=f"verify-{session_id}").start()
+
+
 # ---------------------------------------------------------------- 路由(注意: 必须定义在
 # app.mount("/", ...) 之前, 否则根挂载会先吃掉所有路径匹配, POST /compose 永远到不了这里)
+@app.get("/verify/{sid}")
+async def get_verify(sid: str):
+    """有 report.json 就把报告整份给出去; 没有就说还在跑, 并带上跑到哪一闸了。"""
+    session_dir = session_path(sid)
+    if session_dir is None:
+        return JSONResponse({"error": "非法会话 id"}, status_code=400)
+    report_path = os.path.join(session_dir, "report.json")
+    if os.path.isfile(report_path):
+        with open(report_path, encoding="utf-8") as f:
+            return JSONResponse(json.load(f))
+    return JSONResponse({"status": "running", "stage": _verify_stage.get(sid, "queued")})
+
+
+@app.post("/verify/{sid}")
+async def rerun_verify(sid: str, request: Request):
+    """重跑一次自检环。body 可选 {"fault": "photo"|"depth"|"manifest"} 做演示投毒。
+    先把旧报告删掉, 否则前端一轮询就拿到上一次的结论, 会以为新的已经跑完了。
+
+    🚨 安全: fault 是【故意破坏数据】的开关(把深度图刷成纯灰、往清单里塞外来照片、
+    把 yaw 改成越界值)。这台服务会用 --host 0.0.0.0 起, 还可能挂公网隧道, 所以
+    HTTP 侧默认不认这个参数 —— 否则任何拿到地址的人一条 curl 就能把用户的空间弄成砖,
+    而且 HTTP 侧根本没有还原入口(--restore 只在命令行有)。
+    要演示投毒: 起服务时加 PSM_DEMO_FAULT=1, 或者直接用 CLI 跑 python -m server.verify。
+    """
+    session_dir = session_path(sid)
+    if session_dir is None or not os.path.isdir(session_dir):
+        return JSONResponse({"ok": False, "error": "会话不存在"}, status_code=404)
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    fault = (body or {}).get("fault")
+    if fault:
+        if os.environ.get("PSM_DEMO_FAULT") != "1":
+            return JSONResponse(
+                {"ok": False, "error": "投毒演示未开启(需要 PSM_DEMO_FAULT=1),已拒绝"},
+                status_code=403,
+            )
+        if fault not in ("photo", "depth", "manifest"):
+            return JSONResponse({"ok": False, "error": f"未知的投毒类型: {fault}"},
+                                status_code=400)
+
+    report_path = os.path.join(session_dir, "report.json")
+    if os.path.exists(report_path):
+        os.remove(report_path)
+    kick_verify(sid, fault=fault)
+    return JSONResponse({"ok": True, "status": "running", "session": sid,
+                         "verifyUrl": f"/verify/{sid}"})
 @app.post("/compose")
 async def compose(panorama: UploadFile = File(None), photos: list[UploadFile] = File(default=[])):
     if panorama is None:
@@ -278,12 +370,16 @@ async def compose(panorama: UploadFile = File(None), photos: list[UploadFile] = 
         with open(manifest_path, "w", encoding="utf-8") as f:
             json.dump(manifest, f, ensure_ascii=False, indent=2)
 
-        print(f"== [{session_id}] 合成完成 ==", flush=True)
+        print(f"== [{session_id}] 合成完成, 后台启动自检环 ==", flush=True)
+        kick_verify(session_id)  # 后台线程, 不挡这次返回
+
         return JSONResponse({
             "ok": True,
             "session": session_id,
             "manifestUrl": f"/sessions/{session_id}/manifest.json",
             "viewUrl": f"/viewer/walk.html?compose=/sessions/{session_id}/manifest.json",
+            "reportUrl": f"/server/report.html?session={session_id}",
+            "verifyUrl": f"/verify/{session_id}",
         })
 
     except Exception as e:
@@ -292,7 +388,11 @@ async def compose(panorama: UploadFile = File(None), photos: list[UploadFile] = 
 
 
 # ---------------------------------------------------------------- 静态服务(必须最后挂载)
+# ⚠️ 顺序有讲究: 具体路径的挂载全部排在 "/" 之前, 否则根挂载会先命中, 后面的全废。
 app.mount("/sessions", StaticFiles(directory=SESSIONS_DIR), name="sessions")
+# 闭环的空间资源: 全景/深度图/照片/缩略图/通缉令裁切图/验收报告都在这下面,
+# host.html 和 join.html 里的 assetUrl() 拼的就是 /spaces/<sid>/... 这个前缀。
+app.mount("/spaces", StaticFiles(directory=space_mod.SPACES_DIR), name="spaces")
 app.mount("/", StaticFiles(directory=REPO_ROOT, html=True), name="root")
 
 
