@@ -247,6 +247,11 @@ code{ overflow-wrap:anywhere; }
 .pw-pin{ position:absolute; transform:translateX(-50%); width:78px; text-align:center; }
 .pw-pin img{ width:78px; height:56px; object-fit:cover; border-radius:9px; border:2px solid #fff;
   box-shadow:0 7px 20px rgba(62,36,48,.4); }
+/* 同一方位有多张照片时，用两层白边影子画成「一叠」，不额外加 DOM */
+.pw-pin.stacked img{ box-shadow:0 7px 20px rgba(62,36,48,.4),
+  5px -5px 0 -2px rgba(255,255,255,.92), 9px -9px 0 -2px rgba(255,255,255,.55); }
+/* 名字再长也不许把标签撑到盖住邻居 */
+.pw-pin .tag{ max-width:116px; overflow:hidden; text-overflow:ellipsis; }
 .pw-pin .lead{ width:2px; margin:0 auto; background:linear-gradient(180deg,#fff,rgba(255,255,255,.1)); }
 .pw-pin .tag{ font-size:10px; color:#fff; background:rgba(62,36,48,.8); border-radius:999px;
   padding:1px 7px; display:inline-block; white-space:nowrap; }
@@ -675,6 +680,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
   function go(n){
     n = Math.max(1, Math.min(N, n));
+    if (n !== 2) flyGen++;          // 离开第②幕，在飞的那一轮当场作废
     cur = n;
     acts.forEach(function(el, i){ el.classList.toggle("on", i === n - 1); });
     [].forEach.call($("dots").children, function(b, i){
@@ -813,10 +819,13 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     ' 自动入选　<span style="color:var(--gold-deep)">金段</span> 通缉方位 ' +
     (hero.task.yawRange ? hero.task.yawRange[0] + "°–" + hero.task.yawRange[1] + "°" : "");
 
-  var flying = false;
+  // 世代号：反复快速进出第②幕时，上一轮残留的 setTimeout 链会和新一轮交叉执行，
+  // 把读数刷成「罗盘还没结果、读数卡已经揭晓」的自相矛盾态（第 4 轮对抗验收员实测）。
+  // 只判「当前是不是第②幕」不够 —— 还得判「这个计时器是不是这一次进入产生的」。
+  var flyGen = 0;
   function playFly(){
-    if (flying) return;
-    flying = true;
+    var gen = ++flyGen;
+    var alive = function(){ return gen === flyGen && cur === 2; };
     drawTicks(false);
     $("capBig").textContent = "—";
     $("capSub").textContent = "等一张照片";
@@ -832,6 +841,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
     // 1) 照片出现在手机里
     setTimeout(function(){
+      if (!alive()) return;
       slot.innerHTML = img
         ? '<img src="' + esc(img) + '" alt="宾客交的照片" style="width:100%;height:100%;object-fit:cover">'
         : '<span>已选好一张</span>';
@@ -840,6 +850,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
     // 2) 飞回它的方位
     setTimeout(function(){
+      if (!alive()) return;
       var flyer = $("flyer"), fimg = flyer.querySelector("img");
       // src 在初始化时就挂好了（见下面的预热）。在这里才赋值的话，
       // 第一帧要等图片解码，实测会多出一个约 90ms 的卡顿，正好卡在起飞那一下。
@@ -859,6 +870,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       flyer.style.transition = "";
 
       requestAnimationFrame(function(){
+        if (!alive()) return;
         flyer.style.transform = "translate(" + (tx - 48) + "px," + (ty - 36) + "px) rotate(" +
                                 (hero.photo.yaw > 180 ? -12 : 12) + "deg) scale(.42)";
         var beam = $("beam");
@@ -867,11 +879,12 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
         beam.style.left = cx + "px"; beam.style.top = cy + "px";
         beam.style.width = Math.sqrt(dx * dx + dy * dy) + "px";
         beam.style.transform = "rotate(" + (Math.atan2(dy, dx) * 180 / Math.PI) + "deg)";
-        setTimeout(function(){ beam.classList.add("lit"); }, T(900));
+        setTimeout(function(){ if (alive()) beam.classList.add("lit"); }, T(900));
       });
 
       // 3) 落位：光爆 + 刻度出现 + 读数逐条亮
       setTimeout(function(){
+        if (!alive()) return;
         flyer.classList.remove("lit");
         $("beam").classList.remove("lit");
         var burst = $("burst");
@@ -887,13 +900,13 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
         READ.forEach(function(_, i){
           setTimeout(function(){
+            if (!alive()) return;
             var l = $("readout").querySelector('.line[data-i="' + i + '"]');
             if (l) l.classList.add("in");
           }, T(180 * i));
         });
         slot.innerHTML = '<span class="done">✓ 已回到 ' + hero.photo.yaw.toFixed(1) +
                          '°<br>悬赏 +' + esc(hero.task.bounty) + ' 分</span>';
-        flying = false;
       }, T(1560));
     }, T(1000 + step));
   }
@@ -948,32 +961,60 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     $("pwRuler").innerHTML = rul.map(function(r, i){
       return '<i data-yaw="' + r.yaw + '">' + esc(r.txt) + '</i>';
     }).join("");
-    // 照片钉：同一片区域里错开高度，免得两张挤成一叠
-    // 方位撞车的（这个空间里真有两张都在 255.3°）横向错开一点，不然卡片叠成一张
-    var seen = [];
-    var dxOf = pwPhotos.map(function(p){
-      var near = seen.filter(function(q){
-        var d = Math.abs(((p.yaw - q) % 360 + 360) % 360);
+    // 照片钉：**同一个方位（7° 以内）的照片并成一个钉**，卡片叠着画。
+    // 上一版是把撞车的那张横向错开 46px，结果后一张的图片正好压住前一张的名字
+    // （图片 56px 高，纵向只错开 22px，压得住）。
+    // 不采用「把偏移加大」的修法：46px 在这条墙上约等于 15.6°，
+    // 要躲开得挪到 26° 开外 —— 那等于把照片钉到一个它并不在的方位上，
+    // 跟这一幕「照片钉在它被拍下的方位」的主张直接打架。
+    // 并组之后既没有碰撞，也更诚实：两个人拍了同一个方向，本来就是这产品要讲的事。
+    var groups = [];
+    pwPhotos.forEach(function(p){
+      var g = groups.filter(function(q){
+        var d = ((p.yaw - q.yaw) % 360 + 360) % 360;
         return Math.min(d, 360 - d) < 7;
-      }).length;
-      seen.push(p.yaw);
-      return near === 0 ? 0 : (near % 2 ? 46 : -46) * Math.ceil(near / 2);
+      })[0];
+      if (g) g.items.push(p); else groups.push({ yaw:p.yaw, items:[p] });
     });
+    groups.sort(function(a, b){ return a.yaw - b.yaw; });   // 按方位排，相邻的钉必定错开高度
 
-    $("pwPins").innerHTML = pwPhotos.map(function(p, i){
+    $("pwPins").innerHTML = groups.map(function(g, i){
+      var p = g.items[0], n = g.items.length;
       var top = 12 + (i % 3) * 22;
       // 引线拉到刻度条上沿。高度用实测的，不要写死 —— 桌面上这条墙比手机高
       var lead = box.clientHeight - 21 - (top + 56 + 18);
-      return '<div class="pw-pin" data-yaw="' + p.yaw + '" data-dx="' + dxOf[i] +
-             '" style="top:' + top + 'px">' +
+      var who = p.contributor + (n > 1 ? " 等 " + n + " 人" : "");
+      return '<div class="pw-pin' + (n > 1 ? " stacked" : "") +
+             '" data-yaw="' + g.yaw + '" data-dx="0" style="top:' + top + 'px">' +
         '<img src="' + esc(p.img) + '" alt="">' +
-        '<div class="tag">' + esc(p.contributor) + ' · ' + p.yaw.toFixed(0) + '°</div>' +
+        '<div class="tag">' + esc(who) + ' · ' + g.yaw.toFixed(0) + '°</div>' +
         '<div class="lead" style="height:' + Math.max(lead, 6) + 'px"></div>' +
       '</div>';
     }).join("");
     if (!PW.homed) {
       PW.homed = true;
-      PW.off = (pwBestYaw() / 360) * PW.W - box.clientWidth / 2;
+      // 首屏取哪一段：不是简单「对准照片最密处」就完事 —— 那样很容易让边上那个钉
+      // 正好被切掉半个名字（第 3 轮验收员报的就是这个）。
+      // 改成在最密处附近扫一圈候选位移，挑「完整露出来的钉最多」的那个，
+      // 同分再挑离最密处最近的。半宽按标签算 56px，比图片(39px)宽。
+      var vw = box.clientWidth, HALF = 56;
+      var center = (pwBestYaw() / 360) * PW.W - vw / 2;
+      var bestOff = center, bestScore = -1, bestDist = Infinity;
+      for (var d = -vw / 2; d <= vw / 2; d += 12) {
+        var off = center + d, full = 0, cut = 0;
+        groups.forEach(function(g){
+          var x = ((g.yaw / 360) * PW.W - off) % PW.W;
+          if (x < 0) x += PW.W;
+          if (x > vw + 60) x -= PW.W;
+          if (x >= HALF && x <= vw - HALF) full++;                    // 整个钉都在里面
+          else if (x > -HALF && x < vw + HALF) cut++;                 // 被边缘切掉一部分
+        });
+        var score = full * 10 - cut * 7;                              // 切一半比少看一个更难看
+        if (score > bestScore || (score === bestScore && Math.abs(d) < bestDist)) {
+          bestScore = score; bestOff = off; bestDist = Math.abs(d);
+        }
+      }
+      PW.off = bestOff;
     }
     pwRender();
   }
@@ -1011,13 +1052,17 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   function pwNudge(){
     if (pwNudged || REDUCED) return;
     pwNudged = true;
-    var t0 = null, dur = 1500, from = PW.off, to = PW.off + PW.W * 0.14;
+    // 荡出去再荡回来，**必须回到原位**。
+    // 原来是单向漂 14% 一圈(约 148px)不回来，等于把上面精心挑好的首屏取景推歪，
+    // 边上那个钉就被切掉半个名字（第 3 轮验收员报的 P2 其实是被这一下顶出来的）。
+    var t0 = null, dur = 1700, from = PW.off, amp = 42;
     function step(ts){
       if (t0 == null) t0 = ts;
       var k = Math.min(1, (ts - t0) / dur);
-      PW.off = from + (to - from) * (1 - Math.pow(1 - k, 3));
+      PW.off = from + amp * Math.sin(k * Math.PI);   // k=0 与 k=1 时都回到 from
       pwRender();
       if (k < 1) requestAnimationFrame(step);
+      else { PW.off = from; pwRender(); }
     }
     requestAnimationFrame(step);
   }
