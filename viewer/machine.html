@@ -1,0 +1,665 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>空间记忆 · 机器回忆</title>
+<style>
+  :root {
+    --bg: #000;
+    --text: #eee;
+    --text-dim: #8a8a8a;
+    --red: #c0392b;
+    --ruler-h: 118px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    overflow: hidden; overscroll-behavior: none;
+    -webkit-user-select: none; user-select: none;
+    font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Courier New", monospace;
+  }
+  #app { position: fixed; inset: 0; }
+
+  /* ---------------- 照片墙 viewport ---------------- */
+  #wallViewport {
+    position: fixed; inset: 0; z-index: 1; overflow: hidden; touch-action: none;
+    background: #000;
+  }
+  #wallStage { position: absolute; top: 0; left: 0; transform-origin: 0 0; will-change: transform; }
+  .tile {
+    position: absolute; overflow: hidden; background: #0a0a0a;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06) inset;
+  }
+  .tile img {
+    width: 100%; height: 100%; object-fit: cover; display: block;
+    -webkit-user-drag: none; pointer-events: none;
+    filter: brightness(.38) saturate(.55) hue-rotate(190deg);
+    transition: filter .5s ease;
+  }
+  .tile.active img { filter: brightness(.95) saturate(1) hue-rotate(0deg); }
+
+  .corners { position: absolute; inset: 0; pointer-events: none; opacity: 0; }
+  .tile.target .corners { animation: frameBreathe 1.6s ease-in-out infinite; }
+  .c {
+    position: absolute; width: 12px; height: 12px;
+    border-color: #fff; border-style: solid; border-width: 0;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,.85));
+  }
+  .c.tl { top: 3px; left: 3px; border-top-width: 2px; border-left-width: 2px; }
+  .c.tr { top: 3px; right: 3px; border-top-width: 2px; border-right-width: 2px; }
+  .c.bl { bottom: 3px; left: 3px; border-bottom-width: 2px; border-left-width: 2px; }
+  .c.br { bottom: 3px; right: 3px; border-bottom-width: 2px; border-right-width: 2px; }
+  @keyframes frameBreathe { 0%, 100% { opacity: .5; } 50% { opacity: 1; } }
+
+  /* 监控质感的暗角+扫描线，纯装饰，不挡内容 */
+  #wallVignette {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none;
+    background: radial-gradient(ellipse 120% 90% at 50% 45%, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+  #wallScan {
+    position: fixed; inset: 0; z-index: 2; pointer-events: none; opacity: .05;
+    background: repeating-linear-gradient(0deg, #fff 0px, #fff 1px, transparent 1px, transparent 3px);
+  }
+
+  /* ---------------- 顶部 HUD ---------------- */
+  header.hud {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 6; pointer-events: none;
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 14px 22px;
+    background: linear-gradient(180deg, rgba(0,0,0,.75), transparent);
+  }
+  .hud-left { min-width: 0; }
+  .hud-line1 {
+    font-size: 10.5px; letter-spacing: .12em; color: var(--text-dim);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hud-line2 {
+    margin-top: 4px; font-size: 14px; font-weight: 700; letter-spacing: .04em; color: #fff;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .hud-right { flex: 0 0 auto; display: flex; align-items: center; gap: 6px; padding-top: 2px; }
+  .rec-dot {
+    width: 8px; height: 8px; border-radius: 50%; background: var(--red);
+    box-shadow: 0 0 8px rgba(192,57,43,.85);
+    animation: recBlink 1.2s ease-in-out infinite;
+  }
+  .rec-label { font-size: 10px; letter-spacing: .08em; color: var(--text-dim); }
+  @keyframes recBlink { 0%, 100% { opacity: 1; } 50% { opacity: .25; } }
+
+  /* ---------------- 返回胶囊 ---------------- */
+  .back-pill {
+    position: fixed; left: 14px; z-index: 7;
+    bottom: calc(var(--ruler-h) + env(safe-area-inset-bottom, 0px) + 10px);
+    display: inline-flex; align-items: center;
+    font-size: 12px; letter-spacing: .03em; color: #ddd; text-decoration: none;
+    background: rgba(20,20,20,.72); border: 1px solid rgba(255,255,255,.14);
+    padding: 7px 13px; border-radius: 999px; backdrop-filter: blur(6px);
+  }
+  .back-pill:active { transform: scale(.95); }
+
+  /* ---------------- 底部刻度尺时间轴 ---------------- */
+  footer.ruler-wrap {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 6;
+    height: calc(var(--ruler-h) + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box; padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: #000; border-top: 1px solid rgba(255,255,255,.12);
+    display: flex; flex-direction: column;
+  }
+  .rail-pointer {
+    position: absolute; top: 0; left: 50%; height: 90px; width: 2px;
+    transform: translateX(-50%); background: #fff; z-index: 3; pointer-events: none;
+    box-shadow: 0 0 8px rgba(255,255,255,.65);
+  }
+  .rail-pointer::before {
+    content: ""; position: absolute; top: -1px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
+    border-top: 6px solid #fff;
+  }
+  .rail-viewport {
+    position: relative; height: 90px; overflow: hidden; touch-action: none;
+  }
+  .rail-track { position: absolute; top: 0; left: 0; height: 100%; will-change: transform; }
+  .axis-line { position: absolute; left: 0; right: 0; top: 38px; height: 1px; background: rgba(255,255,255,.25); }
+  .tick { position: absolute; top: 33px; width: 1px; height: 10px; background: rgba(255,255,255,.22); }
+  .tick.big { top: 26px; height: 24px; width: 1.5px; background: rgba(255,255,255,.55); }
+  .hour-label {
+    position: absolute; top: 2px; transform: translateX(-50%);
+    font-size: 11px; color: #777; white-space: nowrap;
+    transition: color .3s ease, font-size .3s ease;
+  }
+  .hour-label.now { color: #fff; font-weight: 700; font-size: 15px; }
+  .rail-marker {
+    position: absolute; top: 52px; transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+  }
+  .rm-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--red);
+    box-shadow: 0 0 6px rgba(192,57,43,.7); transition: all .25s ease;
+  }
+  .rail-marker.active .rm-dot { width: 9px; height: 9px; box-shadow: 0 0 10px rgba(192,57,43,.95); }
+  .rm-label { font-size: 9.5px; color: #a7998c; white-space: nowrap; }
+  .rail-marker.active .rm-label { color: #fff; }
+  .date-stamp {
+    flex: 1 1 auto; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; letter-spacing: .3em; color: var(--text-dim);
+  }
+
+  /* ---------------- 灯箱 ---------------- */
+  .lightbox {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(0,0,0,.94);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease;
+    padding: 24px;
+  }
+  .lightbox.open { opacity: 1; pointer-events: auto; }
+  .lb-frame { position: relative; display: inline-block; line-height: 0; }
+  .lb-frame img {
+    max-width: 88vw; max-height: 66vh; display: block; background: #000;
+    object-fit: contain;
+  }
+  .lbc {
+    position: absolute; width: 22px; height: 22px;
+    border-color: #fff; border-style: solid; border-width: 0;
+    filter: drop-shadow(0 0 2px rgba(0,0,0,.85));
+    animation: frameBreathe 1.6s ease-in-out infinite;
+  }
+  .lbc.tl { top: 8px; left: 8px; border-top-width: 2px; border-left-width: 2px; }
+  .lbc.tr { top: 8px; right: 8px; border-top-width: 2px; border-right-width: 2px; }
+  .lbc.bl { bottom: 8px; left: 8px; border-bottom-width: 2px; border-left-width: 2px; }
+  .lbc.br { bottom: 8px; right: 8px; border-bottom-width: 2px; border-right-width: 2px; }
+  .lb-cap {
+    margin-top: 14px; text-align: center; font-size: 12px; letter-spacing: .08em; color: #bbb;
+  }
+  .lb-close {
+    position: fixed; top: calc(14px + env(safe-area-inset-top, 0px)); right: 16px; z-index: 51;
+    width: 38px; height: 38px; border-radius: 50%; border: 1px solid rgba(255,255,255,.18);
+    background: rgba(255,255,255,.08); color: #fff; font-size: 20px; line-height: 1;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .boot-error {
+    position: fixed; inset: 0; z-index: 99; display: flex; align-items: center; justify-content: center;
+    padding: 24px; text-align: center; color: #999; font-size: 13px; background: #000;
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="wallViewport">
+    <div id="wallStage"></div>
+  </div>
+  <div id="wallVignette"></div>
+  <div id="wallScan"></div>
+
+  <header class="hud">
+    <div class="hud-left">
+      <div class="hud-line1">SPATIAL MEMORY // MACHINE RECALL</div>
+      <div class="hud-line2" id="hudChapter">&mdash;</div>
+    </div>
+    <div class="hud-right"><span class="rec-dot"></span><span class="rec-label">REC</span></div>
+  </header>
+
+  <a class="back-pill" href="../index.html">&#8249; 返回</a>
+
+  <footer class="ruler-wrap">
+    <div class="rail-pointer"></div>
+    <div class="rail-viewport" id="railViewport">
+      <div class="rail-track" id="railTrack">
+        <div class="axis-line"></div>
+        <div id="railTicks"></div>
+        <div id="railMarkers"></div>
+      </div>
+    </div>
+    <div class="date-stamp">24 JUL 2026</div>
+  </footer>
+</div>
+
+<div class="lightbox" id="lightbox">
+  <button class="lb-close" id="lbClose" aria-label="关闭">&times;</button>
+  <figure class="lb-frame" style="margin:0;">
+    <img id="lbImg" src="" alt="">
+    <i class="lbc tl"></i><i class="lbc tr"></i><i class="lbc bl"></i><i class="lbc br"></i>
+  </figure>
+  <figcaption class="lb-cap" id="lbCap"></figcaption>
+</div>
+
+<script src="../tour.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  var TOUR = window.TOUR;
+  if (!TOUR || !TOUR.nodes || !TOUR.nodes.length) {
+    document.body.innerHTML = '<div class="boot-error">tour.js 没读到数据(检查 ../tour.js 是否存在)</div>';
+    return;
+  }
+
+  var CHAPTERS = TOUR.nodes; // 4 章节，顺序=接亲/出发/仪式/宴席
+
+  // 演示层：章节 -> 现场照片文件夹前缀（和 timeline.html 同一套映射）
+  var DEMO_SCENES = { jieqin: "comfy_cafe", chufa: "entrance_hall", yishi: "chapel_day", yanxi: "ballroom" };
+
+  // ============================================================
+  // 展平 36 张照片描述，携带所属章节 index / 章节内序号(1-9)
+  // ============================================================
+  var photos = [];
+  CHAPTERS.forEach(function (node, ci) {
+    var slug = DEMO_SCENES[node.id];
+    for (var j = 1; j <= 9; j++) {
+      photos.push({
+        chapterIdx: ci,
+        chapter: node.chapter || node.name,
+        time: node.time || "",
+        local: j,
+        src: "../assets/walkdemo/" + (slug || "comfy_cafe") + "_j" + j + ".jpg"
+      });
+    }
+  });
+
+  // ============================================================
+  // 马赛克墙布局：确定性伪随机(固定数组 + 索引取模)，大小不一 + 行列错位 + 局部重叠
+  // ============================================================
+  var MOSAIC_W = 560;
+  var GAP = 4;
+  var WIDTHS   = [150, 100, 190, 120, 80, 210, 140, 95, 170, 110, 200, 130];
+  var HRATIOS  = [0.72, 0.88, 0.6, 0.95, 0.78, 0.66, 0.9, 0.7];
+  var TILE_YJ  = [0, -6, 4, -3, 7, -8, 2, 5, -4, 6, -2, 0];
+  var ROW_OVERLAP = [0, 0, 7, 0, 10, 0, 5, 0, 0, 8];
+  var OVERLAP_X = [8, 12, 6, 14, 10];
+  var HIGHLIGHT_LOCAL = [2, 5, 7]; // 每章节固定这 3 张(局部序号)套取景框
+
+  var placed = [];
+  (function pack() {
+    // 第一步：贪心分行(shelf packing)，只决定每行装哪些瓦片，先不定终宽。
+    var rows = [];
+    var current = [];
+    var x = 0;
+    for (var i = 0; i < photos.length; i++) {
+      var w0 = WIDTHS[i % WIDTHS.length];
+      var ar0 = HRATIOS[i % HRATIOS.length]; // 高/宽,取自源图 4:3 附近的固定比例池
+      if (current.length && x + w0 > MOSAIC_W) {
+        rows.push(current);
+        current = []; x = 0;
+      }
+      current.push({ w: w0, ar: ar0, photoIdx: i });
+      x += w0 + GAP;
+    }
+    if (current.length) rows.push(current);
+
+    // 第二步："齐行"排版(justified gallery,Flickr/Google相册那套)：
+    // 行内每张瓦片共享同一行高 H,宽度按各自的宽高比反推,
+    // 保证一行内所有瓦片下边缘对齐、整行正好撑满 MOSAIC_W —— 彻底消灭行尾/行内黑洞。
+    // H 逐行不同(由该行瓦片数+宽高比解出),这就是"大小不一"的来源;WIDTHS 只用来决定第一步分行。
+    rows.forEach(function (row) {
+      var availW = MOSAIC_W - GAP * (row.length - 1);
+      var sumInvAr = row.reduce(function (s, t) { return s + 1 / t.ar; }, 0);
+      var H = availW / sumInvAr;
+      row.forEach(function (t) {
+        t.h = Math.round(H);
+        t.w = Math.round(H / t.ar);
+      });
+      // 四舍五入会有 1~2px 漂移,补到本行最后一张瓦片上,让整行像素级贴边。
+      var usedW = row.reduce(function (s, t) { return s + t.w; }, 0) + GAP * (row.length - 1);
+      row[row.length - 1].w += (MOSAIC_W - usedW);
+    });
+
+    // 第三步：逐行落位,叠加行内 y 抖动 + 局部瓦片重叠(负 margin + z-index 交错)。
+    var y = 0, rowBottom = 0;
+    rows.forEach(function (row, rowIdx) {
+      var rx = 0, rowH = 0;
+      row.forEach(function (t) {
+        var gi = t.photoIdx;
+        var yj = TILE_YJ[gi % TILE_YJ.length];
+        var overlapHoriz = (gi % 7 === 3) && rx > 0;
+        var xOff = overlapHoriz ? OVERLAP_X[gi % OVERLAP_X.length] : 0;
+        var z = 10 + gi + (overlapHoriz ? 40 : 0);
+        placed.push({ x: rx - xOff, y: y + yj, w: t.w, h: t.h, z: z, photo: photos[gi], i: gi });
+        rowH = Math.max(rowH, t.h + Math.max(0, yj));
+        rx += t.w + GAP;
+      });
+      rowBottom = y + rowH;
+      y = rowBottom + GAP - ROW_OVERLAP[rowIdx % ROW_OVERLAP.length];
+    });
+    var MOSAIC_H = rowBottom + GAP;
+    var wallStage = document.getElementById("wallStage");
+    wallStage.style.width = MOSAIC_W + "px";
+    wallStage.style.height = MOSAIC_H + "px";
+    wallStage.innerHTML = placed.map(function (t) {
+      var p = t.photo;
+      return '<div class="tile" data-i="' + t.i + '" data-chapter-idx="' + p.chapterIdx + '" data-local="' + p.local + '" ' +
+        'style="left:' + t.x + 'px;top:' + t.y + 'px;width:' + t.w + 'px;height:' + t.h + 'px;z-index:' + t.z + '">' +
+        '<img src="' + p.src + '" alt="" loading="lazy">' +
+        '<div class="corners"><i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i></div>' +
+        '</div>';
+    }).join("");
+    window.__MOSAIC_H = MOSAIC_H;
+  })();
+
+  var tileEls = Array.prototype.slice.call(document.querySelectorAll(".tile"));
+  var MOSAIC_H = window.__MOSAIC_H;
+
+  function updateWallHighlight(chapterIdx) {
+    tileEls.forEach(function (el) {
+      var isActive = Number(el.dataset.chapterIdx) === chapterIdx;
+      el.classList.toggle("active", isActive);
+      var local = Number(el.dataset.local);
+      el.classList.toggle("target", isActive && HIGHLIGHT_LOCAL.indexOf(local) !== -1);
+    });
+  }
+
+  // ============================================================
+  // 照片墙 viewport：滚轮缩放(光标为中心) + 双指 pinch + 拖动平移
+  // 照抄 viewer/index.html 的 mapViewport 手势模式(含 setPointerCapture 劫持
+  // click 后、pointerup 里用 elementFromPoint 做 tap 判定的修法)。
+  // ============================================================
+  var wallViewport = document.getElementById("wallViewport");
+  var wallStage = document.getElementById("wallStage");
+
+  var wallScale = 1, wallTx = 0, wallTy = 0;
+  var WALL_MIN_SCALE = 0.6, WALL_MAX_SCALE = 2.5;
+
+  function applyWallTransform(animate) {
+    wallStage.style.transition = animate ? "transform .45s cubic-bezier(.22,.61,.36,1)" : "none";
+    wallStage.style.transform = "translate(" + wallTx + "px," + wallTy + "px) scale(" + wallScale + ")";
+  }
+  function clampWallTranslate() {
+    var vw = wallViewport.clientWidth, vh = wallViewport.clientHeight;
+    var w = MOSAIC_W * wallScale, h = MOSAIC_H * wallScale;
+    var padX = vw * 0.35, padY = vh * 0.35;
+    var minTx = Math.min(vw - w - padX, padX), maxTx = Math.max(vw - w - padX, padX);
+    wallTx = Math.max(minTx, Math.min(maxTx, wallTx));
+    var minTy = Math.min(vh - h - padY, padY), maxTy = Math.max(vh - h - padY, padY);
+    wallTy = Math.max(minTy, Math.min(maxTy, wallTy));
+  }
+  function fitWallToViewport(animate) {
+    var vw = wallViewport.clientWidth, vh = wallViewport.clientHeight;
+    var cover = Math.max(vw / MOSAIC_W, vh / MOSAIC_H);
+    wallScale = Math.max(WALL_MIN_SCALE, Math.min(WALL_MAX_SCALE, cover));
+    wallTx = (vw - MOSAIC_W * wallScale) / 2;
+    wallTy = (vh - MOSAIC_H * wallScale) / 2;
+    applyWallTransform(animate);
+  }
+  function clampScale(s) { return Math.max(WALL_MIN_SCALE, Math.min(WALL_MAX_SCALE, s)); }
+  function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
+
+  // 选中章节后自动把该章 9 张高亮瓦片的簇平移进视野(7/24 验收实测:初始位置高亮簇在屏外,
+  // 用户根本看不到取景框)。只平移+必要时轻微缩小以容纳簇,不打断用户后续手动缩放。
+  function focusActiveCluster(idx, animate) {
+    var els = wallStage.querySelectorAll('.tile[data-chapter-idx="' + idx + '"]');
+    if (!els.length) return;
+    var minX = 1e9, minY = 1e9, maxX = -1e9, maxY = -1e9;
+    Array.prototype.forEach.call(els, function (el) {
+      minX = Math.min(minX, el.offsetLeft);
+      minY = Math.min(minY, el.offsetTop);
+      maxX = Math.max(maxX, el.offsetLeft + el.offsetWidth);
+      maxY = Math.max(maxY, el.offsetTop + el.offsetHeight);
+    });
+    var vw = wallViewport.clientWidth, vh = wallViewport.clientHeight;
+    var bw = maxX - minX, bh = maxY - minY;
+    // 簇比当前视野大就缩到刚好装下(留 8% 边),否则保持用户当前缩放
+    var fit = Math.min(vw / bw, vh / bh) * 0.92;
+    if (fit < wallScale) wallScale = clampScale(fit);
+    var cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+    wallTx = vw / 2 - cx * wallScale;
+    wallTy = vh / 2 - cy * wallScale;
+    clampWallTranslate();
+    applyWallTransform(animate !== false);
+  }
+
+  var wallPointers = {};
+  var wallGesture = null;
+  var wallMoved = false;
+  var wallPinchPrevDist = null;
+
+  wallViewport.addEventListener("pointerdown", function (e) {
+    wallPointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    try { wallViewport.setPointerCapture(e.pointerId); } catch (err) {}
+    wallMoved = false;
+    var ids = Object.keys(wallPointers);
+    if (ids.length === 1) {
+      wallGesture = "pan";
+    } else if (ids.length >= 2) {
+      wallGesture = "pinch";
+      var pts = ids.map(function (id) { return wallPointers[id]; });
+      wallPinchPrevDist = dist(pts[0], pts[1]);
+    }
+  });
+
+  wallViewport.addEventListener("pointermove", function (e) {
+    if (!wallPointers[e.pointerId]) return;
+    var prev = wallPointers[e.pointerId];
+    wallPointers[e.pointerId] = { x: e.clientX, y: e.clientY };
+    if (wallGesture === "pan") {
+      var dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+      if (Math.abs(dx) + Math.abs(dy) > 3) wallMoved = true;
+      wallTx += dx; wallTy += dy;
+      clampWallTranslate();
+      applyWallTransform(false);
+    } else if (wallGesture === "pinch") {
+      var ids = Object.keys(wallPointers);
+      if (ids.length < 2) return;
+      var pts = ids.map(function (id) { return wallPointers[id]; });
+      var d = dist(pts[0], pts[1]);
+      if (wallPinchPrevDist) {
+        var ratio = d / wallPinchPrevDist;
+        var mid = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
+        var localX = (mid.x - wallTx) / wallScale, localY = (mid.y - wallTy) / wallScale;
+        wallScale = clampScale(wallScale * ratio);
+        wallTx = mid.x - localX * wallScale;
+        wallTy = mid.y - localY * wallScale;
+        wallMoved = true;
+        clampWallTranslate();
+        applyWallTransform(false);
+      }
+      wallPinchPrevDist = d;
+    }
+  });
+
+  function endWallPointer(e) {
+    delete wallPointers[e.pointerId];
+    var ids = Object.keys(wallPointers);
+    wallGesture = ids.length === 1 ? "pan" : null;
+    wallPinchPrevDist = null;
+  }
+  wallViewport.addEventListener("pointerup", function (e) {
+    // setPointerCapture 会把后续 click 的 target 劫持成 wallViewport 本身，
+    // 瓦片的委托 click 收不到。修法同 index.html：pointerup 里自己做 tap 判定，
+    // 没拖动就用 elementFromPoint 命中瓦片。
+    var wasTap = !wallMoved && wallGesture !== "pinch";
+    endWallPointer(e);
+    if (wasTap) {
+      var hit = document.elementFromPoint(e.clientX, e.clientY);
+      var tile = hit && hit.closest ? hit.closest(".tile") : null;
+      if (tile) openLightboxForTile(tile);
+    }
+  });
+  wallViewport.addEventListener("pointercancel", endWallPointer);
+
+  wallViewport.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var factor = Math.exp(-e.deltaY * 0.0016);
+    var localX = (e.clientX - wallTx) / wallScale, localY = (e.clientY - wallTy) / wallScale;
+    wallScale = clampScale(wallScale * factor);
+    wallTx = e.clientX - localX * wallScale;
+    wallTy = e.clientY - localY * wallScale;
+    clampWallTranslate();
+    applyWallTransform(false);
+  }, { passive: false });
+
+  // ============================================================
+  // 灯箱：tap 一张瓦片放大
+  // ============================================================
+  var lightbox = document.getElementById("lightbox");
+  var lbImg = document.getElementById("lbImg");
+  var lbCap = document.getElementById("lbCap");
+  var lbClose = document.getElementById("lbClose");
+
+  function openLightboxForTile(tile) {
+    var idx = Number(tile.dataset.i);
+    var t = placed[idx];
+    if (!t) return;
+    var p = t.photo;
+    lbImg.src = p.src;
+    lbCap.textContent = "FRAME " + p.chapter + "-" + p.local + " · " + p.time;
+    lightbox.classList.add("open");
+  }
+  function closeLightbox() { lightbox.classList.remove("open"); }
+  lbClose.addEventListener("click", closeLightbox);
+  lightbox.addEventListener("click", function (e) {
+    if (e.target === lightbox) closeLightbox();
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape") closeLightbox();
+  });
+
+  // ============================================================
+  // 底部刻度尺时间轴：08:00 -> 19:00，可拖动 + 就近吸附
+  // ============================================================
+  var RAIL_START_HOUR = 8, RAIL_END_HOUR = 19;
+  var RAIL_MINUTES = (RAIL_END_HOUR - RAIL_START_HOUR) * 60; // 660
+  var RAIL_PX = 1600;
+  var PAD = 40;
+  var PX_PER_MIN = RAIL_PX / RAIL_MINUTES;
+
+  function parseTimeMinutes(t) {
+    var parts = (t || "00:00").split(":");
+    var hh = parseInt(parts[0], 10) || 0, mm = parseInt(parts[1], 10) || 0;
+    return (hh * 60 + mm) - RAIL_START_HOUR * 60;
+  }
+  function timeToPx(min) { return min * PX_PER_MIN + PAD; }
+  function pxToTime(px) { return Math.max(0, Math.min(RAIL_MINUTES, (px - PAD) / PX_PER_MIN)); }
+
+  var chapterMinutes = CHAPTERS.map(function (n) { return parseTimeMinutes(n.time); });
+
+  var railViewport = document.getElementById("railViewport");
+  var railTrack = document.getElementById("railTrack");
+  var railTicks = document.getElementById("railTicks");
+  var railMarkersEl = document.getElementById("railMarkers");
+
+  railTrack.style.width = (RAIL_PX + PAD * 2) + "px";
+
+  var hourLabelEls = [];
+  for (var m = 0; m <= RAIL_MINUTES; m += 10) {
+    var isHour = (m % 60 === 0);
+    var tickEl = document.createElement("div");
+    tickEl.className = "tick" + (isHour ? " big" : "");
+    tickEl.style.left = timeToPx(m) + "px";
+    railTicks.appendChild(tickEl);
+    if (isHour) {
+      var hourNum = RAIL_START_HOUR + m / 60;
+      var lbl = document.createElement("div");
+      lbl.className = "hour-label";
+      lbl.dataset.hour = hourNum;
+      lbl.style.left = timeToPx(m) + "px";
+      lbl.textContent = (hourNum < 10 ? "0" : "") + hourNum;
+      railTicks.appendChild(lbl);
+      hourLabelEls.push(lbl);
+    }
+  }
+
+  var railMarkerEls = CHAPTERS.map(function (node, idx) {
+    var el = document.createElement("div");
+    el.className = "rail-marker";
+    el.dataset.idx = idx;
+    el.style.left = timeToPx(chapterMinutes[idx]) + "px";
+    el.innerHTML = '<span class="rm-dot"></span><span class="rm-label">' + (node.chapter || node.name) + '</span>';
+    railMarkersEl.appendChild(el);
+    return el;
+  });
+
+  function centerX() { return railViewport.clientWidth / 2; }
+  function railOffsetForChapter(idx) { return centerX() - timeToPx(chapterMinutes[idx]); }
+
+  var railOffset = 0;
+  function applyRailTransform(animate) {
+    railTrack.style.transition = animate ? "transform .4s cubic-bezier(.3,.9,.4,1)" : "none";
+    railTrack.style.transform = "translateX(" + railOffset + "px)";
+  }
+
+  function nearestChapterIdx(minutes) {
+    var best = 0, bestDist = Infinity;
+    chapterMinutes.forEach(function (mm, i) {
+      var d = Math.abs(mm - minutes);
+      if (d < bestDist) { bestDist = d; best = i; }
+    });
+    return best;
+  }
+
+  var hudChapter = document.getElementById("hudChapter");
+  var currentChapterIdx = 0;
+
+  function updateRailLabels(idx) {
+    var hh = RAIL_START_HOUR + Math.floor(chapterMinutes[idx] / 60);
+    hourLabelEls.forEach(function (el) {
+      el.classList.toggle("now", Number(el.dataset.hour) === hh);
+    });
+    railMarkerEls.forEach(function (el, i) {
+      el.classList.toggle("active", i === idx);
+    });
+  }
+
+  function selectChapter(idx, animate) {
+    idx = Math.max(0, Math.min(CHAPTERS.length - 1, idx));
+    currentChapterIdx = idx;
+    var node = CHAPTERS[idx];
+    hudChapter.textContent = (node.chapter || node.name) + " · " + (node.time || "");
+    updateWallHighlight(idx);
+    focusActiveCluster(idx, animate);
+    updateRailLabels(idx);
+    railOffset = railOffsetForChapter(idx);
+    applyRailTransform(animate !== false);
+  }
+
+  // ---- 拖动整条时间轴（1 维，pointer 平移） ----
+  var railDragging = false;
+  var railMoved = false;
+  var railStartX = 0;
+  var railStartOffset = 0;
+
+  railViewport.addEventListener("pointerdown", function (e) {
+    railDragging = true;
+    railMoved = false;
+    railStartX = e.clientX;
+    railStartOffset = railOffset;
+    try { railViewport.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  railViewport.addEventListener("pointermove", function (e) {
+    if (!railDragging) return;
+    var dx = e.clientX - railStartX;
+    if (Math.abs(dx) > 3) railMoved = true;
+    railOffset = railStartOffset + dx;
+    applyRailTransform(false);
+  });
+  function endRailDrag(e) {
+    if (!railDragging) return;
+    railDragging = false;
+    // 同一坑：setPointerCapture 劫持 click，没拖动就用 elementFromPoint 判定是否点中章节标记。
+    var hit = !railMoved ? document.elementFromPoint(e.clientX, e.clientY) : null;
+    var marker = hit && hit.closest ? hit.closest(".rail-marker") : null;
+    if (marker && marker.dataset.idx != null) {
+      selectChapter(Number(marker.dataset.idx), true);
+      return;
+    }
+    var minutes = pxToTime(centerX() - railOffset);
+    selectChapter(nearestChapterIdx(minutes), true);
+  }
+  railViewport.addEventListener("pointerup", endRailDrag);
+  railViewport.addEventListener("pointercancel", endRailDrag);
+
+  window.addEventListener("resize", function () {
+    fitWallToViewport(false);
+    railOffset = railOffsetForChapter(currentChapterIdx);
+    applyRailTransform(false);
+  });
+
+  // ============================================================
+  // 启动
+  // ============================================================
+  fitWallToViewport(false);
+  selectChapter(0, false);
+})();
+</script>
+</body>
+</html>
