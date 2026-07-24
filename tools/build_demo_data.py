@@ -233,6 +233,26 @@ def main():
         },
     }
 
+    # ── 出厂自检 ───────────────────────────────────────────────────
+    # 页面在十几个地方直接对 photo.yaw 调 .toFixed()，靠的就是这里保证它一定是数。
+    # 契约写在注释里没用, 在这儿卡住才有用: 数据不对就别生成, 别让页面到明早才炸。
+    # (Codex 对审把这条报成 P0, 实测当前数据不可能触发, 但它指出的「契约只是口头的」是对的)
+    def assert_num(where, val):
+        if not isinstance(val, (int, float)):
+            die("%s 的 yaw 不是数字 (%r) —— 页面会在 .toFixed() 上抛异常" % (where, val))
+
+    for p in all_photos:
+        assert_num("photos/" + str(p.get("id")), p.get("yaw"))
+    for p in data["trio"] + data["needsReview"] + [hero["photo"]]:
+        assert_num("演示主角/机位 " + str(p.get("id")), p.get("yaw"))
+    for w in data["wall"]:
+        for fpho in w["fills"]:
+            assert_num("通缉令 %s 的填充照片 %s" % (w["id"], fpho.get("id")), fpho.get("yaw"))
+    if len(data["trio"]) < 3:
+        die("第④幕不足 3 个机位")
+    if not os.path.exists(os.path.join(OUT_DIR, "pano.jpg")):
+        die("全景没导出成功")
+
     with open(OUT_JS, "w", encoding="utf-8") as f:
         f.write("// 由 tools/build_demo_data.py 从 %s 自动导出, 不要手改。\n" % data["generatedFrom"])
         f.write("// 重跑: python3 tools/build_demo_data.py\n")
