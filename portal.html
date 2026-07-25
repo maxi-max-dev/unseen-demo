@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff4ef">
+<meta name="description" content="UNSEEN 产品入口，一套系统连接宾客上传、主办方 Studio 与只读记忆展览。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="UNSEEN · 让照片回到它当时朝着的方向">
+<meta property="og:description" content="一套系统连接宾客上传、主办方 Studio 与只读记忆展览。">
+<meta property="og:url" content="https://unseen-demo.vercel.app/portal.html">
+<meta property="og:image" content="https://unseen-demo.vercel.app/assets/portal/og.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="UNSEEN · 产品入口">
+<meta name="twitter:description" content="让照片回到它当时朝着的方向。">
+<meta name="twitter:image" content="https://unseen-demo.vercel.app/assets/portal/og.png">
+<title>UNSEEN · 产品入口</title>
+<link rel="stylesheet" href="app/theme.css">
+<style>
+  :root{
+    --portal-plum:#503843;
+    --portal-deep:#2f2027;
+    --portal-rose:#df557f;
+    --portal-peach:#ffb47e;
+    --portal-paper:#fffaf7;
+  }
+  *{ box-sizing:border-box; }
+  html{ max-width:100%; overflow-x:hidden; scroll-behavior:smooth; }
+  body.u-body{ width:100%; max-width:100%; overflow-x:hidden; }
+  a,button{ -webkit-tap-highlight-color:transparent; }
+  a:focus-visible,button:focus-visible{
+    outline:3px solid rgba(223,85,127,.45);
+    outline-offset:4px;
+  }
+  .portal-shell{
+    position:relative;
+    z-index:1;
+    width:min(1220px,calc(100% - 40px));
+    margin:0 auto;
+    padding:18px 0 118px;
+  }
+  .site-head{
+    position:sticky;
+    top:12px;
+    z-index:50;
+    min-height:64px;
+    display:flex;
+    align-items:center;
+    gap:24px;
+    padding:10px 12px 10px 20px;
+    border:1px solid rgba(255,255,255,.92);
+    border-radius:999px;
+    background:rgba(255,250,247,.8);
+    box-shadow:0 14px 40px rgba(153,88,107,.14);
+    -webkit-backdrop-filter:blur(22px);
+    backdrop-filter:blur(22px);
+  }
+  .brand{
+    flex:none;
+    color:var(--portal-plum);
+    text-decoration:none;
+    font-size:16px;
+    font-weight:800;
+    letter-spacing:.43em;
+    white-space:nowrap;
+  }
+  .brand i{ color:var(--portal-rose); font-style:normal; }
+  .head-nav{
+    display:flex;
+    align-items:center;
+    gap:4px;
+    margin-left:auto;
+  }
+  .head-nav a{
+    min-height:44px;
+    display:flex;
+    align-items:center;
+    padding:0 15px;
+    border-radius:999px;
+    color:var(--ink-2);
+    text-decoration:none;
+    font-size:13px;
+    font-weight:650;
+  }
+  .head-nav a:hover{ color:var(--portal-plum); background:rgba(255,255,255,.72); }
+  .full-btn{
+    min-height:44px;
+    border:0;
+    border-radius:999px;
+    padding:0 18px;
+    color:#fff;
+    background:linear-gradient(105deg,var(--portal-rose),var(--portal-peach));
+    box-shadow:0 8px 20px rgba(223,85,127,.25);
+    font:700 13px var(--sans);
+    cursor:pointer;
+  }
+
+  .hero{
+    position:relative;
+    display:grid;
+    grid-template-columns:minmax(0,1.04fr) minmax(440px,.96fr);
+    align-items:center;
+    gap:54px;
+    min-height:690px;
+    padding:66px 20px 58px;
+  }
+  .hero-copy{ position:relative; z-index:2; }
+  .eyebrow{
+    display:inline-flex;
+    align-items:center;
+    gap:9px;
+    margin:0 0 22px;
+    color:#b4664f;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.24em;
+    text-transform:uppercase;
+  }
+  .eyebrow::before{
+    content:"";
+    width:34px;
+    height:1px;
+    background:currentColor;
+  }
+  .hero h1{
+    margin:0;
+    max-width:740px;
+    color:var(--portal-deep);
+    font-size:clamp(52px,6.1vw,92px);
+    line-height:1.02;
+    letter-spacing:-.055em;
+    font-weight:850;
+  }
+  .hero h1 .accent{
+    display:block;
+    color:transparent;
+    background:linear-gradient(100deg,#db4e78 4%,#f28e79 54%,#e8a65c 96%);
+    -webkit-background-clip:text;
+    background-clip:text;
+  }
+  .hero-lead{
+    max-width:610px;
+    margin:26px 0 0;
+    color:#75616a;
+    font-size:18px;
+    line-height:1.9;
+  }
+  .hero-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    margin-top:34px;
+  }
+  .hero-actions a{
+    min-height:54px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:12px;
+    border-radius:999px;
+    padding:0 24px;
+    text-decoration:none;
+    font-size:15px;
+    font-weight:750;
+  }
+  .primary-cta{
+    color:#fff;
+    background:linear-gradient(105deg,#e45681,#ffb17a);
+    box-shadow:0 16px 32px rgba(223,85,127,.28);
+  }
+  .secondary-cta{
+    color:var(--portal-plum);
+    border:1px solid rgba(163,111,128,.17);
+    background:rgba(255,255,255,.72);
+    box-shadow:var(--shadow);
+  }
+  .hero-actions a:hover{ transform:translateY(-2px); }
+  .hero-proof{
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    margin-top:26px;
+  }
+  .proof{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    min-height:34px;
+    padding:0 12px;
+    border:1px solid rgba(163,111,128,.12);
+    border-radius:999px;
+    color:var(--ink-2);
+    background:rgba(255,255,255,.5);
+    font-size:12px;
+    font-weight:650;
+  }
+  .proof .dot{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:#61b88d;
+    box-shadow:0 0 0 5px rgba(97,184,141,.12);
+  }
+
+  .hero-poster{
+    position:relative;
+    min-height:570px;
+    isolation:isolate;
+  }
+  .poster-orbit{
+    position:absolute;
+    inset:5% 2% 3% 8%;
+    border:1px solid rgba(209,112,141,.23);
+    border-radius:50%;
+    transform:rotate(-9deg);
+  }
+  .poster-orbit::before,.poster-orbit::after{
+    content:"";
+    position:absolute;
+    border:1px solid rgba(236,158,124,.22);
+    border-radius:50%;
+  }
+  .poster-orbit::before{ inset:9% -7% 12% 6%; }
+  .poster-orbit::after{ inset:18% 9% -6% -5%; }
+  .poster-main{
+    position:absolute;
+    inset:36px 28px 70px 54px;
+    overflow:hidden;
+    border:7px solid rgba(255,255,255,.8);
+    border-radius:52% 52% 30px 30px;
+    background:#b79f8c;
+    box-shadow:0 34px 80px rgba(94,57,72,.25);
+    transform:rotate(2.5deg);
+  }
+  .poster-main img{
+    width:100%;
+    height:100%;
+    display:block;
+    object-fit:cover;
+  }
+  .poster-main::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:linear-gradient(180deg,rgba(42,25,32,0) 38%,rgba(42,25,32,.7) 100%);
+  }
+  .poster-caption{
+    position:absolute;
+    z-index:2;
+    left:28px;
+    right:28px;
+    bottom:26px;
+    color:#fff;
+  }
+  .poster-caption small{
+    display:block;
+    margin-bottom:5px;
+    color:rgba(255,255,255,.72);
+    font-size:10px;
+    font-weight:750;
+    letter-spacing:.22em;
+  }
+  .poster-caption b{
+    display:block;
+    font-size:25px;
+    line-height:1.3;
+  }
+  .mini-photo{
+    position:absolute;
+    z-index:4;
+    width:154px;
+    aspect-ratio:4/5;
+    padding:7px;
+    border-radius:22px;
+    background:#fff;
+    box-shadow:0 22px 46px rgba(83,49,62,.22);
+  }
+  .mini-photo img{
+    width:100%;
+    height:100%;
+    display:block;
+    object-fit:cover;
+    border-radius:16px;
+  }
+  .mini-a{ left:0; bottom:38px; transform:rotate(-7deg); }
+  .mini-b{ right:0; top:16px; transform:rotate(7deg); }
+  .poster-stamp{
+    position:absolute;
+    z-index:5;
+    right:10px;
+    bottom:34px;
+    width:118px;
+    height:118px;
+    display:grid;
+    place-items:center;
+    border-radius:50%;
+    color:#7b5563;
+    background:rgba(255,248,244,.92);
+    border:1px solid rgba(220,104,139,.22);
+    box-shadow:0 16px 34px rgba(91,51,65,.17);
+    text-align:center;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.1em;
+    line-height:1.5;
+    transform:rotate(-8deg);
+  }
+  .poster-stamp::before{
+    content:"";
+    position:absolute;
+    inset:8px;
+    border:1px dashed rgba(220,104,139,.38);
+    border-radius:50%;
+  }
+
+  .section{
+    scroll-margin-top:96px;
+    padding:70px 20px 30px;
+  }
+  .section-head{
+    display:grid;
+    grid-template-columns:140px minmax(0,1fr);
+    gap:26px;
+    align-items:start;
+    margin-bottom:28px;
+  }
+  .section-no{
+    color:#be7689;
+    font-size:12px;
+    font-weight:800;
+    letter-spacing:.2em;
+  }
+  .section-title h2{
+    margin:0;
+    color:var(--portal-deep);
+    font-size:clamp(32px,4vw,52px);
+    line-height:1.16;
+    letter-spacing:-.035em;
+  }
+  .section-title p{
+    max-width:660px;
+    margin:13px 0 0;
+    color:var(--ink-2);
+    font-size:15px;
+  }
+
+  .role-grid{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:18px;
+  }
+  .role-card{
+    position:relative;
+    min-height:392px;
+    overflow:hidden;
+    display:flex;
+    flex-direction:column;
+    padding:28px;
+    border-radius:34px;
+    text-decoration:none;
+    transition:transform .25s cubic-bezier(.2,.7,.3,1),box-shadow .25s;
+  }
+  .role-card:hover{ transform:translateY(-5px); }
+  .role-card.guest{
+    color:#523a43;
+    background:linear-gradient(145deg,#ffe3d4,#ffd7e3);
+    box-shadow:0 20px 50px rgba(219,117,146,.17);
+  }
+  .role-card.host{
+    color:#fff;
+    background:
+      radial-gradient(circle at 84% 12%,rgba(255,184,137,.42),transparent 30%),
+      linear-gradient(145deg,#5d3f4b,#302128);
+    box-shadow:0 24px 56px rgba(66,38,50,.24);
+  }
+  .role-card.exhibit{
+    color:#533b45;
+    background:
+      radial-gradient(circle at 78% 16%,rgba(255,255,255,.9),transparent 34%),
+      linear-gradient(145deg,#f4e5ff,#ffdede);
+    box-shadow:0 20px 50px rgba(174,132,197,.16);
+  }
+  .role-index{
+    width:46px;
+    height:46px;
+    display:grid;
+    place-items:center;
+    border-radius:50%;
+    border:1px solid currentColor;
+    opacity:.68;
+    font-size:12px;
+    font-weight:800;
+  }
+  .role-card h3{
+    margin:28px 0 8px;
+    font-size:31px;
+    line-height:1.2;
+    letter-spacing:-.03em;
+  }
+  .role-card p{
+    margin:0;
+    max-width:290px;
+    opacity:.76;
+    font-size:14px;
+    line-height:1.8;
+  }
+  .role-list{
+    display:flex;
+    flex-wrap:wrap;
+    gap:7px;
+    margin:22px 0 30px;
+  }
+  .role-list span{
+    min-height:30px;
+    display:inline-flex;
+    align-items:center;
+    padding:0 10px;
+    border:1px solid currentColor;
+    border-radius:999px;
+    opacity:.68;
+    font-size:11px;
+    font-weight:700;
+  }
+  .role-open{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    margin-top:auto;
+    font-size:14px;
+    font-weight:800;
+  }
+  .role-open .arrow{
+    width:39px;
+    height:39px;
+    display:grid;
+    place-items:center;
+    border-radius:50%;
+    background:rgba(255,255,255,.55);
+    font-size:18px;
+    transition:transform .2s;
+  }
+  .host .role-open .arrow{ background:rgba(255,255,255,.12); }
+  .role-card:hover .arrow{ transform:translateX(4px); }
+  .local-flag{
+    position:absolute;
+    top:26px;
+    right:26px;
+    min-height:29px;
+    display:flex;
+    align-items:center;
+    padding:0 11px;
+    border-radius:999px;
+    background:rgba(255,255,255,.11);
+    color:rgba(255,255,255,.72);
+    font-size:10px;
+    font-weight:750;
+  }
+
+  .demo-stage{
+    position:relative;
+    min-height:540px;
+    overflow:hidden;
+    border-radius:40px;
+    background:#2f2027;
+    box-shadow:0 30px 72px rgba(65,38,48,.22);
+  }
+  .demo-stage img{
+    position:absolute;
+    inset:0;
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    opacity:.74;
+  }
+  .demo-stage::after{
+    content:"";
+    position:absolute;
+    inset:0;
+    background:
+      linear-gradient(90deg,rgba(37,22,28,.92) 0%,rgba(37,22,28,.62) 48%,rgba(37,22,28,.18) 100%),
+      linear-gradient(0deg,rgba(37,22,28,.56),transparent 55%);
+  }
+  .stage-content{
+    position:relative;
+    z-index:2;
+    width:min(590px,72%);
+    padding:58px;
+    color:#fff;
+  }
+  .stage-content .tag{
+    display:inline-flex;
+    align-items:center;
+    min-height:31px;
+    padding:0 11px;
+    border:1px solid rgba(255,255,255,.3);
+    border-radius:999px;
+    color:rgba(255,255,255,.76);
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.16em;
+  }
+  .stage-content h3{
+    margin:24px 0 14px;
+    font-size:clamp(36px,4.3vw,58px);
+    line-height:1.1;
+    letter-spacing:-.04em;
+  }
+  .stage-content p{
+    margin:0;
+    color:rgba(255,255,255,.72);
+    font-size:15px;
+    line-height:1.9;
+  }
+  .stage-actions{
+    display:flex;
+    flex-wrap:wrap;
+    gap:11px;
+    margin-top:30px;
+  }
+  .stage-actions a{
+    min-height:48px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    padding:0 19px;
+    border-radius:999px;
+    text-decoration:none;
+    font-size:13px;
+    font-weight:800;
+  }
+  .stage-primary{ color:#fff; background:linear-gradient(105deg,#e85a86,#ffb47c); }
+  .stage-ghost{ color:#fff; border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.08); }
+  .stage-steps{
+    position:absolute;
+    z-index:3;
+    right:30px;
+    bottom:28px;
+    display:flex;
+    gap:6px;
+  }
+  .stage-steps i{
+    width:27px;
+    height:4px;
+    border-radius:999px;
+    background:rgba(255,255,255,.28);
+  }
+  .stage-steps i:first-child{ width:56px; background:#ff9eb5; }
+
+  .module-grid{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:14px;
+  }
+  .module{
+    min-height:210px;
+    display:flex;
+    flex-direction:column;
+    padding:22px;
+    border:1px solid rgba(255,255,255,.82);
+    border-radius:27px;
+    color:var(--portal-plum);
+    background:rgba(255,255,255,.63);
+    box-shadow:var(--shadow);
+    text-decoration:none;
+    transition:transform .2s,box-shadow .2s,background .2s;
+  }
+  .module:hover{
+    transform:translateY(-3px);
+    background:rgba(255,255,255,.86);
+    box-shadow:var(--shadow-lg);
+  }
+  .module-icon{
+    width:44px;
+    height:44px;
+    display:grid;
+    place-items:center;
+    border-radius:16px;
+    color:#b24d6a;
+    background:linear-gradient(145deg,#ffe0e8,#fff0da);
+    font-size:18px;
+  }
+  .module h3{ margin:24px 0 7px; font-size:18px; line-height:1.3; }
+  .module p{ margin:0; color:var(--ink-2); font-size:12.5px; line-height:1.7; }
+  .module-go{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin-top:auto;
+    color:#c25270;
+    font-size:12px;
+    font-weight:800;
+  }
+
+  .system-line{
+    display:grid;
+    grid-template-columns:repeat(3,minmax(0,1fr));
+    gap:1px;
+    overflow:hidden;
+    border:1px solid rgba(183,120,139,.14);
+    border-radius:28px;
+    background:rgba(183,120,139,.14);
+  }
+  .system-step{
+    min-height:145px;
+    padding:24px;
+    background:rgba(255,255,255,.75);
+  }
+  .system-step small{
+    color:#c4607c;
+    font-size:10px;
+    font-weight:800;
+    letter-spacing:.16em;
+  }
+  .system-step b{
+    display:block;
+    margin-top:10px;
+    color:var(--portal-plum);
+    font-size:18px;
+  }
+  .system-step p{
+    margin:6px 0 0;
+    color:var(--ink-2);
+    font-size:12.5px;
+  }
+
+  .site-footer{
+    display:flex;
+    align-items:flex-end;
+    gap:24px;
+    margin:92px 20px 0;
+    padding:34px 0;
+    border-top:1px solid rgba(164,105,123,.15);
+  }
+  .footer-title{
+    color:var(--portal-deep);
+    font-size:clamp(28px,3.6vw,46px);
+    font-weight:850;
+    line-height:1.06;
+    letter-spacing:-.04em;
+  }
+  .footer-meta{
+    margin-left:auto;
+    color:var(--ink-2);
+    text-align:right;
+    font-size:12px;
+  }
+  .footer-meta a{ color:#bd5572; text-decoration:none; }
+
+  .quickbar{
+    position:fixed;
+    z-index:60;
+    left:50%;
+    bottom:calc(16px + env(safe-area-inset-bottom,0px));
+    transform:translateX(-50%);
+    display:flex;
+    align-items:center;
+    gap:5px;
+    padding:7px;
+    border:1px solid rgba(255,255,255,.95);
+    border-radius:999px;
+    background:rgba(255,250,247,.9);
+    box-shadow:0 18px 48px rgba(113,58,78,.22);
+    -webkit-backdrop-filter:blur(22px);
+    backdrop-filter:blur(22px);
+  }
+  .quickbar a{
+    min-width:104px;
+    min-height:45px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:999px;
+    color:var(--ink-2);
+    text-decoration:none;
+    font-size:12px;
+    font-weight:800;
+  }
+  .quickbar a.primary{ color:#fff; background:linear-gradient(105deg,#e45681,#ffb17a); }
+
+  .reveal{
+    opacity:0;
+    transform:translateY(18px);
+    transition:opacity .65s ease,transform .65s cubic-bezier(.2,.7,.3,1);
+  }
+  .reveal.on{ opacity:1; transform:none; }
+
+  @media (max-width:980px){
+    .portal-shell{ width:min(100% - 28px,760px); }
+    .head-nav{ display:none; }
+    .hero{
+      grid-template-columns:1fr;
+      gap:30px;
+      padding-top:54px;
+    }
+    .hero-copy{ text-align:center; }
+    .hero h1,.hero-lead{ margin-left:auto; margin-right:auto; }
+    .eyebrow{ justify-content:center; }
+    .hero-actions,.hero-proof{ justify-content:center; }
+    .hero-poster{ width:min(600px,100%); margin:0 auto; }
+    .role-grid{ grid-template-columns:1fr; }
+    .role-card{ min-height:330px; }
+    .module-grid{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+  }
+  @media (max-width:640px){
+    .portal-shell{ width:100%; padding-top:0; }
+    .site-head{
+      top:0;
+      min-height:58px;
+      padding:8px 12px 8px 16px;
+      border-width:0 0 1px;
+      border-radius:0 0 22px 22px;
+    }
+    .brand{ font-size:14px; }
+    .full-btn{ min-width:96px; padding:0 13px; }
+    .hero{
+      min-height:0;
+      padding:48px 18px 46px;
+    }
+    .hero h1{ font-size:clamp(44px,14.2vw,64px); }
+    .hero h1 .accent-prefix,.hero h1 .accent-suffix{ display:block; white-space:nowrap; }
+    .hero-lead{ margin-top:20px; font-size:15px; }
+    .hero-actions{ display:grid; grid-template-columns:1fr; width:100%; margin-top:26px; }
+    .hero-actions a{ width:100%; }
+    .hero-proof{ gap:7px; }
+    .proof{ font-size:11px; }
+    .hero-poster{ min-height:470px; margin-top:8px; }
+    .poster-main{ inset:28px 22px 62px 38px; border-radius:48% 48% 26px 26px; }
+    .mini-photo{ width:112px; padding:5px; border-radius:17px; }
+    .mini-photo img{ border-radius:13px; }
+    .mini-a{ left:8px; bottom:36px; }
+    .mini-b{ right:4px; top:20px; }
+    .poster-stamp{ width:90px; height:90px; right:8px; bottom:28px; font-size:9px; }
+    .poster-caption{ left:20px; right:20px; bottom:20px; }
+    .poster-caption b{ font-size:20px; }
+    .section{ padding:58px 18px 12px; }
+    .section-head{ grid-template-columns:1fr; gap:8px; margin-bottom:20px; }
+    .section-title h2{ font-size:34px; }
+    .section-title p{ font-size:13.5px; }
+    .role-card{ min-height:340px; padding:24px; border-radius:28px; }
+    .role-card h3{ margin-top:24px; font-size:28px; }
+    .demo-stage{ min-height:560px; border-radius:30px; }
+    .demo-stage img{ object-position:58% center; }
+    .demo-stage::after{
+      background:linear-gradient(0deg,rgba(37,22,28,.94) 0%,rgba(37,22,28,.62) 67%,rgba(37,22,28,.14) 100%);
+    }
+    .stage-content{ position:absolute; inset:auto 0 0; width:100%; padding:32px 25px 58px; }
+    .stage-content h3{ font-size:37px; }
+    .stage-steps{ display:none; }
+    .stage-actions{ display:grid; grid-template-columns:1fr; }
+    .stage-actions a{ width:100%; }
+    .module-grid{ grid-template-columns:1fr 1fr; gap:10px; }
+    .module{ min-height:200px; padding:18px; border-radius:23px; }
+    .module h3{ margin-top:19px; font-size:16px; }
+    .system-line{ grid-template-columns:1fr; }
+    .site-footer{ display:block; margin:68px 18px 0; }
+    .footer-meta{ margin-top:22px; text-align:left; }
+    .quickbar{ width:calc(100% - 24px); }
+    .quickbar a{ flex:1; min-width:0; }
+  }
+  @media (max-width:390px){
+    .full-btn{ min-width:86px; font-size:12px; }
+    .module-grid{ grid-template-columns:1fr; }
+    .module{ min-height:170px; }
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{ scroll-behavior:auto; }
+    *,*::before,*::after{ animation:none!important; transition:none!important; }
+    .reveal{ opacity:1; transform:none; }
+  }
+</style>
+</head>
+<body class="u-body">
+<div class="u-bokeh"></div>
+
+<main class="portal-shell">
+  <header class="site-head">
+    <a class="brand" href="#top" aria-label="回到页面顶部">U N S E E N<i>.</i></a>
+    <nav class="head-nav" aria-label="页面目录">
+      <a href="#roles">三个界面</a>
+      <a href="#demo">现场演示</a>
+      <a href="#pages">全部页面</a>
+      <a href="#system">系统逻辑</a>
+    </nav>
+    <button class="full-btn" id="fullBtn" type="button">全屏展示</button>
+  </header>
+
+  <section class="hero" id="top">
+    <div class="hero-copy">
+      <div class="eyebrow">AdventureX 2026 Product Showcase</div>
+      <h1>让每张照片，<span class="accent"><span class="accent-prefix">回到它的</span><span class="accent-suffix">方向。</span></span></h1>
+      <p class="hero-lead">
+        UNSEEN 把散落在宾客手机里的照片，重新放回它被拍下的空间。一套系统连接宾客上传、主办方处理与可分享的记忆展览。
+      </p>
+      <div class="hero-actions">
+        <a class="primary-cta" href="web/demo.html" target="_blank" rel="noopener">
+          开始六幕演示 <span aria-hidden="true">↗</span>
+        </a>
+        <a class="secondary-cta" href="#roles">打开产品入口 <span aria-hidden="true">↓</span></a>
+      </div>
+      <div class="hero-proof" aria-label="当前能力">
+        <span class="proof"><span class="dot"></span>三个角色界面</span>
+        <span class="proof">世界锚定照片</span>
+        <span class="proof">真实数据展览</span>
+      </div>
+    </div>
+
+    <div class="hero-poster" aria-label="UNSEEN 空间记忆视觉">
+      <div class="poster-orbit"></div>
+      <div class="poster-main">
+        <img src="assets/walkdemo/pov-desktop.jpg" alt="照片被放回全景空间中的拍摄方向">
+        <div class="poster-caption">
+          <small>UNSEEN SPATIAL MEMORY</small>
+          <b>回到 TA 当时看见的方向</b>
+        </div>
+      </div>
+      <div class="mini-photo mini-a"><img src="web/demo-assets/ph_p1.jpg" alt=""></div>
+      <div class="mini-photo mini-b"><img src="web/demo-assets/ph_p9.jpg" alt=""></div>
+      <div class="poster-stamp">ONE SYSTEM<br>THREE VIEWS</div>
+    </div>
+  </section>
+
+  <section class="section reveal" id="roles">
+    <div class="section-head">
+      <div class="section-no">01 · PRODUCT</div>
+      <div class="section-title">
+        <h2>一个系统，三个使用界面</h2>
+        <p>每个角色只看到自己需要的动作。所有入口都会在新窗口打开，这个页面会一直留作展示目录。</p>
+      </div>
+    </div>
+
+    <div class="role-grid">
+      <a class="role-card guest" href="web/join.html?s=s4" target="_blank" rel="noopener">
+        <span class="role-index">01</span>
+        <h3>宾客上传端</h3>
+        <p>宾客不需要注册。看任务、选择照片、上传，并查看每一张照片的真实处理结果。</p>
+        <div class="role-list"><span>任务</span><span>上传</span><span>我的结果</span></div>
+        <span class="role-open"><span class="arrow">↗</span>进入宾客端</span>
+      </a>
+
+      <a class="role-card host" data-local-path="/server/host.html?space=s4"
+         href="http://127.0.0.1:8777/server/host.html?space=s4" target="_blank" rel="noopener">
+        <span class="local-flag">主办方电脑</span>
+        <span class="role-index">02</span>
+        <h3>主办方 Studio</h3>
+        <p>管理照片收集、机器状态、人工审核和展览草稿。主办方从这里完成发布。</p>
+        <div class="role-list"><span>收集</span><span>审核</span><span>策展</span><span>发布</span></div>
+        <span class="role-open"><span class="arrow">↗</span>打开本机 Studio</span>
+      </a>
+
+      <a class="role-card exhibit" href="web/show.html?s=s4" target="_blank" rel="noopener">
+        <span class="role-index">03</span>
+        <h3>只读记忆展览</h3>
+        <p>分享给宾客、观众和现场大屏。只展示主办方发布的内容，不出现后台操作。</p>
+        <div class="role-list"><span>走进空间</span><span>照片墙</span><span>任务痕迹</span></div>
+        <span class="role-open"><span class="arrow">↗</span>打开公开展览</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section reveal" id="demo">
+    <div class="section-head">
+      <div class="section-no">02 · LIVE DEMO</div>
+      <div class="section-title">
+        <h2>上台时，从这里开始</h2>
+        <p>六幕演示负责讲清问题、技术和结果。POV 与 3D 漫游可以在需要时单独打开。</p>
+      </div>
+    </div>
+
+    <div class="demo-stage">
+      <img src="assets/walkdemo/pov-desktop.jpg" alt="">
+      <div class="stage-content">
+        <span class="tag">JUDGE PRESENTATION</span>
+        <h3>那五分钟，也许被别人拍下来了</h3>
+        <p>从散落的宾客照片开始，依次看到方向识别、空间钉点、缺口任务和可以走进去的记忆展览。</p>
+        <div class="stage-actions">
+          <a class="stage-primary" href="web/demo.html" target="_blank" rel="noopener">打开六幕演示 ↗</a>
+          <a class="stage-ghost" href="web/pov.html?back=../portal.html" target="_blank" rel="noopener">查看 POV 说明</a>
+          <a class="stage-ghost" href="viewer/walk.html?demo=1&amp;back=../portal.html" target="_blank" rel="noopener">直接进入 3D</a>
+        </div>
+      </div>
+      <div class="stage-steps" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+  </section>
+
+  <section class="section reveal" id="pages">
+    <div class="section-head">
+      <div class="section-no">03 · PAGE INDEX</div>
+      <div class="section-title">
+        <h2>全部展示页面</h2>
+        <p>正式入口在上面，三个补充展示页面集中在这里。旧原型和开发工具没有放进展示目录。</p>
+      </div>
+    </div>
+
+    <div class="module-grid">
+      <a class="module" href="web/pov.html?back=../portal.html" target="_blank" rel="noopener">
+        <span class="module-icon">◎</span><h3>回到 TA 的视角</h3>
+        <p>解释照片如何世界锚定，以及能力边界。</p><span class="module-go">打开页面 ↗</span>
+      </a>
+      <a class="module" href="viewer/walk.html?demo=1&amp;back=../portal.html" target="_blank" rel="noopener">
+        <span class="module-icon">↗</span><h3>3D 空间漫游</h3>
+        <p>进入稳定演示空间，点击照片查看拍摄方向。</p><span class="module-go">打开页面 ↗</span>
+      </a>
+      <a class="module" href="web/demo.html" target="_blank" rel="noopener">
+        <span class="module-icon">▶</span><h3>六幕评委 Demo</h3>
+        <p>用完整叙事讲清问题、技术路径和最终结果。</p><span class="module-go">打开页面 ↗</span>
+      </a>
+    </div>
+  </section>
+
+  <section class="section reveal" id="system">
+    <div class="section-head">
+      <div class="section-no">04 · SYSTEM</div>
+      <div class="section-title">
+        <h2>三步完成同一条闭环</h2>
+        <p>不是三套独立网站，而是同一份空间数据在三个权限界面中的不同呈现。</p>
+      </div>
+    </div>
+    <div class="system-line">
+      <div class="system-step"><small>STEP 01</small><b>宾客交照片</b><p>照片先被云端接收，再等待处理电脑识别。</p></div>
+      <div class="system-step"><small>STEP 02</small><b>主办方完成策展</b><p>机器处理确定项，人工只确认拿不准的内容。</p></div>
+      <div class="system-step"><small>STEP 03</small><b>观众走进展览</b><p>公开页只读取已经发布的只读展览快照。</p></div>
+    </div>
+  </section>
+
+  <footer class="site-footer">
+    <div class="footer-title">看见没被看见的。</div>
+    <div class="footer-meta">
+      UNSEEN · AdventureX 2026<br>
+      <a href="web/demo.html" target="_blank" rel="noopener">六幕演示</a>
+      · <a href="web/show.html?s=s4" target="_blank" rel="noopener">公开展览</a>
+    </div>
+  </footer>
+</main>
+
+<nav class="quickbar" aria-label="三个主要入口">
+  <a href="web/join.html?s=s4" target="_blank" rel="noopener">宾客端</a>
+  <a class="primary" data-local-path="/server/host.html?space=s4"
+     href="http://127.0.0.1:8777/server/host.html?space=s4" target="_blank" rel="noopener">Studio</a>
+  <a href="web/show.html?s=s4" target="_blank" rel="noopener">看展览</a>
+</nav>
+
+<script>
+(function(){
+  "use strict";
+
+  var isLocal = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+  document.querySelectorAll("[data-local-path]").forEach(function(link){
+    var path = link.getAttribute("data-local-path");
+    link.href = isLocal ? path : "http://127.0.0.1:8777" + path;
+  });
+
+  var fullBtn = document.getElementById("fullBtn");
+  if (!document.documentElement.requestFullscreen) {
+    fullBtn.hidden = true;
+  } else {
+    fullBtn.addEventListener("click", function(){
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      } else {
+        document.documentElement.requestFullscreen();
+      }
+    });
+    document.addEventListener("fullscreenchange", function(){
+      fullBtn.textContent = document.fullscreenElement ? "退出全屏" : "全屏展示";
+    });
+  }
+
+  var reveals = document.querySelectorAll(".reveal");
+  if (!("IntersectionObserver" in window)) {
+    reveals.forEach(function(el){ el.classList.add("on"); });
+  } else {
+    var observer = new IntersectionObserver(function(entries){
+      entries.forEach(function(entry){
+        if (entry.isIntersecting) {
+          entry.target.classList.add("on");
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold:.08 });
+    reveals.forEach(function(el){ observer.observe(el); });
+  }
+})();
+</script>
+</body>
+</html>
