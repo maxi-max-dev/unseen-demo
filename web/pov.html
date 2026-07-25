@@ -1,0 +1,659 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fff8f5">
+  <title>回到 TA 的视角 · UNSEEN</title>
+  <link rel="stylesheet" href="../app/theme.css">
+  <style>
+    .pov-page {
+      padding-bottom: calc(42px + env(safe-area-inset-bottom, 0));
+    }
+
+    .pov-bar-mark {
+      flex: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--ink-3);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+    }
+
+    .pov-bar-mark i {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--pink);
+      box-shadow: 0 0 0 5px rgba(242, 115, 155, .12);
+    }
+
+    .hero {
+      display: grid;
+      gap: 22px;
+      padding-top: 22px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      width: fit-content;
+      margin: 0 0 14px;
+      padding: 5px 11px;
+      border: 1px solid rgba(242, 115, 155, .16);
+      border-radius: 999px;
+      color: #b85d78;
+      background: rgba(255, 255, 255, .64);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .08em;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--pink), var(--peach));
+    }
+
+    .hero-copy h1 {
+      max-width: 9em;
+      margin: 0;
+      font-size: clamp(36px, 11vw, 62px);
+      font-weight: 760;
+      line-height: 1.08;
+      letter-spacing: -.05em;
+      text-wrap: balance;
+    }
+
+    .hero-copy h1 em {
+      display: block;
+      color: transparent;
+      font-style: normal;
+      background: linear-gradient(100deg, #e86991 0%, #eda063 72%);
+      background-clip: text;
+      -webkit-background-clip: text;
+    }
+
+    .lede {
+      max-width: 34em;
+      margin: 18px 0 0;
+      color: var(--ink-2);
+      font-size: 15px;
+      line-height: 1.8;
+    }
+
+    .cta-row {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .cta-row .u-btn {
+      min-height: 54px;
+    }
+
+    .truth {
+      display: grid;
+      grid-template-columns: 32px minmax(0, 1fr);
+      gap: 11px;
+      align-items: start;
+      margin-top: 16px;
+      padding: 13px 14px;
+      border: 1px solid rgba(255, 255, 255, .76);
+      border-radius: 18px;
+      color: var(--ink-2);
+      background: rgba(255, 255, 255, .48);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .truth b {
+      display: grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 11px;
+      color: #b95d77;
+      background: linear-gradient(135deg, #ffe0e7, #fff0d8);
+      font-size: 13px;
+    }
+
+    .stage {
+      position: relative;
+      min-height: 520px;
+      overflow: hidden;
+      isolation: isolate;
+      border: 1px solid rgba(255, 255, 255, .82);
+      border-radius: 34px;
+      background: #b6a17b;
+      box-shadow: 0 24px 60px rgba(118, 73, 84, .22);
+    }
+
+    .stage-pano {
+      position: absolute;
+      z-index: -3;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: 51% 50%;
+      filter: saturate(.82) contrast(.92);
+      transform: scale(1.18);
+    }
+
+    .stage::before {
+      content: "";
+      position: absolute;
+      z-index: -2;
+      inset: 0;
+      background:
+        linear-gradient(180deg, rgba(29, 22, 23, .62) 0%, rgba(32, 25, 28, .08) 38%, rgba(29, 21, 24, .78) 100%),
+        radial-gradient(circle at 50% 42%, transparent 12%, rgba(28, 23, 26, .26) 100%);
+    }
+
+    .stage::after {
+      content: "";
+      position: absolute;
+      z-index: 4;
+      inset: 0;
+      pointer-events: none;
+      border: 1px solid rgba(255, 255, 255, .34);
+      border-radius: inherit;
+      box-shadow: inset 0 0 70px rgba(24, 18, 22, .28);
+    }
+
+    .stage-top {
+      position: absolute;
+      z-index: 5;
+      top: 18px;
+      left: 18px;
+      right: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: rgba(255, 255, 255, .9);
+      font-size: 10.5px;
+      font-weight: 700;
+      letter-spacing: .06em;
+    }
+
+    .stage-top span {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 9px;
+      border: 1px solid rgba(255, 255, 255, .28);
+      border-radius: 999px;
+      background: rgba(36, 27, 31, .3);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+    }
+
+    .live-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #ffabc0;
+      box-shadow: 0 0 0 4px rgba(255, 171, 192, .18);
+    }
+
+    .photo-plane {
+      position: absolute;
+      z-index: 2;
+      top: 20%;
+      left: 11%;
+      width: 78%;
+      overflow: hidden;
+      border: 1.5px solid rgba(255, 255, 255, .88);
+      border-radius: 4px;
+      background: rgba(255, 255, 255, .12);
+      box-shadow:
+        0 18px 42px rgba(31, 20, 25, .28),
+        0 0 0 9px rgba(255, 255, 255, .06);
+      transform: perspective(900px) rotateY(-3deg) rotateX(1deg);
+      animation: planeBreathe 4.8s ease-in-out infinite;
+    }
+
+    .photo-plane img {
+      display: block;
+      width: 100%;
+      height: auto;
+      opacity: .93;
+    }
+
+    .photo-plane::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      box-shadow: inset 0 0 26px rgba(255, 255, 255, .28);
+    }
+
+    .pin {
+      position: absolute;
+      z-index: 3;
+      top: calc(20% - 14px);
+      left: 50%;
+      width: 28px;
+      height: 28px;
+      transform: translateX(-50%);
+      border: 6px solid rgba(255, 255, 255, .86);
+      border-radius: 50%;
+      background: var(--pink);
+      box-shadow: 0 8px 20px rgba(31, 20, 25, .3);
+    }
+
+    .turn-cue {
+      position: absolute;
+      z-index: 5;
+      top: 68%;
+      left: 50%;
+      width: max-content;
+      max-width: calc(100% - 32px);
+      transform: translateX(-50%);
+      color: #fff;
+      text-align: center;
+    }
+
+    .turn-cue strong {
+      display: inline-flex;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 15px;
+      border: 1px solid rgba(255, 255, 255, .34);
+      border-radius: 999px;
+      background: rgba(45, 34, 39, .52);
+      backdrop-filter: blur(13px);
+      -webkit-backdrop-filter: blur(13px);
+      font-size: 12px;
+      letter-spacing: .02em;
+    }
+
+    .turn-cue p {
+      margin: 10px 0 0;
+      color: rgba(255, 255, 255, .72);
+      font-size: 10.5px;
+    }
+
+    .coverage {
+      position: absolute;
+      z-index: 5;
+      right: 16px;
+      bottom: 67px;
+      left: 16px;
+      padding: 12px 13px 11px;
+      border: 1px solid rgba(255, 255, 255, .24);
+      border-radius: 18px;
+      background: rgba(39, 29, 34, .45);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+    }
+
+    .coverage-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 9px;
+      color: rgba(255, 255, 255, .86);
+      font-size: 10px;
+      font-weight: 650;
+    }
+
+    .sectors {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 3px;
+    }
+
+    .sectors i {
+      height: 7px;
+      border-radius: 999px;
+      background: rgba(182, 205, 240, .38);
+    }
+
+    .sectors i.on {
+      background: linear-gradient(90deg, #ff9fbd, #ffc68c);
+      box-shadow: 0 0 8px rgba(255, 172, 190, .3);
+    }
+
+    .sectors i.now {
+      outline: 2px solid rgba(255, 255, 255, .9);
+      outline-offset: 2px;
+    }
+
+    .stage-foot {
+      position: absolute;
+      z-index: 5;
+      right: 18px;
+      bottom: 21px;
+      left: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      color: rgba(255, 255, 255, .68);
+      font-size: 10px;
+    }
+
+    .how {
+      margin-top: 34px;
+      scroll-margin-top: 20px;
+    }
+
+    .how-head {
+      margin: 0 2px 14px;
+    }
+
+    .how-head .u-chip {
+      margin-bottom: 9px;
+    }
+
+    .how-head h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.35;
+      letter-spacing: -.025em;
+    }
+
+    .steps {
+      display: grid;
+      gap: 10px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 44px minmax(0, 1fr);
+      gap: 13px;
+      align-items: center;
+      padding: 15px;
+    }
+
+    .step-no {
+      display: grid;
+      width: 44px;
+      height: 44px;
+      place-items: center;
+      border-radius: 15px;
+      color: #b65775;
+      background: var(--grad-soft);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .04em;
+    }
+
+    .step h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.4;
+    }
+
+    .step p {
+      margin: 3px 0 0;
+      color: var(--ink-2);
+      font-size: 12.5px;
+      line-height: 1.6;
+    }
+
+    .device-notes {
+      display: grid;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .device-note {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      padding: 12px 14px;
+      border-radius: 16px;
+      color: var(--ink-2);
+      background: rgba(255, 255, 255, .44);
+      font-size: 11.5px;
+      line-height: 1.55;
+    }
+
+    .device-note b {
+      flex: none;
+      color: var(--ink);
+    }
+
+    .final-cta {
+      display: grid;
+      gap: 10px;
+      margin-top: 24px;
+    }
+
+    .footnote {
+      margin: 18px 0 0;
+      color: var(--ink-3);
+      text-align: center;
+      font-size: 10.5px;
+    }
+
+    @keyframes planeBreathe {
+      0%, 100% { transform: perspective(900px) rotateY(-3deg) rotateX(1deg) scale(1); }
+      50% { transform: perspective(900px) rotateY(-1deg) rotateX(0deg) scale(1.012); }
+    }
+
+    @media (min-width: 720px) {
+      .hero {
+        grid-template-columns: minmax(0, .9fr) minmax(360px, 1.1fr);
+        align-items: center;
+        gap: clamp(34px, 6vw, 70px);
+        min-height: calc(100svh - 90px);
+        padding: 32px 0 42px;
+      }
+
+      .hero-copy h1 {
+        font-size: clamp(46px, 6vw, 68px);
+      }
+
+      .cta-row {
+        grid-template-columns: minmax(190px, 1fr) minmax(150px, .72fr);
+      }
+
+      .stage {
+        min-height: 620px;
+      }
+
+      .how {
+        margin-top: 22px;
+      }
+
+      .steps {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+      }
+
+      .step {
+        grid-template-columns: 1fr;
+        align-content: start;
+        min-height: 180px;
+      }
+
+      .device-notes {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .final-cta {
+        max-width: 360px;
+        margin-right: auto;
+        margin-left: auto;
+      }
+    }
+
+    @media (max-width: 380px) {
+      .hero-copy h1 {
+        font-size: 34px;
+      }
+
+      .stage {
+        min-height: 490px;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .photo-plane {
+        animation: none;
+      }
+
+      * {
+        scroll-behavior: auto !important;
+      }
+    }
+  </style>
+</head>
+<body class="u-body">
+  <div class="u-bokeh" aria-hidden="true"></div>
+
+  <main class="u-page pov-page">
+    <header class="u-bar">
+      <a class="u-back" id="backLink" href="../index.html" aria-label="返回">←</a>
+      <h1>回到 TA 的视角</h1>
+      <span class="pov-bar-mark"><i aria-hidden="true"></i>POV</span>
+    </header>
+
+    <section class="hero" aria-labelledby="heroTitle">
+      <div class="hero-copy">
+        <p class="eyebrow">UNSEEN 体验原型</p>
+        <h1 id="heroTitle">回到 TA <em>朝着的方向</em></h1>
+        <p class="lede">
+          照片不只是被打开，它会被放回大致朝向。点一个照片钉点，靠近，再左右转头，
+          看见谁拍到了什么，也看见哪个方向没有人拍到。
+        </p>
+
+        <div class="cta-row">
+          <a class="u-btn" id="startPov" href="../viewer/walk.html?scene=ballroom&amp;back=web%2Fpov.html">
+            进入宴会厅体验 <span aria-hidden="true">→</span>
+          </a>
+          <a class="u-btn sec" href="#how">先看怎么操作</a>
+        </div>
+
+        <div class="truth">
+          <b aria-hidden="true">30°</b>
+          <span>当前按 30 度扇区判断朝向。展示的是大致方向，不是拍摄位置的精确还原。</span>
+        </div>
+      </div>
+
+      <div class="stage" aria-label="照片锚定在空间里的示意预览">
+        <img class="stage-pano" src="../assets/walkdemo/ballroom.jpg" alt="">
+
+        <div class="stage-top">
+          <span><i class="live-dot" aria-hidden="true"></i>视角预览</span>
+          <span>占位演示素材</span>
+        </div>
+
+        <span class="pin" aria-hidden="true"></span>
+        <div class="photo-plane">
+          <img src="../assets/walkdemo/ballroom_p1.jpg" alt="宴会厅钢琴与画墙的演示照片">
+        </div>
+
+        <div class="turn-cue">
+          <strong><span aria-hidden="true">←</span> 左右转头看看 <span aria-hidden="true">→</span></strong>
+          <p>照片留在原地，不会跟着相机转</p>
+        </div>
+
+        <div class="coverage" aria-label="十二个方向扇区示意">
+          <div class="coverage-head">
+            <span>12 个方向扇区</span>
+            <span>当前朝向，30° 一格</span>
+          </div>
+          <div class="sectors" aria-hidden="true">
+            <i class="on"></i><i class="on now"></i><i></i><i></i>
+            <i class="on"></i><i class="on"></i><i></i><i></i>
+            <i class="on"></i><i class="on"></i><i></i><i></i>
+          </div>
+        </div>
+
+        <div class="stage-foot">
+          <span>有照片的方向会出现柔和标记</span>
+          <span>宴会厅</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="how" id="how" aria-labelledby="howTitle">
+      <div class="how-head">
+        <span class="u-chip hot">三步体验</span>
+        <h2 id="howTitle">别找菜单，直接点空间里的照片</h2>
+      </div>
+
+      <div class="steps">
+        <article class="u-card step">
+          <span class="step-no">01</span>
+          <div>
+            <h3>进入漫游</h3>
+            <p>先点一下画面。桌面端会锁定鼠标，手机端直接拖动环视。</p>
+          </div>
+        </article>
+
+        <article class="u-card step">
+          <span class="step-no">02</span>
+          <div>
+            <h3>点粉色相框</h3>
+            <p>瞄准空间里的照片钉点，再点一下，相机会转向并略微靠近。</p>
+          </div>
+        </article>
+
+        <article class="u-card step">
+          <span class="step-no">03</span>
+          <div>
+            <h3>左右转头</h3>
+            <p>照片会留在原地。转到空方向时，画面会提示“这个方向没有人拍到”。</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="device-notes">
+        <div class="device-note">
+          <b>桌面端</b>
+          <span>按 ESC，点空白画面，或点“退出视角”，都能退出当前照片视角。</span>
+        </div>
+        <div class="device-note">
+          <b>手机端</b>
+          <span>拖动环视，轻点相框进入。退出后仍停在刚才转到的方向。</span>
+        </div>
+      </div>
+
+      <div class="final-cta">
+        <a class="u-btn" data-start-pov href="../viewer/walk.html?scene=ballroom&amp;back=web%2Fpov.html">
+          现在进入体验 <span aria-hidden="true">→</span>
+        </a>
+      </div>
+
+      <p class="footnote">演示使用本地占位素材，实际效果取决于空间全景与宾客照片。</p>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      function safeBack() {
+        try {
+          var value = new URLSearchParams(location.search).get("back");
+          if (value && !/^(https?:)?\/\//.test(value)) return value;
+        } catch (e) {}
+        return "";
+      }
+
+      var inherited = safeBack();
+      var backLink = document.getElementById("backLink");
+      if (backLink && inherited) {
+        backLink.href = "../" + inherited.replace(/^(\.\.\/)+/, "").replace(/^\//, "");
+      }
+
+      var relay = "web/pov.html";
+      if (inherited) relay += "?back=" + encodeURIComponent(inherited);
+      var href = "../viewer/walk.html?scene=ballroom&back=" + encodeURIComponent(relay);
+      var starts = document.querySelectorAll("#startPov,[data-start-pov]");
+      for (var i = 0; i < starts.length; i++) starts[i].href = href;
+    })();
+  </script>
+</body>
+</html>

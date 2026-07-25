@@ -394,14 +394,12 @@ body.pov-on .mobile-hint { display: none !important; }
   // 不参与任何数据判断，也绝不写回任何文件。
   var POV_ASSUMED_FOV_DEG = 70;
 
-  // 覆盖指示的扇区粒度：30 度一格，共 12 格。
-  // 对齐的是"系统能把照片定到多细"这条口径（12 个 30 度扇区，照片钉在扇区正中间）。
-  // ⚠️ 后端 server/space.py 的 find_coverage_gaps 用的是另一套：逐度掩码、每张照片
-  // 覆盖 ±20 度、缺口宽度 >= 40 度才值得派任务。那是"要不要发通缉令"的口径。
-  // 这里回答的是"我现在朝的这个方向有没有人拍过"，所以按分类粒度切 30 度，
-  // 数据全部来自本场景真实照片的 yaw 列表，一个字没写死。
+  // 覆盖指示仍按系统的分类粒度展示：30 度一格，共 12 格。
+  // 每格是否有人拍到，用格子中点去采样后端 find_coverage_gaps 的覆盖尺：
+  // 每张照片覆盖自身方位 ±20 度。这样展示粒度不冒充精确定位，覆盖结论又和任务端同尺。
   var POV_SECTOR_DEG = 30;
   var POV_SECTOR_N = 12;
+  var POV_COVERAGE_HALF_DEG = 20;  // 必须与 server/space.py find_coverage_gaps 默认值一致
 
   function easeInOutCubic(t) {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -1072,15 +1070,20 @@ body.pov-on .mobile-hint { display: none !important; }
     };
     var povTmp = new THREE.Vector3();
 
-    // ---- 覆盖扇区：数据来源就是本场景真实照片的 yaw 列表，没有任何写死 ----
+    // ---- 覆盖扇区：真实照片 yaw 按后端 ±20 度覆盖尺投到 12 个展示格 ----
     var povSectorCounts = (function () {
       var arr = [];
       for (var i = 0; i < POV_SECTOR_N; i++) arr.push(0);
       var list = opts.photos || [];
-      for (var j = 0; j < list.length; j++) {
-        var p = list[j];
-        if (!p || !p.src || typeof p.yaw !== "number") continue;
-        arr[Math.floor(normDeg(p.yaw) / POV_SECTOR_DEG) % POV_SECTOR_N] += 1;
+      for (var s = 0; s < POV_SECTOR_N; s++) {
+        var center = s * POV_SECTOR_DEG + POV_SECTOR_DEG / 2;
+        for (var j = 0; j < list.length; j++) {
+          var p = list[j];
+          if (!p || !p.src || typeof p.yaw !== "number") continue;
+          var delta = Math.abs(normDeg(p.yaw) - center);
+          if (delta > 180) delta = 360 - delta;
+          if (delta <= POV_COVERAGE_HALF_DEG) arr[s] += 1;
+        }
       }
       return arr;
     })();
@@ -1497,6 +1500,7 @@ body.pov-on .mobile-hint { display: none !important; }
           },
           sectors: povSectorCounts,
           sectorDeg: POV_SECTOR_DEG,
+          coverageHalfDeg: POV_COVERAGE_HALF_DEG,
           assumedFovDeg: POV_ASSUMED_FOV_DEG,
           info: function () {
             return {
