@@ -49,6 +49,7 @@
   .top-title .sub {
     display: block; margin-top: 2px;
     font-size: 11px; color: var(--text-dim); font-weight: 400;
+    overflow: hidden; text-overflow: ellipsis;
   }
   .now-pill {
     flex: 0 0 auto;
@@ -61,6 +62,21 @@
   .now-pill .dot {
     width: 7px; height: 7px; border-radius: 50%; flex: 0 0 auto;
     background: var(--red); box-shadow: 0 0 9px var(--red-soft);
+  }
+  /* 返回胶囊(和机器视角胶囊同一套视觉语言) */
+  .back-pill {
+    flex: 0 0 auto;
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; letter-spacing: .03em; white-space: nowrap;
+    color: rgba(255,255,255,.55); text-decoration: none;
+    border: 1px solid rgba(255,255,255,.22); border-radius: 12px;
+    padding: 5px 11px;
+  }
+  .back-pill:active { transform: scale(.95); }
+  /* 窄屏顶栏放不下三个胶囊,返回只留箭头,标题的副标才不会被切半个字。 */
+  @media (max-width: 419px) {
+    .back-pill { padding: 5px 10px; }
+    .back-pill .t { display: none; }
   }
 
   /* ---------------- 中间拼贴区 ---------------- */
@@ -230,11 +246,12 @@
 <body>
 <div id="app">
   <header class="top">
+    <a class="back-pill" id="backLink" href="../index.html" aria-label="返回">&#8249;<span class="t">返回</span></a>
     <div class="top-title">
       <h1>时光轴<span class="sub">那一天的回忆拼贴</span></h1>
     </div>
     <div style="display:flex;align-items:center;gap:8px">
-      <a href="machine.html" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:rgba(255,255,255,.55);font-size:11px;font-weight:600;border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:5px 11px;-webkit-tap-highlight-color:transparent">▦ 机器视角</a>
+      <a href="machine.html" style="display:inline-flex;align-items:center;gap:5px;text-decoration:none;color:rgba(255,255,255,.55);font-size:11px;font-weight:600;border:1px solid rgba(255,255,255,.22);border-radius:12px;padding:5px 11px;white-space:nowrap;-webkit-tap-highlight-color:transparent">▦ 机器视角</a>
       <div class="now-pill"><span class="dot"></span><span id="nowText">—</span></div>
     </div>
   </header>
@@ -268,8 +285,22 @@
 (function () {
   "use strict";
 
+  // ── 返回动线契约 ──
+  // 全 App 统一:叶子页接受 ?back=<仓库根相对路径,已 encodeURIComponent>,返回键优先用它。
+  // 本页在 viewer/ 一级子目录下,所以补 "../" 还原成仓库根相对路径。
+  // 安全:拒绝 http:// 和 // 开头的值,防开放重定向。没有 back 参数时用兜底,行为不变。
+  function backTarget(fallback) {
+    try {
+      var b = new URLSearchParams(location.search).get("back");
+      if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/, "").replace(/^\//, "");
+    } catch (e) {}
+    return fallback;
+  }
+  // 放在数据检查之前:就算 tour.js 没读到,返回键也得能用。
+  var backLink = document.getElementById("backLink");
+  if (backLink) backLink.setAttribute("href", backTarget("../index.html"));
+
   var TOUR = window.TOUR;
-  var app = document.getElementById("app");
   if (!TOUR || !TOUR.nodes || !TOUR.nodes.length) {
     document.getElementById("stage").innerHTML =
       '<div class="boot-error">tour.js 没读到数据(检查 ../tour.js 是否存在)</div>';

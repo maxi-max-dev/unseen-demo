@@ -1,0 +1,261 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>UNSEEN · 让照片回到它当时朝着的方向</title>
+<style>
+  :root{
+    --paper:#f7f3ec; --paper-2:#efe8dc; --ink:#2e2a25; --ink-2:#6b6259; --ink-3:#a09689;
+    --red:#b3392c; --gold:#a8873f; --line:#e0d7c8;
+    --serif:"Songti SC","STSong","Noto Serif SC",serif;
+    --sans:-apple-system,"PingFang SC","Hiragino Sans GB",system-ui,sans-serif;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; }
+  body{
+    background:
+      radial-gradient(120% 70% at 50% -10%, #fdfbf6 0%, var(--paper) 46%, var(--paper-2) 100%);
+    color:var(--ink); font-family:var(--sans); line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+    padding:0 20px calc(48px + env(safe-area-inset-bottom,0));
+  }
+  .wrap{ max-width:1080px; margin:0 auto; }
+
+  /* ───────── 页眉 ───────── */
+  header{ padding:34px 0 0; display:flex; align-items:center; gap:12px; }
+  .mark{ font-size:11px; letter-spacing:.34em; color:var(--gold); font-weight:700; }
+  .mark span{ opacity:.55; }
+  header .rule{ flex:1; height:1px; background:var(--line); }
+
+  /* ───────── 主张 ───────── */
+  .hero{ display:grid; grid-template-columns:1fr 300px; gap:48px; align-items:center;
+         padding:52px 0 46px; }
+  h1{ font-family:var(--serif); font-size:clamp(38px,6.2vw,66px); line-height:1.14;
+      letter-spacing:.01em; margin:0 0 22px; font-weight:600; }
+  h1 .q{ color:var(--red); }
+  .lede{ font-size:15.5px; color:var(--ink-2); max-width:30em; margin:0; }
+  .lede b{ color:var(--ink); font-weight:600; }
+  .lede .aside{ display:block; margin-top:14px; font-size:14px; color:var(--ink-3); }
+
+  /* 罗盘:不是装饰,是这个产品的论点 —— 照片记得自己是朝哪个方向拍的 */
+  .compass{ justify-self:center; }
+  .compass svg{ width:100%; max-width:280px; height:auto; display:block; }
+  .compass .cap{ text-align:center; font-size:11.5px; color:var(--ink-3);
+                 margin-top:14px; letter-spacing:.06em; }
+
+  /* ───────── 演示小门 ───────── */
+  .demo-door{
+    display:flex; align-items:center; gap:12px; text-decoration:none; color:inherit;
+    background:linear-gradient(100deg,#fff6f3,#fff9f0); border:1px solid #f0d8cf;
+    border-radius:3px; padding:14px 18px; margin:0 0 18px;
+    transition:transform .2s cubic-bezier(.2,.7,.3,1), box-shadow .2s, border-color .2s;
+  }
+  .demo-door:hover{ transform:translateY(-2px); box-shadow:0 10px 26px rgba(46,42,37,.08);
+                    border-color:#e3c3b6; }
+  .dd-play{ flex:none; width:30px; height:30px; border-radius:50%; display:grid;
+            place-items:center; font-size:11px; color:#fff;
+            background:linear-gradient(100deg,#e2708f,#d9a15a); }
+  .dd-txt{ font-size:13.5px; color:var(--ink-2); }
+  .dd-txt b{ color:var(--ink); font-weight:600; margin-right:9px; }
+  .dd-go{ margin-left:auto; color:var(--gold); font-weight:600; }
+
+  /* ───────── 三扇门 ───────── */
+  .doors{ display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin:8px 0 12px; }
+  .door{
+    position:relative; display:flex; flex-direction:column; text-decoration:none; color:inherit;
+    background:#fffdf8; border:1px solid var(--line); border-radius:3px;
+    padding:26px 24px 22px; min-height:212px;
+    transition:transform .22s cubic-bezier(.2,.7,.3,1), box-shadow .22s, border-color .22s;
+  }
+  .door::before{                       /* 顶边那道细色条:三扇门各一色 */
+    content:""; position:absolute; left:-1px; right:-1px; top:-1px; height:3px;
+    background:var(--accent); border-radius:3px 3px 0 0;
+  }
+  .door:hover{ transform:translateY(-3px); box-shadow:0 14px 34px rgba(46,42,37,.09);
+               border-color:#d2c7b4; }
+  .door:active{ transform:translateY(-1px); }
+  .door .no{ font-family:var(--serif); font-size:12px; color:var(--ink-3);
+             letter-spacing:.2em; margin-bottom:auto; }
+  .door .role{ font-size:11.5px; letter-spacing:.2em; color:var(--accent); font-weight:700;
+               margin-bottom:9px; }
+  .door h2{ font-family:var(--serif); font-size:25px; font-weight:600; margin:0 0 9px;
+            letter-spacing:.01em; }
+  .door p{ font-size:13.5px; color:var(--ink-2); margin:0; }
+  .door .go{ margin-top:16px; font-size:13px; color:var(--accent); font-weight:600; }
+  .door .note{ margin-top:9px; font-size:11.5px; color:var(--ink-3); line-height:1.55; }
+  .d1{ --accent:var(--red); } .d2{ --accent:var(--gold); } .d3{ --accent:#5b6b58; }
+
+  /* ───────── 这一天 ───────── */
+  .day{ margin:54px 0 0; padding-top:34px; border-top:1px solid var(--line); }
+  .day h3{ font-family:var(--serif); font-size:15px; font-weight:600; margin:0 0 22px;
+           color:var(--ink-2); letter-spacing:.06em; }
+  .track{ position:relative; display:flex; justify-content:space-between; padding:0 4px; }
+  .track::before{ content:""; position:absolute; left:14px; right:14px; top:7px; height:1px;
+                  background:linear-gradient(90deg,var(--red),#d9b48d); opacity:.5; }
+  .stop{ position:relative; z-index:1; display:flex; flex-direction:column; align-items:center;
+         flex:1; min-width:0; }
+  .stop i{ width:15px; height:15px; border-radius:50%; background:#fffdf8;
+           border:2.5px solid var(--red); box-shadow:0 1px 4px rgba(179,57,44,.2); }
+  .stop b{ font-size:13px; font-weight:600; margin-top:10px; }
+  .stop em{ font-size:11px; color:var(--ink-3); font-style:normal; margin-top:1px;
+            font-variant-numeric:tabular-nums; }
+
+  footer{ margin-top:44px; padding-top:20px; border-top:1px solid var(--line);
+          font-size:11.5px; color:var(--ink-3); display:flex; flex-wrap:wrap; gap:6px 18px; }
+
+  @media (max-width:860px){
+    .hero{ grid-template-columns:1fr; gap:30px; padding:38px 0 34px; }
+    .compass{ order:-1; }
+    .compass svg{ max-width:184px; }
+    .doors{ grid-template-columns:1fr; gap:14px; }
+    .door{ min-height:0; padding:22px 20px 20px; }
+    .door .no{ margin-bottom:12px; }
+    .day{ margin-top:40px; }
+    .stop b{ font-size:12px; } .stop em{ font-size:10px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="mark">空间记忆 <span>· SPATIAL MEMORY</span></div>
+    <div class="rule"></div>
+  </header>
+
+  <section class="hero">
+    <div>
+      <h1>把照片<br>放回<span class="q">它被拍下的地方</span></h1>
+      <p class="lede">
+        那一天散在几十个人的手机里,拍完就各回各家。<br>
+        这里把它们放回<b>被拍下的那个空间</b>,连朝哪个方向都对得上,让人能走进去重看一遍。
+        <span class="aside">相册知道时间,不知道你站在哪、看向哪、旁边正在发生什么。</span>
+      </p>
+    </div>
+
+    <!-- 罗盘:每一道刻度是一张照片的朝向,朱色那道是被人工锚定过的 -->
+    <div class="compass">
+      <svg viewBox="0 0 200 200" aria-label="方位罗盘">
+        <circle cx="100" cy="100" r="86" fill="none" stroke="#e0d7c8"/>
+        <circle cx="100" cy="100" r="62" fill="none" stroke="#e8e0d2"/>
+        <circle cx="100" cy="100" r="38" fill="none" stroke="#efe8dc"/>
+        <g id="ticks"></g>
+        <circle cx="100" cy="100" r="2.6" fill="#2e2a25"/>
+        <text x="100" y="12" text-anchor="middle" font-size="8.5" fill="#a09689"
+              font-family="ui-monospace,monospace">000°</text>
+        <text x="192" y="103" text-anchor="end" font-size="8.5" fill="#a09689"
+              font-family="ui-monospace,monospace">090°</text>
+        <text x="100" y="196" text-anchor="middle" font-size="8.5" fill="#a09689"
+              font-family="ui-monospace,monospace">180°</text>
+        <text x="8" y="103" font-size="8.5" fill="#a09689"
+              font-family="ui-monospace,monospace">270°</text>
+      </svg>
+      <div class="cap" id="compassCap">每一道刻度,是一张照片的朝向</div>
+    </div>
+  </section>
+
+  <!-- ───────── 演示小门:不动三扇门,只在它们上面加一条 ───────── -->
+  <a class="demo-door" href="web/demo.html">
+    <span class="dd-play">▶</span>
+    <span class="dd-txt"><b>六幕演示</b>三分钟从头走到尾,不用人在旁边解说</span>
+    <span class="dd-go">→</span>
+  </a>
+
+  <!-- ───────── 三扇门 ───────── -->
+  <nav class="doors">
+    <a class="door d1" href="web/join.html?s=s4">
+      <div class="no">壹</div>
+      <div class="role">宾客</div>
+      <h2>交一张照片</h2>
+      <p>看看这个空间还缺哪个角度,拍一张补上去,然后看着它回到自己的位置。</p>
+      <div class="go">进去交照片 →</div>
+      <div class="note">不用注册、不用装 app</div>
+    </a>
+
+    <a class="door d2" href="web/show.html">
+      <div class="no">贰</div>
+      <div class="role">看展</div>
+      <h2>六个展厅</h2>
+      <p>同一段记忆的六种看法:走进全景、沿时间轴翻、机器的冷眼、真实地图上的路线。</p>
+      <div class="go">开始看展 →</div>
+      <div class="note">含一键成片的 79 秒短片</div>
+    </a>
+
+    <a class="door d3" href="server/host.html?space=s4">
+      <div class="no">叁</div>
+      <div class="role">新人</div>
+      <h2>管理台</h2>
+      <p>发悬赏任务、审机器拿不准的那几张、拿邀请二维码。脏活机器干,你只做判断。</p>
+      <div class="go">进入管理台 →</div>
+      <div class="note">⚠️ 需要新人自己电脑上的后台在跑,否则打不开</div>
+    </a>
+  </nav>
+
+  <!-- ───────── 这一天 ───────── -->
+  <section class="day">
+    <h3>这一天</h3>
+    <div class="track" id="track"></div>
+  </section>
+
+  <footer>
+    <span>AdventureX 2026 · 开发版</span>
+    <span>当前为占位素材,真实全景与照片到位后原样替换</span>
+  </footer>
+</div>
+
+<script src="tour.js"></script>
+<script>
+(function(){
+  "use strict";
+  var TOUR = window.TOUR || {};
+  var nodes = (TOUR.nodes || []).filter(function(n){ return n && (n.photos||[]).length; });
+
+  // ── 这一天:时间线完全由 tour.js 驱动,真素材换血后这页不用改 ──
+  var track = document.getElementById("track");
+  if (nodes.length) {
+    track.innerHTML = nodes.map(function(n){
+      return '<div class="stop"><i></i><b>' + (n.chapter || n.name || "") + '</b>' +
+             '<em>' + (n.time || "") + '</em></div>';
+    }).join("");
+  } else {
+    // 读不到 tour.js 也不能开天窗:静音降级,别让首页崩在一个数据文件上
+    document.querySelector(".day").style.display = "none";
+  }
+
+  // ── 罗盘:刻度 = 真实照片朝向 ──
+  // 拿不到数据就退回一圈均匀刻度,页面照样成立(但那时它只是装饰,文案也不谎称是真数据)
+  var yaws = [];
+  nodes.forEach(function(n){
+    (n.photos || []).forEach(function(p){
+      var y = +p.yaw;
+      if (isFinite(y)) yaws.push({ yaw:((y%360)+360)%360, anchor:(p.by === "manual") });
+    });
+  });
+  var real = yaws.length > 0;
+  if (!real) { for (var k = 0; k < 24; k++) yaws.push({ yaw:k*15, anchor:false }); }
+
+  var g = document.getElementById("ticks"), parts = [];
+  yaws.forEach(function(t, i){
+    // 由里到外分三圈铺开,免得刻度在同一半径上挤成一团
+    var ring = [42, 60, 78][i % 3];
+    var rad  = (t.yaw - 90) * Math.PI / 180;
+    var x1 = 100 + Math.cos(rad) * ring,        y1 = 100 + Math.sin(rad) * ring;
+    var x2 = 100 + Math.cos(rad) * (ring + 12), y2 = 100 + Math.sin(rad) * (ring + 12);
+    parts.push('<line x1="' + x1.toFixed(1) + '" y1="' + y1.toFixed(1) +
+               '" x2="' + x2.toFixed(1) + '" y2="' + y2.toFixed(1) +
+               '" stroke="' + (t.anchor ? "#b3392c" : "#8c8377") +
+               '" stroke-width="' + (t.anchor ? 2 : 1.2) +
+               '" stroke-linecap="round" opacity="' + (t.anchor ? 1 : .62) + '"/>');
+  });
+  g.innerHTML = parts.join("");
+
+  // 数量后面必须跟上"占位素材"四个字:tour.js 头部自己写明了这批是 fixtures.py 生成的合成集,
+  // 光写个"共 40 张"会被当成真实婚礼现场的统计(验收员实测的第一反应就是这个)
+  document.getElementById("compassCap").textContent = real
+    ? ("每一道刻度,是一张照片的朝向 · 共 " + yaws.length + " 张占位素材")
+    : "方位罗盘";
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>邀请共创者 · UNSEEN</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* ── 本页私有:desktop 也收窄成单列 ── */
+  @media (min-width:900px){ .u-page{ max-width:560px; } }
+
+  .lead{ padding:0 4px; margin:-4px 0 18px; color:var(--ink-2); font-size:13.5px; }
+  .scene-chip{ margin:0 0 16px; }
+  .scene-chip .fb{ margin-top:6px; }
+
+  .qr-card{ padding:26px 22px 20px; text-align:center; margin-bottom:14px; }
+  .qr-box{ width:100%; max-width:220px; margin:0 auto; }
+  .qr-box svg{ display:block; width:100%; height:auto; border-radius:10px; }
+  .qr-empty{ padding:40px 10px; color:var(--ink-3); font-size:13px; }
+  /* 没发布的空间没有可扫的码,给灰态占位,不画假二维码 */
+  .qr-placeholder{ display:flex; flex-direction:column; align-items:center; justify-content:center;
+                   gap:10px; min-height:168px; padding:22px 16px; border-radius:10px;
+                   border:1.5px dashed var(--card-line); background:rgba(120,120,140,.05);
+                   color:var(--ink-3); font-size:12.5px; line-height:1.65; text-align:center; }
+  .qr-placeholder .ph-ico{ font-size:26px; opacity:.55; }
+  .qr-url{ margin-top:14px; font-size:11.5px; color:var(--ink-3); word-break:break-all; user-select:all; }
+  .qr-caveat{ margin-top:10px; font-size:12px; color:#c07a3d; }
+
+  .role-row{ display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 26px; }
+  .role-pill{ padding:9px 16px; border-radius:999px; font-size:13px; font-weight:700;
+              background:var(--card); border:1px solid var(--card-line); color:var(--ink-2);
+              cursor:pointer; user-select:none; transition:transform .15s, background .15s, color .15s; }
+  .role-pill:active{ transform:scale(.96); }
+  .role-pill.on{ color:#fff; background:var(--grad); border-color:transparent; box-shadow:0 8px 18px rgba(242,115,155,.3); }
+
+  .btn-row{ margin-bottom:8px; }
+</style>
+</head>
+<body class="u-body">
+<div class="u-bokeh"></div>
+<div class="u-page">
+
+  <div class="u-bar">
+    <a class="u-back" href="../index.html">‹</a>
+    <h1>邀请共创者</h1>
+  </div>
+  <p class="lead">把二维码给现场的人,扫码就能交照片</p>
+
+  <div id="emptyState" style="display:none;" class="u-card u-empty">
+    <div class="big">🌸</div>
+    还没有可邀请的空间,先创建一个吧
+    <div style="height:16px"></div>
+    <a class="u-btn" href="create.html">＋ 创建记忆空间</a>
+  </div>
+
+  <div id="mainState" style="display:none;">
+    <div class="scene-chip">
+      <span class="u-chip" id="sceneChip"></span>
+      <div class="u-note fb" id="fallbackNote" style="display:none;"></div>
+    </div>
+
+    <div class="u-card qr-card">
+      <div class="qr-box" id="qrBox"></div>
+      <div class="qr-url" id="qrUrl"></div>
+      <div class="qr-caveat" id="qrCaveat" style="display:none;"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="u-btn sec" id="copyBtn" type="button">复制链接</button>
+    </div>
+
+    <div class="u-sec"><h2>访问身份</h2><span class="u-note">仅本地预览,暂未接入权限系统</span></div>
+    <div class="role-row" id="roleRow"></div>
+
+    <a class="u-btn" id="doneBtn">完成</a>
+  </div>
+
+</div>
+<script src="scenes.js"></script>
+<script src="../vendor/qrcode.js"></script>
+<script>
+(function () {
+  "use strict";
+  var U = window.UNSEEN;
+  var qs = new URLSearchParams(location.search);
+  var id = qs.get("s") || "";
+  var isNew = qs.get("new") === "1";
+
+  var emptyState = document.getElementById("emptyState");
+  var mainState = document.getElementById("mainState");
+
+  // 真空态:压根没给 s 参数,老实说没东西可邀,别硬凑一个二维码出来
+  if (!id) {
+    emptyState.style.display = "";
+    return;
+  }
+
+  var scene = U.findScene(id);
+  var unknownLocally = false;
+  if (!scene) {
+    // 本地(localStorage)和内置(s4)都没找到这个 id。
+    // ⚠️别急着判"查无此空间":本机后端里可能就有它(换台设备、清过缓存、别人发来的链接都是这种)。
+    // 先摆一个中性的占位,下面会去问后端,问完再决定说什么。
+    scene = { id: id, kind: "unknown", title: "空间 " + id };
+    unknownLocally = true;
+  }
+  var honestFallback = false;   // 只有连后端都不认识它,才算真的查无此空间
+
+  mainState.style.display = "";
+
+  var DEPLOY = "https://unseen-demo.vercel.app";
+
+  // 发布状态不能由前端猜。以前这里读 localStorage 里的 s.published,
+  // 而 create.html 建空间时压根写不出这个值(那一刻确实还没发布),于是恒为 undefined,
+  // 结果是"建空间 → 发邀请"这条主线永远拿不到二维码。
+  // 现在:云端内置空间立即成立;本机后端空间去问后端要真状态,拿到之前先给"正在确认"。
+  function localGuess(s) {
+    return s.id === "s4" || s.kind === "cloud";
+  }
+  var joinable = localGuess(scene);
+  var targetUrl = joinable ? DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id) : "";
+  var pending = !joinable;   // 云端内置之外的,一律先问后端
+
+  var chipEl = document.getElementById("sceneChip");
+  var fallbackEl = document.getElementById("fallbackNote");
+  function renderChip() {
+    chipEl.textContent = "当前空间 · " + (scene.title || scene.id);
+    if (honestFallback) {
+      fallbackEl.textContent = "本机和后端都没有这个空间的记录,可能是网址里的编号不对";
+      fallbackEl.style.display = "";
+    } else {
+      fallbackEl.style.display = "none";
+    }
+  }
+  renderChip();
+
+  var qrBox = document.getElementById("qrBox");
+  var qrUrlEl = document.getElementById("qrUrl");
+  var copyBtn = document.getElementById("copyBtn");
+  var cav = document.getElementById("qrCaveat");
+
+  function renderQR() {
+    if (joinable && targetUrl) {
+      // 二维码:本地 vendor/qrcode.js(零 CDN),纠错级别 M,typeNumber=0 自动选最小版本
+      try {
+        var qr = qrcode(0, "M");
+        qr.addData(targetUrl);
+        qr.make();
+        qrBox.innerHTML = qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true });
+      } catch (e) {
+        console.error("[invite] 二维码生成失败", e);
+        qrBox.innerHTML = '<div class="qr-empty">二维码生成失败,直接复制链接吧</div>';
+      }
+      qrUrlEl.textContent = targetUrl;
+      qrUrlEl.style.display = "";
+      copyBtn.removeAttribute("disabled");
+      cav.textContent = /^https?:\/\/(127\.|localhost|192\.168\.|10\.)/.test(targetUrl)
+        ? "这是局域网地址,扫码的人要和你连同一个网"
+        : "把二维码给现场的人,扫码就能交照片";
+      cav.style.display = "";
+      return;
+    }
+    // 诚实空态:没有可扫的码就明说,链接一起禁掉,别让人复制一条打不开的地址
+    var phIco = pending ? "◌" : (honestFallback ? "🔍" : "⏳");
+    var phTxt = pending ? "正在确认这个空间的发布状态…"
+      : (honestFallback ? "找不到这个空间,没法生成邀请码"
+                        : "这个空间还没发布,发布之后才会生成邀请码");
+    qrBox.innerHTML = '<div class="qr-placeholder"><div class="ph-ico">' + phIco +
+      "</div><div>" + phTxt + "</div></div>";
+    qrUrlEl.style.display = "none";
+    copyBtn.setAttribute("disabled", "disabled");
+    cav.textContent = honestFallback
+      ? "本机查不到这个空间,暂时没法生成邀请码"
+      : (pending ? "" : "先传一张全景并发布,回到这里就能拿到扫码入口");
+    cav.style.display = cav.textContent ? "" : "none";
+  }
+  renderQR();
+
+  // 本机后端空间:发没发布只有后端知道,顺便问它要宾客链接的真地址。
+  // 后端给的是局域网地址(手机连同一个 WiFi 就能扫),而不是写死的公网部署地址 ——
+  // 本机空间在云端桶里根本不存在,指过去就是 403。
+  if (pending) {
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var giveUp = setTimeout(function () {
+      if (ctrl) ctrl.abort();
+      if (unknownLocally) honestFallback = true;   // 问不到又本地不认识,别装作认识
+      pending = false; renderChip(); renderQR();
+    }, 3000);
+    fetch(U.API + "/api/space/" + encodeURIComponent(scene.id), { signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        var sp = j && j.ok && j.space;
+        if (!sp) {
+          // 后端也不认识 —— 到这一步才有资格说"查无此空间"
+          if (unknownLocally) honestFallback = true;
+          throw new Error("后端没有这个空间");
+        }
+        if (unknownLocally) scene.title = sp.title || scene.title;   // 后端知道它叫什么
+        if (!sp.published) throw new Error("未发布");
+        // 已发布:优先用后端自己生成的宾客链接(它知道自己的局域网 IP)
+        return fetch(U.API + "/api/space/" + encodeURIComponent(scene.id) + "/joinurl")
+          .then(function (r) { return r.ok ? r.json() : null; })
+          .then(function (u) {
+            var url = u && u.ok && (u.url || u.joinUrl || u.joinurl);
+            targetUrl = url || (U.API + "/server/join.html?space=" + encodeURIComponent(scene.id));
+            joinable = true;
+          });
+      })
+      .catch(function () {
+        // 后端探不到(没起 / 断网)且本地也不认识它,只能说实话
+        if (unknownLocally && !scene.title) honestFallback = true;
+      })
+      .then(function () { clearTimeout(giveUp); pending = false; renderChip(); renderQR(); });
+  }
+
+  // 复制链接:clipboard API 优先,不支持就退化到 textarea + execCommand
+  copyBtn.addEventListener("click", function () {
+    if (!targetUrl) return;   // 没发布 = 没链接可复制,按钮此时也是 disabled 的
+    function ok() { U.toast("链接已复制"); }
+    function fail() {
+      var ta = document.createElement("textarea");
+      ta.value = targetUrl;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      var done = false;
+      try { done = document.execCommand("copy"); } catch (e) { done = false; }
+      document.body.removeChild(ta);
+      if (done) ok(); else U.toast("复制失败,长按下面的链接手动复制");
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(targetUrl).then(ok).catch(fail);
+    } else {
+      fail();
+    }
+  });
+
+  // 角色 pill:纯前端状态,不写后端,也不假装真的能控权限
+  var ROLES = [
+    { key: "viewer", name: "围观" },
+    { key: "contributor", name: "共创者" },
+    { key: "editor", name: "编辑" },
+    { key: "admin", name: "管理" }
+  ];
+  var roleState = "contributor";
+  var roleRow = document.getElementById("roleRow");
+  function renderRoles() {
+    roleRow.innerHTML = ROLES.map(function (r) {
+      return '<span class="role-pill' + (r.key === roleState ? " on" : "") + '" data-k="' + r.key + '">' + r.name + "</span>";
+    }).join("");
+    Array.prototype.forEach.call(roleRow.querySelectorAll(".role-pill"), function (el) {
+      el.addEventListener("click", function () {
+        roleState = el.getAttribute("data-k");
+        renderRoles();
+      });
+    });
+  }
+  renderRoles();
+
+  document.getElementById("doneBtn").setAttribute("href", "scene.html?s=" + encodeURIComponent(scene.id));
+
+  if (isNew) U.toast("空间已创建,现在邀请人一起拍");
+})();
+</script>
+</body>
+</html>

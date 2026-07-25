@@ -3,21 +3,23 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>空间记忆 · 新人后台</title>
+<title>UNSEEN Studio · 主办后台</title>
 <style>
-  /* ---------------- 配色: 和宾客端请柬同一套(米色底/深墨字/红金点缀),
-       但后台更"工作台": 纸白卡片 + 细线分栏 + 信息密度高 ---------------- */
+  /* ---------------- UNSEEN Studio 皮肤(2026-07-25 按美术队友参考图重映射):
+       粉金渐变底 + 白玻璃卡;组件全部吃变量,所以只换变量不动结构 ---------------- */
   :root{
-    --cream:#f6f2ea; --paper:#fffdf8; --ink:#3a352f; --sub:#9a9186;
-    --line:#e7dccb; --line2:#f0e8db;
-    --red:#c0392b; --gold:#b08d57; --green:#5c8a52;
-    --shadow:0 2px 10px rgba(88,72,48,.07);
+    --cream:#fff5f1; --paper:rgba(255,255,255,.86); --ink:#46343c; --sub:#8a7480;
+    --line:#f3d9de; --line2:#f8e7ea;
+    --red:#e05c86; --gold:#e89a5b; --green:#57b98a;
+    --shadow:0 8px 26px rgba(226,138,158,.12);
   }
   *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html,body{ margin:0; min-height:100%; }
   body{
     background:
-      radial-gradient(120% 60% at 50% 0%, #fdfbf6 0%, #f7f3ec 45%, #f1eae0 100%) fixed;
+      radial-gradient(46% 30% at 86% 0%, rgba(255,182,205,.5) 0%, rgba(255,182,205,0) 100%),
+      radial-gradient(50% 34% at 12% 6%, rgba(255,214,180,.55) 0%, rgba(255,214,180,0) 100%),
+      linear-gradient(165deg,#fff8f5 0%,#ffefe9 46%,#ffe9f0 100%) fixed;
     color:var(--ink);
     font-family:-apple-system,"PingFang SC",system-ui,sans-serif;
     font-size:14px; line-height:1.6;
@@ -29,7 +31,7 @@
 
   /* ---------------- 通用卡片 / 标题 ---------------- */
   .card{
-    background:var(--paper); border:1px solid var(--line); border-radius:14px;
+    background:var(--paper); border:1px solid var(--line); border-radius:20px;
     box-shadow:var(--shadow); padding:16px 18px; margin-bottom:16px;
   }
   .sec-head{ display:flex; align-items:baseline; gap:10px; margin:0 0 12px; flex-wrap:wrap; }
@@ -46,11 +48,15 @@
   .btn:hover{ border-color:var(--gold); }
   .btn:active{ transform:scale(.97); }
   .btn:disabled{ opacity:.45; cursor:not-allowed; transform:none; }
-  .btn.primary{ background:var(--red); border-color:var(--red); color:#fff; box-shadow:0 4px 14px rgba(192,57,43,.24); }
-  .btn.primary:hover{ background:#ad3325; }
+  .btn.primary{ background:var(--red); border-color:var(--red); color:#fff; box-shadow:0 4px 14px rgba(224,92,134,.28); }
+  .btn.primary:hover{ background:#d14b78; }
   .btn.gold{ background:var(--gold); border-color:var(--gold); color:#fff; }
   .btn.sm{ height:30px; padding:0 12px; font-size:12px; border-radius:15px; }
   .btn.big{ height:44px; font-size:14.5px; padding:0 20px; border-radius:22px; }
+  /* 安静的次级动作(比如"剩下的一起收下"): 功能还在, 但绝不抢视觉主位。
+     这一区的实心按钮只留给逐张确认, 不然最显眼的操作就成了"不看了全收下"。 */
+  .btn.quiet{ background:transparent; border-color:var(--line2); color:var(--sub); box-shadow:none; }
+  .btn.quiet:hover{ background:#fff; border-color:var(--line); color:var(--ink); }
 
   .pill{
     display:inline-flex; align-items:center; gap:4px; height:22px; padding:0 9px;
@@ -64,9 +70,16 @@
   /* ---------------- 顶部: 空间概况 ---------------- */
   .kicker{ font-size:10.5px; letter-spacing:4px; color:var(--gold); font-weight:700; margin-bottom:10px; }
   .kicker span{ opacity:.55; letter-spacing:2px; }
+  /* 进了后台要出得去: 回首页 / 换空间。纯链接, 不带任何逻辑 */
+  .navrow{ display:flex; align-items:center; gap:16px; flex-wrap:wrap; margin-bottom:8px; }
+  .navlink{
+    display:inline-flex; align-items:center; min-height:30px; padding:2px 0;
+    font-size:12.5px; color:var(--sub); text-decoration:none; border-bottom:1px solid transparent;
+  }
+  .navlink:hover{ color:var(--red); border-bottom-color:var(--line); }
   .top{ display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap; }
   .top h1{
-    font-family:"Songti SC","STSong",serif; font-size:24px; font-weight:600;
+    font-family:inherit; font-size:24px; font-weight:600;
     margin:0 0 4px; letter-spacing:1px;
   }
   .top .couple{ font-size:12.5px; color:var(--sub); }
@@ -75,69 +88,71 @@
   .stat span{ font-size:11px; color:var(--sub); letter-spacing:.5px; }
   .top-actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
   .pubstate{ font-size:11.5px; color:var(--sub); }
+  .pubstate.off{ color:#bdb3ab; }   /* 诚实空态: 这项能力这次没有结果, 灰掉 */
+  /* 数字是活的还是死的, 要让人一眼看见: 绿点 = 刚跟后台核对过, 灰点 = 有阵子没核对了 */
+  .fresh{ display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:11px; color:var(--sub); letter-spacing:.2px; }
+  .fresh .dot{ width:7px; height:7px; border-radius:50%; background:var(--green); flex:none; box-shadow:0 0 0 3px rgba(87,185,138,.16); }
+  .fresh.stale{ color:#bdb3ab; }
+  .fresh.stale .dot{ background:#cfc6bd; box-shadow:none; }
 
   /* ---------------- 待你确认 ---------------- */
   #reviewCard{ border-color:#e8d6ce; }
   .banner{
     display:flex; align-items:center; gap:14px;
-    background:linear-gradient(100deg,#fdf3f0 0%, #fdf8ef 70%, #fffdf8 100%);
-    border:1px solid #f0dcd4; border-left:4px solid var(--red);
+    background:linear-gradient(100deg,#fff0f4 0%, #fff7ee 70%, #ffffff 100%);
+    border:1px solid #ffd9e2; border-left:4px solid var(--red);
     border-radius:12px; padding:14px 18px; margin-bottom:16px;
   }
   .banner .big{
-    font-family:"Songti SC","STSong",serif; font-weight:600;
+    font-family:inherit; font-weight:700;
     font-size:clamp(19px, 2.5vw, 28px); line-height:1.45; letter-spacing:.5px;
   }
-  .banner .n{ font-variant-numeric:tabular-nums; font-weight:700; }
+  .banner .n{ font-variant-numeric:tabular-nums; font-weight:700; white-space:nowrap; }
+  /* 数字和后面的"张"不许被折行拆开(会出现上一行 10 下一行 张 这种断句) */
+  .banner .nb{ white-space:nowrap; }
   .banner .n.hot{ color:var(--red); font-size:1.5em; padding:0 2px; }
   .banner .n.calm{ color:var(--gold); }
   .banner .sub{ font-size:12px; color:#8a8073; margin-top:5px; letter-spacing:.3px; }
 
   .toolbar{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:12px; }
-  .chk{ display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:#6f675d; cursor:pointer; user-select:none; }
-  .chk input{ width:15px; height:15px; accent-color:var(--red); }
+  /* 勾选框本体只有十几像素, 手指点不中。真正的点击目标是外面这个 label:
+     撑到 44px 高、左右留出富余, 视觉上还是一个小方框, 但热区够大。 */
+  .chk{
+    display:inline-flex; align-items:center; gap:8px; min-height:44px; padding:0 10px 0 4px;
+    font-size:13px; color:#6f675d; cursor:pointer; user-select:none;
+  }
+  .chk input{ width:22px; height:22px; accent-color:var(--red); }
 
   .review-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:14px; }
   .rcard{ border:1px solid var(--line); border-radius:12px; overflow:hidden; background:#fff; display:flex; flex-direction:column; }
-  .rcard.sel{ border-color:var(--red); box-shadow:0 0 0 2px rgba(192,57,43,.14); }
-  .rcard .shot{ position:relative; aspect-ratio:4/3; background:#ece6dc; }
+  .rcard.sel{ border-color:var(--red); box-shadow:0 0 0 2px rgba(224,92,134,.16); }
+  .rcard .shot{ position:relative; aspect-ratio:4/3; background:#f6e7ea; }
   .rcard .shot img{ width:100%; height:100%; object-fit:cover; display:block; }
+  /* 整块 44x44 都是热区(照片角上那个白方块), 里面的勾选框只是它的视觉。 */
   .rcard .pick{
-    position:absolute; top:8px; left:8px; width:32px; height:32px; border-radius:9px;
+    position:absolute; top:8px; left:8px; width:44px; height:44px; border-radius:12px;
     background:rgba(255,255,255,.92); display:flex; align-items:center; justify-content:center;
     cursor:pointer; box-shadow:0 1px 4px rgba(0,0,0,.2);
   }
-  .rcard .pick input{ width:17px; height:17px; accent-color:var(--red); margin:0; }
+  .rcard .pick input{ width:22px; height:22px; accent-color:var(--red); margin:0; }
   .rcard .who{
     position:absolute; right:8px; bottom:8px; background:rgba(58,53,47,.78); color:#fff;
     font-size:11px; padding:2px 8px; border-radius:9px;
   }
-  .rcard .meta{ padding:11px 12px 0; display:flex; align-items:center; gap:10px; }
-  .dial{
-    flex:none; position:relative; width:34px; height:34px; border-radius:50%;
-    border:1px solid var(--line); background:#fdfaf4;
-  }
-  .dial::before{
-    content:""; position:absolute; left:50%; top:50%; width:2px; height:13px;
-    background:var(--red); border-radius:1px; transform-origin:50% 100%;
-    transform:translate(-50%,-100%) rotate(var(--yaw,0deg));
-  }
-  .dial::after{
-    content:""; position:absolute; left:50%; top:50%; width:4px; height:4px; margin:-2px 0 0 -2px;
-    border-radius:50%; background:var(--ink);
-  }
+  /* 方位信息一律用文字承载(建议方位 105°), 不画指针表盘 */
+  .rcard .meta{ padding:11px 12px 0; }
   .m-line1{ font-size:12.5px; font-weight:600; font-variant-numeric:tabular-nums; }
   .m-line2{ font-size:11px; color:var(--sub); }
   .robot{
-    margin:9px 12px 0; padding:8px 10px; background:#f7f3ea; border-radius:9px;
-    font-size:11.5px; color:#7b7266; line-height:1.55;
+    margin:9px 12px 0; padding:8px 10px; background:#fdf1f4; border-radius:9px;
+    font-size:11.5px; color:#8a7480; line-height:1.55;
   }
   .robot b{ color:var(--ink); font-weight:600; }
   .rcard .acts{ display:flex; gap:8px; padding:11px 12px 12px; margin-top:auto; }
-  .rcard .acts .btn{ flex:1; height:40px; border-radius:20px; font-size:13.5px; }
+  .rcard .acts .btn{ flex:1; height:44px; border-radius:22px; font-size:13.5px; }
   .empty{
     text-align:center; padding:26px 14px; color:var(--sub); font-size:13px;
-    background:#faf7f0; border:1px dashed var(--line); border-radius:12px;
+    background:#fff6f2; border:1px dashed var(--line); border-radius:12px;
   }
   .empty .em{ font-size:22px; display:block; margin-bottom:8px; }
 
@@ -151,6 +166,20 @@
     .top-actions{ width:100%; align-items:flex-start; margin-top:4px; }
     .top-actions .btn{ width:100%; }
     .stats{ gap:16px; }
+  }
+  /* ---------------- 手指尺寸(现场是站着用手机审照片, 44px 是能点中的下限) ----------------
+     只在触屏/窄屏放大, 桌面保持原来的紧凑版式。视觉元素不一定变大, 变大的是热区。 */
+  @media (max-width:640px), (pointer:coarse){
+    .btn{ min-height:44px; }
+    .btn.sm{ height:44px; border-radius:22px; padding:0 16px; font-size:13px; }
+    .btn.big{ min-height:48px; }
+    .navlink{ min-height:44px; padding:6px 0; }
+    .inp{ min-height:44px; }
+    textarea.inp{ min-height:64px; }
+    #nodePano{ min-height:44px; display:flex; align-items:center; }
+    /* 报告链接原本只有 16px 高, 撑成一整行的可点区 */
+    .pubstate a{ display:inline-flex; align-items:center; min-height:44px; padding:0 2px; }
+    .sitem{ min-height:56px; }
   }
 
   /* ---------------- 悬赏任务 ---------------- */
@@ -267,6 +296,7 @@
   // ================================================================ 基础工具
   var qs = new URLSearchParams(location.search);
   var SID = qs.get("space") || "";
+  var FROM = qs.get("from") || "";   // 从哪个空间点"换个空间"过来的(只用来保证它出现在列表里)
   var MOCK = qs.get("mock") === "1";
 
   // 宾客页的【公开地址】。现场宾客的手机连不到这台电脑, 所以二维码绝不能是局域网 IP ——
@@ -450,7 +480,13 @@
       : '<button class="btn primary big" id="btnPublish">发布空间</button>';
     return '' +
     '<div class="card">' +
-      '<div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span> · 新人后台' + (MOCK ? '<span class="mockbadge">MOCK 演示数据</span>' : '') + '</div>' +
+      '<div class="navrow">' +
+        '<a class="navlink" href="../index.html">← 回首页</a>' +
+        // 带上 from: 列表页要把"你刚才在看的那个空间"永远留在列表里,
+        // 哪怕它的名字长得像开发测试空间(现场就是拿这种空间在演示)
+        '<a class="navlink" href="host.html?from=' + encodeURIComponent(sp.id || SID) + '">换个空间</a>' +
+      '</div>' +
+      '<div class="kicker">U N S E E N <span>Studio</span> · 主办后台' + (MOCK ? '<span class="mockbadge">MOCK 演示数据</span>' : '') + '</div>' +
       '<div class="top">' +
         '<div>' +
           '<h1>' + esc(sp.title || "未命名空间") + '</h1>' +
@@ -461,6 +497,9 @@
             '<div class="stat"><b>' + (sp.contributors || []).length + '</b><span>贡献者</span></div>' +
             '<div class="stat"><b>' + (sp.tasks || []).filter(function(t){ return t.status === "open"; }).length + '</b><span>进行中任务</span></div>' +
           '</div>' +
+          // 这一格由 paintFresh() 填: 上面这些数字最后一次跟后台核对是什么时候。
+          // 没有它的话, 页面停在半小时前的数字上, 看的人也不知道。
+          '<div class="fresh" id="freshSlot"></div>' +
         '</div>' +
         '<div class="top-actions">' + pub + btn +
           '<div class="pubstate" id="pubState">' +
@@ -483,15 +522,29 @@
   function viewReview(sp){
     var st = stats(sp);
     var pend = pendingPhotos(sp);
-    // 有待审时报"只有 N 张", 清空了就换一句话, 别出现"只有 0 张"这种别扭话
-    var line = st.needHuman > 0
-      ? ('机器已自动处理 <span class="n calm">' + st.machineHandled + '</span> 张,' +
-         '需要你看的只有 <span class="n hot">' + st.needHuman + '</span> 张')
-      : ('机器已自动处理 <span class="n calm">' + st.machineHandled + '</span> 张,' +
-         '眼下<span class="n hot">一张</span>都不用你看');
-    var sub = st.needHuman > 0
-      ? "脏活机器干完了。你只做它拿不准的那几张判断。"
-      : "新照片进来时,只有机器拿不准的才会摆到这里等你。";
+    // 这句是整页的叙事眼, 必须在任何数字组合下都说得通。
+    // "需要你看的只有 N 张"只在 N 比机器处理的少时才是安慰: 8 自动 / 10 待审的时候
+    // 再说"只有 10 张"就是自己拆自己的台, 所以按大小关系分岔, 0 的两头也各给一句。
+    var mh = st.machineHandled, nh = st.needHuman;
+    var nCalm = '<span class="nb"><span class="n calm">' + mh + '</span> 张</span>';
+    var nHot  = '<span class="nb"><span class="n hot">' + nh + '</span> 张</span>';
+    var line, sub;
+    if (nh === 0 && mh === 0){
+      line = '眼下没有需要你确认的照片';
+      sub  = "宾客传上来以后,只有机器拿不准的才会摆到这里等你。";
+    } else if (nh === 0){
+      line = '机器已自动处理 ' + nCalm + ',眼下<span class="n hot">一张</span>都不用你看';
+      sub  = "新照片进来时,只有机器拿不准的才会摆到这里等你。";
+    } else if (mh === 0){
+      line = '这 ' + nHot + '机器都拿不准,得你一张张来定';
+      sub  = "机器这次一张也没敢替你拍板,判断权全在你手上。";
+    } else if (mh >= nh){
+      line = '机器已自动处理 ' + nCalm + ',需要你看的只有 ' + nHot;
+      sub  = "脏活机器干完了。你只做它拿不准的那几张判断。";
+    } else {
+      line = '机器已自动处理 ' + nCalm + ',还有 ' + nHot + '它拿不准,得你来定';
+      sub  = "能定的机器都定了,剩下这些它不敢替你拍板。";
+    }
     var banner = '' +
       '<div class="banner">' +
         '<div>' +
@@ -502,21 +555,32 @@
 
     var body;
     if (!pend.length){
-      body = '<div class="empty"><span class="em">☕️</span>没有需要你确认的,机器都处理好了。</div>';
+      // 一张照片都没收到的时候不许说"机器都处理好了"—— 机器什么都还没处理。
+      body = (st.total === 0)
+        ? '<div class="empty"><span class="em">📭</span>还没有宾客传照片上来。把二维码发出去就行。</div>'
+        : '<div class="empty"><span class="em">☕️</span>没有需要你确认的,机器都处理好了。</div>';
     } else {
       var pickedCount = pend.filter(function(p){ return S.picked[p.id]; }).length;
+      var restCount = pend.length - pickedCount;   // 没勾的那些才叫"剩下的", 不是全部待审数
       var toolbar = '' +
         '<div class="toolbar">' +
           '<label class="chk"><input type="checkbox" id="chkAll"' + (pickedCount === pend.length ? ' checked' : '') + '>全选</label>' +
           '<button class="btn sm" id="btnApproveSel"' + (pickedCount ? '' : ' disabled') + '>收下选中 (' + pickedCount + ')</button>' +
-          '<button class="btn sm primary" id="btnApproveAll">一键收下剩下的 ' + pend.length + ' 张</button>' +
           '<span class="sec-note">拿不准就先收下,进空间以后还能改。</span>' +
+          // 降级成安静的描边按钮并挤到最右: 功能一点没少, 但最显眼的操作不能是"全收下",
+          // 否则前面"你只做机器拿不准的那几张判断"这套说法自己就塌了。
+          // 数字只数没勾的, 全勾上了就没有"剩下的"可收, 直接置灰。
+          '<button class="btn sm quiet" id="btnApproveAll" style="margin-left:auto"' + (restCount ? '' : ' disabled') + '>' +
+            (restCount ? ('剩下 ' + restCount + ' 张一起收下') : '剩下的都勾上了') +
+          '</button>' +
         '</div>';
 
       var cards = pend.map(function(p){
         var node = (sp.nodes || []).filter(function(n){ return n.id === p.nodeId; })[0];
         var task = (sp.tasks || []).filter(function(t){ return t.id === p.taskId; })[0];
-        var conf = (typeof p.confidence === "number") ? p.confidence.toFixed(2) : "--";
+        // 四位小数: 机器给的理由里写的是 0.8002(门槛 0.8200), 卡片上再写 0.80 就成了
+        // 同一张卡上两个精度, 看着像系统坏了。以机器那句话的精度为准。
+        var conf = (typeof p.confidence === "number") ? p.confidence.toFixed(4) : "--";
         var yaw = (typeof p.yaw === "number") ? Math.round(p.yaw) : null;
         return '' +
         '<div class="rcard' + (S.picked[p.id] ? ' sel' : '') + '" data-pid="' + esc(p.id) + '">' +
@@ -526,7 +590,6 @@
             '<div class="who">' + esc(p.contributor || "匿名宾客") + ' 传的</div>' +
           '</div>' +
           '<div class="meta">' +
-            (yaw === null ? '' : '<div class="dial" style="--yaw:' + yaw + 'deg"></div>') +
             '<div>' +
               '<div class="m-line1">' + (yaw === null ? '方位待定' : ('建议方位 ' + yaw + '°')) +
                 ' · 置信度 ' + conf + '</div>' +
@@ -639,7 +702,11 @@
           '<input class="inp" id="joinLink" readonly value="">' +
           '<button class="btn sm" id="btnCopy">复制</button>' +
         '</div>' +
-        '<div class="qrtip">把二维码印在桌卡或投到大屏上,<br>宾客扫一下就能看到任务、传照片。</div>' +
+        '<div class="qrtip">把二维码印在桌卡或投到大屏上,<br>宾客扫一下就能看到任务、传照片。<br>' +
+          (S.cloudJson
+            ? '这是公开地址,宾客用手机流量也能打开。'
+            : '这是局域网地址,只有和这台电脑连同一个 WiFi 的手机能打开。') +
+        '</div>' +
       '</div>' +
     '</div>';
   }
@@ -668,8 +735,11 @@
   }
 
   // ================================================================ 整页渲染
+  // 整页 innerHTML 重画, 所以重画前后要把滚动位置接住 —— 不然自动刷新一到,
+  // 正在看第 8 张照片的人会被弹回页面顶上。
   function render(){
     var sp = S.space;
+    var sy = window.pageYOffset || document.documentElement.scrollTop || 0;
     $("app").innerHTML =
       viewTop(sp) +
       viewReview(sp) +
@@ -681,42 +751,142 @@
     bind();
     renderQr();
     paintReport();
+    paintFresh();
+    if (sy) window.scrollTo(0, sy);
+  }
+
+  // ---------------------------------------------------------------- 数字自刷新
+  // 老毛病: 页面上的数字只在打开那一刻是真的。宾客当场扫码传一张, 后台一动不动,
+  // 演示时就是当众露馅。所以每 6 秒跟后端核对一次, 只有真的变了才重画。
+  // 三条自律: 页面在后台不轮询(document.hidden)、正在忙不轮询、用户手上有活不重画。
+  var REFRESH_MS = 6000;
+  var LIVE = { poll:null, tick:null, sig:"", at:0 };
+
+  // 页面上显示了什么, 签名就只看什么。签名没变 = 不重画, 省得白闪。
+  function spaceSig(sp){
+    return [
+      sp.title || "", sp.couple || "", sp.published ? 1 : 0, sp.ossSpaceJson || "",
+      (sp.nodes || []).map(function(n){ return n.id + ":" + (n.name || ""); }).join(","),
+      (sp.photos || []).map(function(p){ return p.id + ":" + p.state; }).join(","),
+      (sp.tasks || []).map(function(t){ return t.id + ":" + t.status + ":" + (t.filledBy || []).join("|"); }).join(","),
+      (sp.contributors || []).map(function(c){ return c.name + ":" + (c.photos || 0) + "/" + (c.points || 0); }).join(",")
+    ].join(";");
+  }
+
+  // 用户手上有活的时候绝不重画: 光标在输入框里、心愿/节点表单已经写了字、
+  // 全景文件已经选好(这个尤其不能刷 —— 重画以后文件选择没法用代码还原)。
+  // 勾选状态不在这里管, 它存在 S.picked 里, 重画会照原样勾回去。
+  function userIsEditing(){
+    var ae = document.activeElement;
+    if (ae && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName || "")) return true;
+    var f = $("nodePano");
+    if (f && f.files && f.files.length) return true;
+    var ids = ["wishTitle", "wishBrief", "nodeName", "nodeTime"];
+    for (var i = 0; i < ids.length; i++){
+      var el = $(ids[i]);
+      if (el && String(el.value || "").trim()) return true;
+    }
+    return false;
+  }
+
+  function paintFresh(){
+    var el = $("freshSlot");
+    if (!el) return;
+    if (MOCK){ el.className = "fresh stale"; el.innerHTML = '<span class="dot"></span>演示数据,不会自己变'; return; }
+    if (!LIVE.at){ el.className = "fresh"; el.innerHTML = '<span class="dot"></span>正在跟后台核对…'; return; }
+    var s = Math.max(0, Math.round((Date.now() - LIVE.at) / 1000));
+    var ago = s < 10 ? "刚刚更新" : (s < 60 ? (s + " 秒前更新") : (Math.floor(s / 60) + " 分钟前更新"));
+    el.className = "fresh" + (s > 30 ? " stale" : "");
+    el.innerHTML = '<span class="dot"></span>' + ago +
+      ' · 每 ' + Math.round(REFRESH_MS / 1000) + ' 秒自动核对' +
+      (document.hidden ? '(页面在后台,已暂停)' : '');
+  }
+
+  function pullSpace(){
+    if (MOCK || !SID || !S.space) return;
+    if (document.hidden) return;   // 没人看的时候别去打后端
+    if (S.busy) return;            // 正在提交裁决/发布, 让它先走完
+    api("/api/space/" + encodeURIComponent(SID) + "?role=host")
+      .then(function(d){
+        if (!(d && d.ok && d.space)) return;
+        LIVE.at = Date.now();
+        var sp = d.space;
+        if (!sp.photos) sp.photos = [];
+        if (!sp.tasks) sp.tasks = [];
+        var sig = spaceSig(sp);
+        // 没变就只刷"刚刚更新"那行字, 一个 DOM 都不动
+        if (sig === LIVE.sig){ paintFresh(); return; }
+        // 变了但用户正在填表: 这一轮先不动, 下一轮再来(签名不记, 免得漏掉这次变化)
+        if (userIsEditing()){ paintFresh(); return; }
+        LIVE.sig = sig;
+        S.space = sp;
+        // 推云地址只允许"从没有到有", 不能被覆盖回去(局域网地址宾客手机连不到)
+        if (sp.ossSpaceJson && !S.cloudJson){
+          S.cloudJson = sp.ossSpaceJson;
+          S.joinUrl = cloudJoinUrl();
+        }
+        render();
+      })
+      .catch(function(){ /* 后端抖一下不弹提示, 下一轮自己会补上 */ });
+  }
+
+  function startLive(){
+    if (MOCK || !SID) return;
+    clearInterval(LIVE.poll); clearInterval(LIVE.tick);
+    LIVE.poll = setInterval(pullSpace, REFRESH_MS);
+    LIVE.tick = setInterval(paintFresh, 1000);   // 只改一行字, 不碰别的 DOM
+    document.addEventListener("visibilitychange", function(){
+      paintFresh();
+      if (!document.hidden) pullSpace();          // 切回来立刻补一次, 别让人看着旧数字
+    });
   }
 
   // ---------------------------------------------------------------- 机器验收报告
   // 发布之后后台会跑一遍自检环(结构闸/渲染闸/语义闸), 十几秒才有结果, 所以这里轮询
   // /spaces/<sid>/report.json: 没出来就写"机器正在验收", 出来了就把裁决摆上去 + 给链接。
-  var REPORT = { verdict: "", tries: 0, timer: null };
+  // state: idle 还没查 / waiting 这次发布刚踢了验收, 正在等 / none 查过了, 没有报告
+  var REPORT = { verdict: "", state: "idle", tries: 0, timer: null };
   var VERDICT_CN = { pass: "通过 ✅", reject: "不通过 ⚠️", retry: "重试中" };
 
   function paintReport(){
     var slot = $("reportSlot");
     if (!slot) return;
+    slot.className = "pubstate";
     if (MOCK || !S.space || !S.space.published) { slot.innerHTML = ""; return; }
     var href = "/server/report.html?src=" + encodeURIComponent("/spaces/" + SID + "/report.json");
     if (REPORT.verdict){
       slot.innerHTML = '机器验收:' + esc(VERDICT_CN[REPORT.verdict] || REPORT.verdict) +
         ' · <a href="' + href + '" target="_blank">查看机器验收报告</a>';
-    } else {
+    } else if (REPORT.state === "waiting"){
       slot.innerHTML = '机器正在验收这个空间…(无人值守)';
+    } else if (REPORT.state === "none"){
+      // 没有报告就说没有, 别让一句"正在验收"永远转下去
+      slot.className = "pubstate off";
+      slot.innerHTML = '这次发布还没有机器验收报告';
+    } else {
+      slot.innerHTML = "";
     }
   }
 
-  function pollReport(){
+  // waiting=true: 刚按下发布, 验收确实在后台跑, 值得等(自检环要起无头 Chrome + 截图 + 判图);
+  // waiting=false: 只是打开页面看看上次的报告在不在, 查一次就够, 不要空转刷一屏 404。
+  function pollReport(waiting){
     if (MOCK || !SID) return;
     clearTimeout(REPORT.timer);
     REPORT.tries = 0;
+    REPORT.state = waiting ? "waiting" : "idle";
+    paintReport();
     (function tick(){
       fetch("/spaces/" + encodeURIComponent(SID) + "/report.json", { cache: "no-store" })
         .then(function(r){ return r.ok ? r.json() : null; })
         .then(function(rep){
-          if (rep && rep.verdict){ REPORT.verdict = rep.verdict; paintReport(); return; }
+          if (rep && rep.verdict){ REPORT.verdict = rep.verdict; REPORT.state = "done"; paintReport(); return; }
           throw new Error("还没出来");
         })
         .catch(function(){
-          // 自检环要起无头 Chrome + 截图 + 判图, 慢是正常的; 最多等 2 分钟就不刷了,
-          // 免得页面开着一直空转(报告文件一旦落盘, 刷新页面照样能看到)。
-          if (++REPORT.tries > 40) return;
+          // 最多等 2 分钟就不刷了(报告文件一旦落盘, 刷新页面照样能看到);
+          // 等到头 / 一次性查询扑空, 都要落到"没有报告"这个诚实空态。
+          if (!waiting || ++REPORT.tries > 40){ REPORT.state = "none"; paintReport(); return; }
           REPORT.timer = setTimeout(tick, 3000);
         });
     })();
@@ -761,8 +931,9 @@
           if (d && d.ok){
             sp.published = true;
             REPORT.verdict = "";       // 这次发布的报告还没跑出来, 别沿用上一次的裁决
+            REPORT.state = "waiting";
             render();
-            pollReport();
+            pollReport(true);
             toast("已发布" + (d.viewUrl ? ",宾客可以进空间了" : ""));
           } else {
             bp.disabled = false;
@@ -804,7 +975,10 @@
     });
     var ball = $("btnApproveAll");
     if (ball) ball.addEventListener("click", function(){
-      review(pendingPhotos(sp).map(function(p){ return p.id; }), "approve");
+      // 按钮上写的是"剩下 N 张", 那就只收没勾的那 N 张; 勾中的归"收下选中"管。
+      // 一个都没勾时, 没勾的 = 全部待审, 行为和以前一样。
+      var ids = pendingPhotos(sp).filter(function(p){ return !S.picked[p.id]; }).map(function(p){ return p.id; });
+      review(ids, "approve");
     });
 
     // ---- 发心愿任务
@@ -958,19 +1132,49 @@
   }
 
   // ================================================================ 空间列表(没有 ?space)
+  // 后端攒了几十个 E2E- / FIX- / 验收勿用 的开发壳子, 全糊在"换个空间"里, 主办自己的
+  // 空间反而找不着。判据只认明确的开发占位词, 拿不准的一律当真空间放行;
+  // 正在看的那个空间永远不隐藏; 隐藏也不是删, 底下一键就能全看。
+  var DEV_MARK = /(^|[^0-9A-Za-z])(E2E|FIX|QA|TMP|SMOKE)[-_–]/i;   // E2E- / FIX- 这类前缀(前面有别的字也算)
+  var DEV_HEAD = /^\s*(T|TEST|DEV)[-_–]/i;                          // 只在开头认 T- , 免得误伤 "T-shirt"
+  var DEV_WORD = /(勿用|勿删|勿动|冒烟|自验|复验|挂死|验收测试|回归测试|测试用|占位)/;
+  function isDevSpace(s){
+    if (!s) return false;
+    if (s.id && (s.id === SID || s.id === FROM)) return false;   // 当前/刚才在看的, 永远留着
+    var t = String(s.title || "");
+    return DEV_MARK.test(t) || DEV_HEAD.test(t) || DEV_WORD.test(t);
+  }
+
+  var ALL_SPACES = [];
+  var showDevSpaces = false;
+
   function renderSpaceList(spaces){
-    var items = (spaces || []).length ? (spaces || []).map(function(s){
+    ALL_SPACES = spaces || [];
+    var devCount = ALL_SPACES.filter(isDevSpace).length;
+    var shown = showDevSpaces ? ALL_SPACES : ALL_SPACES.filter(function(s){ return !isDevSpace(s); });
+
+    var items = shown.length ? shown.map(function(s){
       return '<div class="sitem" data-sid="' + esc(s.id) + '">' +
         '<div class="st">' + esc(s.title || s.id) + '</div>' +
         '<div class="sm">' + esc(s.couple || "") + ' · ' + (s.photoCount || 0) + ' 张照片 · ' + (s.taskCount || 0) + ' 个任务</div>' +
       '</div>';
-    }).join("") : '<div class="empty"><span class="em">📦</span>还没有空间,先建一个</div>';
+    }).join("") : (devCount
+        ? '<div class="empty"><span class="em">🧪</span>只剩开发测试空间了,已经收起来。建一个新的,或者点下面看全部。</div>'
+        : '<div class="empty"><span class="em">📦</span>还没有空间,先建一个</div>');
+
+    var devRow = devCount
+      ? '<div class="wishrow" style="margin-top:10px">' +
+          '<span class="sec-note">' + (showDevSpaces ? ('其中 ' + devCount + ' 个是开发测试空间') : ('已收起 ' + devCount + ' 个开发测试空间')) + '</span>' +
+          '<button class="btn sm quiet" id="btnDevSpaces" style="margin-left:auto">' + (showDevSpaces ? '收起测试空间' : '也显示测试空间') + '</button>' +
+        '</div>'
+      : '';
 
     $("app").innerHTML = '' +
       '<div class="card">' +
-        '<div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span> · 新人后台</div>' +
+        '<div class="navrow"><a class="navlink" href="../index.html">← 回首页</a></div>' +
+        '<div class="kicker">U N S E E N <span>Studio</span> · 主办后台</div>' +
         '<div class="sec-head"><h2 class="sec-title">我的空间</h2><span class="sec-note">点一个进后台</span></div>' +
-        '<div class="slist">' + items + '</div>' +
+        '<div class="slist">' + items + '</div>' + devRow +
         '<hr class="hr">' +
         '<div class="sec-head"><h2 class="sec-title">新建一个空间</h2></div>' +
         '<input class="inp" id="newTitle" maxlength="40" placeholder="陈屹 ♥ 林沐 · 2026.7.26">' +
@@ -983,6 +1187,11 @@
       it.addEventListener("click", function(){
         location.search = "?space=" + encodeURIComponent(it.getAttribute("data-sid")) + (MOCK ? "&mock=1" : "");
       });
+    });
+    var bd = $("btnDevSpaces");
+    if (bd) bd.addEventListener("click", function(){
+      showDevSpaces = !showDevSpaces;
+      renderSpaceList(ALL_SPACES);
     });
     $("btnNew").addEventListener("click", function(){
       var title = ($("newTitle").value || "").trim();
@@ -1029,15 +1238,23 @@
         S.space = d.space;
         if (!S.space.photos) S.space.photos = [];
         if (!S.space.tasks) S.space.tasks = [];
-        S.joinUrl = fallbackJoinUrl();
+        // 推没推到云上, 以 space.json 里的 ossSpaceJson 为准。有它 = 宾客能从外网进,
+        // 二维码才允许换成公开地址; 没它就老老实实继续用局域网地址。
+        S.cloudJson = S.space.ossSpaceJson || "";
+        S.joinUrl = S.cloudJson ? cloudJoinUrl() : fallbackJoinUrl();
+        LIVE.sig = spaceSig(S.space);
+        LIVE.at = Date.now();
         render();
+        startLive();   // 从这一刻起数字自己会跟着后台走
         // 已经发布过的空间: 进页面就去看看机器验收报告出了没(可能是上一次发布留下的)
-        if (S.space.published) pollReport();
+        if (S.space.published) pollReport(false);
         // 加入链接以后端为准, 拿到了再刷新二维码
         return api("/api/space/" + encodeURIComponent(SID) + "/joinurl");
       })
       .then(function(d){
-        if (d && d.ok && d.url){ S.joinUrl = d.url; renderQr(); }
+        // 后端给的是这台电脑的局域网地址, 只在还没上云时才用它兜底;
+        // 已经上云了就不能被局域网地址覆盖回去, 宾客的手机连不到这台电脑。
+        if (!S.cloudJson && d && d.ok && d.url){ S.joinUrl = d.url; renderQr(); }
       })
       .catch(function(e){
         $("app").innerHTML = '<div class="card"><div class="empty"><span class="em">⚠️</span>' +

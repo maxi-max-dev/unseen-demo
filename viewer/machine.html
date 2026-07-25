@@ -230,6 +230,17 @@
 (function () {
   "use strict";
 
+  // ---------------- 返回契约：?back=<仓库根相对路径> ----------------
+  function backTarget(fallback){
+    try{
+      var b = new URLSearchParams(location.search).get("back");
+      if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+    }catch(e){}
+    return fallback;
+  }
+  var backPill = document.querySelector(".back-pill");
+  if (backPill) backPill.setAttribute("href", backTarget("../index.html"));
+
   var TOUR = window.TOUR;
   if (!TOUR || !TOUR.nodes || !TOUR.nodes.length) {
     document.body.innerHTML = '<div class="boot-error">tour.js 没读到数据(检查 ../tour.js 是否存在)</div>';

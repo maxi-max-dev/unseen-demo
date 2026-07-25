@@ -1,0 +1,629 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>场景 · UNSEEN</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* ── 场景详情页专属(app/scene.html) ── */
+  .btn-inline{ display:inline-flex; width:auto; }
+
+  .scene-select{ flex:none; max-width:112px; font:inherit; font-size:12px; font-weight:600; color:var(--ink);
+    background:var(--card); border:1px solid var(--card-line); border-radius:999px; padding:9px 10px;
+    box-shadow:var(--shadow); outline:none; }
+
+  .hero{ position:relative; overflow:hidden; aspect-ratio:16/9; margin:12px 0 16px; box-shadow:var(--shadow-lg); }
+  .hero .ph{ position:absolute; inset:0; display:grid; place-items:center; font-size:56px; background:var(--grad-soft); }
+  .hero .hero-img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+  .hero .play{ position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); width:64px; height:64px;
+    border-radius:50%; display:grid; place-items:center; background:rgba(255,255,255,.92); color:var(--pink);
+    font-size:20px; text-decoration:none; box-shadow:0 12px 30px rgba(60,30,40,.3);
+    transition:transform .2s cubic-bezier(.2,.7,.3,1); }
+  .hero .play:hover{ transform:translate(-50%,-50%) scale(1.06); }
+
+  .meta-row{ display:flex; gap:8px; flex-wrap:wrap; margin:0 2px 6px; }
+
+  .play-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  /* 注意:选择器写成 .u-card.play-card 是为了压过 theme.css 里 a.u-card{display:block}(元素+类,优先级 0,0,1,1)。
+     纯类选择器 .play-card{display:flex}(0,0,1,0)会被那条规则吃掉,实测 index.html 的 .demo-strip 就中招了。 */
+  .u-card.play-card{ display:flex; flex-direction:column; align-items:flex-start; gap:5px; padding:18px 16px; min-height:110px; }
+  .play-card .ic{ font-size:24px; }
+  .play-card b{ font-size:15px; font-weight:700; }
+  .play-card .sub{ font-size:11.5px; color:var(--ink-2); line-height:1.4; }
+  .play-card.off{ opacity:.52; }
+
+  .moment-card{ padding:14px; }
+  .moment-big{ border-radius:16px; overflow:hidden; aspect-ratio:16/10; margin-bottom:8px; background:var(--grad-soft); }
+  .moment-big img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .moment-cap{ font-size:12px; color:var(--ink-2); line-height:1.5; margin:0 2px 10px; }
+  .moment-cap b{ color:var(--ink); font-weight:700; }
+  .moment-thumbs{ display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+  .mthumb{ border:2px solid transparent; border-radius:12px; overflow:hidden; padding:0; background:none;
+    cursor:pointer; position:relative; display:block; }
+  .mthumb img{ width:100%; aspect-ratio:4/3; object-fit:cover; display:block; }
+  .mthumb span{ position:absolute; left:0; right:0; bottom:0; font-size:10.5px; font-weight:700; color:#fff;
+    background:linear-gradient(0deg,rgba(30,15,20,.62),transparent); padding:4px 0 5px; text-align:center; }
+  .mthumb.on{ border-color:var(--pink); }
+
+  .ring-card{ padding:26px 18px; text-align:center; }
+  .ring-stats{ display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin:14px 0 16px; }
+
+  .u-card.task-fallback, .u-card.invite-strip{ display:flex; align-items:center; gap:13px; padding:15px 16px; }
+  .task-fallback .ic, .invite-strip .ic{ width:40px; height:40px; border-radius:50%; flex:none; display:grid;
+    place-items:center; font-size:16px; background:var(--grad-soft); }
+  .task-fallback .tx, .invite-strip .tx{ flex:1; min-width:0; display:flex; flex-direction:column; }
+  .task-fallback .tx b, .invite-strip .tx b{ font-size:15px; }
+  .task-fallback .tx span, .invite-strip .tx span{ font-size:12px; color:var(--ink-2); }
+  .task-fallback .go, .invite-strip .go{ color:var(--pink); font-weight:700; }
+
+  .wish-card{ padding:16px; }
+  .wish-row{ display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); font-size:14px; }
+  .wish-row:last-child{ border-bottom:0; }
+  .wish-row span{ flex:1; }
+  .wish-del{ border:0; background:none; color:var(--ink-3); font-size:18px; line-height:1; cursor:pointer; padding:4px 8px; }
+  .u-empty.small{ padding:14px 4px; font-size:12.5px; }
+  .wish-add{ display:flex; gap:8px; margin-top:8px; }
+  .wish-add input{ flex:1; font:inherit; font-size:14px; color:var(--ink); background:rgba(255,255,255,.85);
+    border:1.5px solid var(--line); border-radius:var(--r-sm); padding:11px 13px; outline:none; }
+  .wish-add input:focus{ border-color:#ff9fb4; box-shadow:0 0 0 4px rgba(255,159,180,.15); }
+  .wish-add button{ flex:none; }
+
+  .danger-zone{ margin:30px 2px 6px; text-align:center; }
+  .u-btn.danger{ color:#c0392b; }
+
+  /* ── 下一步:空间还没立起来时,告诉人该干哪一件事 ── */
+  .u-card.next-step{ display:block; padding:18px 17px; margin:0 0 16px;
+    border:1.5px solid #ffd6e0; background:linear-gradient(95deg,rgba(255,240,244,.92),rgba(255,246,235,.92)); }
+  .next-step .st{ display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:700;
+    color:#c25a76; letter-spacing:.04em; margin-bottom:7px; }
+  .next-step .st .dot{ width:7px; height:7px; border-radius:50%; background:var(--pink); flex:none;
+    box-shadow:0 0 0 4px rgba(242,115,155,.16); }
+  .next-step h3{ margin:0 0 4px; font-size:16px; font-weight:700; }
+  .next-step p{ margin:0 0 13px; font-size:12.5px; color:var(--ink-2); line-height:1.6; }
+  .next-step .u-btn{ font-size:14.5px; padding:13px 18px; }
+  .next-step .hint{ display:block; margin-top:9px; font-size:11px; color:var(--ink-3); text-align:center; }
+</style>
+</head>
+<body class="u-body">
+<div class="u-bokeh"></div>
+<div class="u-page">
+
+  <div class="u-bar">
+    <a class="u-back" href="../index.html" aria-label="返回首页">←</a>
+    <h1 id="sceneTitle">加载中…</h1>
+    <select class="scene-select" id="sceneSwitch" aria-label="换场景"></select>
+  </div>
+
+  <div id="sceneBody"></div>
+
+</div>
+
+<script src="scenes.js"></script>
+<script>
+(function () {
+  "use strict";
+  var U = window.UNSEEN;
+  var Q = new URLSearchParams(location.search);
+  var SID = Q.get("s") || "";
+  var OSS_BASE = "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com";
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  // ---------------------------------------------------------------- 换场景
+  // 后端探到的空间只放在本页内存里,不写 localStorage:首页自己会探,这里不替它做主
+  var EXTRA = [];
+
+  function backendScene(x) {
+    return {
+      id: x.id, kind: "backend", title: x.title || x.id,
+      date: "", place: "", cover: "", junk: !!x._junk,
+      stats: (x.photoCount ? { photos: x.photoCount } : {}),
+      links: { studio: U.PREFIX + "server/host.html?space=" + encodeURIComponent(x.id) }
+    };
+  }
+  // 下拉里不摆开发期留下的测试空间(标题带"测试/验收/勿用/阈值"那些),
+  // 但当前正在看的这一个永远留着,不然拿直链进来会看到一个不含自己的下拉。
+  function switchList(currentId) {
+    var seen = {}, out = [];
+    U.allScenes().concat(EXTRA).forEach(function (s) {
+      if (!s || !s.id || seen[s.id]) return;
+      if (s.junk && s.id !== currentId) return;
+      seen[s.id] = 1;
+      out.push(s);
+    });
+    return out;
+  }
+  function renderSwitch(currentId) {
+    var sel = document.getElementById("sceneSwitch");
+    var list = switchList(currentId);
+    // 只有一个候选就没得可换,别摆一个点了没反应的控件
+    if (list.length < 2) {
+      sel.innerHTML = "";
+      sel.hidden = true;
+      return;
+    }
+    sel.hidden = false;
+    var known = list.some(function (s) { return s.id === currentId; });
+    var head = known ? "" : '<option value="" disabled selected>换场景</option>';
+    sel.innerHTML = head + list.map(function (s) {
+      return '<option value="' + esc(s.id) + '"' + (s.id === currentId ? " selected" : "") + ">" +
+             esc(s.title || s.id) + "</option>";
+    }).join("");
+    sel.onchange = function () {
+      if (!sel.value) return;
+      location.href = "scene.html?s=" + encodeURIComponent(sel.value);
+    };
+  }
+
+  // ---------------------------------------------------------------- 下一步
+  // 新建出来的空间是空的:没有全景节点,发布不了,宾客也扫不了码。
+  // 以前这一页对这种空间只会诚实地灰掉一堆入口,但不告诉人下一件事该干什么,
+  // 于是"新建场景"点完就是死路。这一段负责把死路接上:立起来 → 发布 → 发邀请。
+  // live = 后端 /api/space/{id} 的真状态,拿不到就是 null,那就只按前端已知的说话。
+  function studioHref(s) {
+    var back = "app/scene.html?s=" + encodeURIComponent(s.id);
+    return "../server/host.html?space=" + encodeURIComponent(s.id) + "&back=" + encodeURIComponent(back);
+  }
+  function stepBox(o) {
+    return '<div class="u-card next-step"><div class="st"><span class="dot"></span>' + esc(o.stage) + "</div>" +
+      "<h3>" + esc(o.title) + "</h3><p>" + esc(o.body) + "</p>" +
+      (o.href ? '<a class="u-btn" href="' + esc(o.href) + '">' + esc(o.cta) + "</a>" : "") +
+      (o.hint ? '<span class="hint">' + esc(o.hint) + "</span>" : "") + "</div>";
+  }
+  function nextStepHtml(s, live) {
+    // 云端内置空间已经全通了,不用催
+    if (s.kind === "cloud") return "";
+    // 纯本地草稿:后端没跑,只能先诚实说清楚它现在是什么
+    if (s.kind !== "backend" && !live) {
+      return stepBox({
+        stage: "第 1 步 · 还没立起来",
+        title: "这个空间现在只存在这台设备上",
+        body: "它是一张草稿。要让它真的成为一个能走进去的空间,需要主办方那台电脑上的后台在跑,然后传一张 360 全景进去。全景到位,系统才知道这个空间有哪些方向,才能算出还有哪一块没人拍过。",
+        hint: "后台没起的时候,这一页只能给你看草稿"
+      });
+    }
+    var nodes = live && live.nodes ? live.nodes.length : 0;
+    var published = !!(live && live.published);
+    var onCloud = !!(live && live.ossSpaceJson);
+    if (!nodes) {
+      return stepBox({
+        stage: "第 1 步 · 还没立起来",
+        title: "这个空间还是空的,先给它一张全景",
+        body: "传一张 360 全景进去,系统会自动把这个空间切成 360 个方向,算出哪些方向还没有人拍过,再把这些缺口写成任务发给宾客。这一步不做,后面全都动不了。",
+        href: studioHref(s), cta: "传一张全景,把空间立起来",
+        hint: "在主办方后台里做,传完自己回到这一页"
+      });
+    }
+    if (!published) {
+      return stepBox({
+        stage: "第 2 步 · 还没开放",
+        title: "空间立起来了,还没对宾客开放",
+        body: "已经有 " + nodes + " 个全景节点。发布之后,宾客扫码就能看到任务墙,交上来的照片会被自动排回它当时朝着的方向。",
+        href: studioHref(s), cta: "去后台发布",
+        hint: "发布之后邀请卡的二维码才是活的"
+      });
+    }
+    if (!onCloud) {
+      return stepBox({
+        stage: "第 3 步 · 只在本机",
+        title: "已发布,但还没推到云端",
+        body: "现在只有连着主办方这台电脑的人打得开。推到云端之后,宾客用自己的流量扫码就能进,不依赖现场的网。",
+        href: studioHref(s), cta: "去后台推到云端",
+        hint: "推云之前,二维码只在同一个网里有效"
+      });
+    }
+    return "";
+  }
+
+  // ---------------------------------------------------------------- 封面 hero
+  function heroHtml(s) {
+    var story = s.links && s.links.story;
+    var img = s.cover
+      ? '<img class="hero-img" src="' + esc(s.cover) + '" alt="" onerror="this.style.display=\'none\'">'
+      : "";
+    var play = story
+      ? '<a class="play" href="' + esc(story) + '" aria-label="看故事">▶</a>'
+      : "";
+    return '<div class="u-card hero"><span class="ph">🌷</span>' + img + play + "</div>";
+  }
+
+  // ---------------------------------------------------------------- meta 一排
+  function metaHtml(s) {
+    var chips = [];
+    if (s.date) chips.push('<span class="u-chip">📅 ' + esc(s.date) + "</span>");
+    if (s.place) chips.push('<span class="u-chip">📍 ' + esc(s.place) + "</span>");
+    if (s.stats && s.stats.photos) chips.push('<span class="u-chip">📷 ' + esc(s.stats.photos) + " 张照片</span>");
+    return chips.length ? '<div class="meta-row">' + chips.join("") + "</div>" : "";
+  }
+
+  // ---------------------------------------------------------------- 玩法 2x2
+  function playCard(o) {
+    if (o.off) {
+      return '<div class="u-card play-card off"><span class="ic">' + o.icon + "</span><b>" + esc(o.label) +
+        '</b><span class="sub">' + esc(o.sub) + "</span></div>";
+    }
+    return '<a class="u-card play-card" href="' + esc(o.href) + '"><span class="ic">' + o.icon + "</span><b>" +
+      esc(o.label) + '</b><span class="sub">' + esc(o.sub) + "</span></a>";
+  }
+  function playGridHtml(s) {
+    // 每个出站入口都挂上 back,从走进空间/宾客页/管理台退出来落回这一页,不再弹回首页
+    var here = U.selfPath();
+    var L = {};
+    Object.keys(s.links || {}).forEach(function (k) { L[k] = U.withBack(s.links[k], here); });
+    var cards = [
+      L.walk
+        ? playCard({ href: L.walk, icon: "🚶", label: "走进空间", sub: "3D 全景漫游" })
+        : playCard({ off: true, icon: "🚶", label: "走进空间", sub: "传了全景就能走进去" }),
+      L.story
+        ? playCard({ href: L.story, icon: "🎬", label: "看故事", sub: "跟着六幕走一遍" })
+        : playCard({ off: true, icon: "🎬", label: "看故事", sub: "剪出故事线就能看" }),
+      L.join
+        ? playCard({ href: L.join, icon: "📷", label: "交一张照片", sub: "邀请宾客上传视角" })
+        : playCard({ off: true, icon: "📷", label: "交一张照片", sub: "开放上传后才能收" }),
+      L.studio
+        ? playCard({ href: L.studio, icon: "🖥", label: "管理台", sub: "需要主办方电脑上的后台在跑" })
+        : playCard({ off: true, icon: "🖥", label: "管理台", sub: "需要主办方电脑上的后台在跑" })
+    ];
+    return '<div class="u-sec"><h2>玩法</h2></div><div class="play-grid" id="playGrid">' +
+           cards.join("") + "</div>";
+  }
+  // 后端探到的空间只带了管理台链接(见 backendScene),但后端知道它有没有全景、发没发布。
+  // 拿到真状态之后把该点亮的入口点亮:有全景就能走进去,发布了就能收照片。
+  // 不写死不猜,全按后端说的来。
+  function enrichLinks(s, live) {
+    if (!live) return s;
+    var L = Object.assign({}, s.links || {});
+    if ((live.nodes || []).length && !L.walk) {
+      L.walk = U.PREFIX + "viewer/walk.html?space=" + encodeURIComponent(s.id);
+    }
+    if (live.published && !L.join) {
+      L.join = U.PREFIX + "server/join.html?space=" + encodeURIComponent(s.id);
+    }
+    return Object.assign({}, s, { links: L });
+  }
+
+  // ---------------------------------------------------------------- 视角
+  // 全部来自 space.json 的真照片(和任务区共用同一次 fetch),朝向用文字写,不画罗盘
+  // 方位词对照来自这个空间自己的任务文案:yaw 0=正前方,顺时针增大(实测 t1/t2/t3/t4/t5/t6 六条全对得上)
+  var DIRS = ["正前方", "右前方", "右侧", "右后方", "正后方", "左后方", "左侧", "左前方"];
+  // null/""/undefined 都不是 0:没测到的朝向就写"未测",不许糊一个看着合理的数
+  function num(v) {
+    if (v === null || v === undefined || v === "") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+  function yawWord(y) {
+    var n = num(y);
+    if (n === null) return "";
+    return DIRS[Math.round((((n % 360) + 360) % 360) / 45) % 8];
+  }
+  function timeWord(ts) {
+    var n = num(ts);
+    if (n === null || n <= 0) return "";
+    var d = new Date(n * 1000);
+    if (isNaN(d.getTime())) return "";
+    return ("0" + d.getHours()).slice(-2) + ":" + ("0" + d.getMinutes()).slice(-2);
+  }
+  function photoCap(p) {
+    var bits = [];
+    var w = yawWord(p.yaw);
+    var y = num(p.yaw);
+    bits.push(w ? "朝" + w : "朝向未测");
+    if (y !== null) bits.push(Math.round(y) + "°");
+    var t = timeWord(p.uploadedAt);
+    if (t) bits.push(t + " 交上来");
+    return (p.contributor || "匿名宾客") + " · " + bits.join(" · ");
+  }
+  function usablePhotos(photos) {
+    return (photos || []).filter(function (p) { return p && (p.src || p.thumb); });
+  }
+  function momentSectionHtml(s) {
+    var head = '<div class="u-sec"><h2>视角</h2><span class="u-note" id="momentNote"></span></div>';
+    if (s.kind === "cloud") {
+      return head + '<div id="momentArea"><div class="u-card u-empty"><div class="big">⏳</div>' +
+        "正在读取宾客交上来的照片…</div></div>";
+    }
+    // 后端空间的照片在主办方那台电脑上,这个页面只认云端的 space.json,别装作读得到
+    if (s.kind === "backend") {
+      return head + '<div id="momentArea"><div class="u-card u-empty"><div class="big">🖥</div>' +
+        "这个空间的照片在主办方电脑的后台里,这个页面读不到,去上面的管理台看</div></div>";
+    }
+    return head + '<div id="momentArea"><div class="u-card u-empty"><div class="big">🕰</div>' +
+      "宾客交上照片之后,会按拍摄朝向排在这里</div></div>";
+  }
+  function momentsHtml(photos) {
+    var list = usablePhotos(photos);
+    if (!list.length) {
+      return '<div class="u-card u-empty"><div class="big">🕰</div>还没有人交照片上来,' +
+        "交上来的会按拍摄朝向排在这里</div>";
+    }
+    var thumbs = list.map(function (p, i) {
+      var cap = photoCap(p);
+      return '<button class="mthumb' + (i === 0 ? " on" : "") + '" type="button" ' +
+        'data-src="' + esc(p.src || p.thumb) + '" data-cap="' + esc(cap) + '" ' +
+        'aria-label="' + esc(cap) + '">' +
+        '<img src="' + esc(p.thumb || p.src) + '" alt="" loading="lazy">' +
+        "<span>" + esc(yawWord(p.yaw) || "朝向未测") + "</span></button>";
+    }).join("");
+    var first = list[0];
+    return '<div class="u-card moment-card">' +
+      '<div class="moment-big"><img id="momentBig" src="' + esc(first.src || first.thumb) +
+        '" alt="' + esc(photoCap(first)) + '"></div>' +
+      '<div class="moment-cap" id="momentCap">' + esc(photoCap(first)) + "</div>" +
+      '<div class="moment-thumbs">' + thumbs + "</div>" +
+    "</div>";
+  }
+  function renderMoments(photos) {
+    var area = document.getElementById("momentArea");
+    if (!area) return;
+    var n = usablePhotos(photos).length;
+    area.innerHTML = momentsHtml(photos);
+    var note = document.getElementById("momentNote");
+    if (note) note.textContent = n ? n + " 张宾客照片,按拍摄朝向排" : "";
+    bindMoments();
+  }
+  function momentsFail() {
+    var area = document.getElementById("momentArea");
+    if (area) {
+      area.innerHTML = '<div class="u-card u-empty"><div class="big">🕰</div>' +
+        "这会儿读不到云端照片,过一会儿再来看看</div>";
+    }
+    var note = document.getElementById("momentNote");
+    if (note) note.textContent = "";
+  }
+  function bindMoments() {
+    var big = document.getElementById("momentBig");
+    if (!big) return;
+    var cap = document.getElementById("momentCap");
+    var thumbs = document.querySelectorAll(".mthumb");
+    thumbs.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        big.src = btn.getAttribute("data-src");
+        var c = btn.getAttribute("data-cap") || "";
+        big.alt = c;
+        if (cap) cap.textContent = c;
+        thumbs.forEach(function (b) { b.classList.remove("on"); });
+        btn.classList.add("on");
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- 任务:云端(s4)实测 OSS
+  function taskEmptyHtml() {
+    return '<div class="u-card u-empty"><div class="big">🎐</div>新人还没发任务,过一会儿再来看看</div>';
+  }
+  function taskFallbackHtml(s) {
+    var href = s.links && s.links.join;
+    if (!href) return '<div class="u-card u-empty"><div class="big">🧵</div>任务墙在宾客页,不过这个场景还没开宾客入口</div>';
+    return '<a class="u-card task-fallback" href="' + esc(href) + '"><span class="ic">🧵</span>' +
+      '<span class="tx"><b>任务墙在宾客页</b><span>这里暂时读不到实时数据</span></span><span class="go">→</span></a>';
+  }
+  function ringHtml(s, data) {
+    var tasks = data.tasks || [];
+    var photos = data.photos || [];
+    var total = tasks.length;
+    if (!total) return taskEmptyHtml();
+    var done = tasks.filter(function (t) { return t.status !== "open"; }).length;
+    var pct = Math.round((done / total) * 100);
+    var C = 2 * Math.PI * 64;
+    var offset = C * (1 - pct / 100);
+    var joinHref = s.links && s.links.join;
+    return '<div class="u-card ring-card">' +
+      '<div class="u-ring"><svg viewBox="0 0 150 150">' +
+      '<defs><linearGradient id="uRingGrad" x1="0" y1="0" x2="1" y2="1">' +
+      '<stop offset="0%" style="stop-color:#f2739b"/><stop offset="100%" style="stop-color:#f5a66b"/>' +
+      "</linearGradient></defs>" +
+      '<circle class="bgc" cx="75" cy="75" r="64" fill="none" stroke-width="14"/>' +
+      '<circle class="fgc" cx="75" cy="75" r="64" fill="none" stroke-width="14" stroke-dasharray="' +
+      C.toFixed(1) + '" stroke-dashoffset="' + offset.toFixed(1) + '"/>' +
+      '</svg><div class="mid"><b>' + pct + "%</b><span>任务完成</span></div></div>" +
+      '<div class="ring-stats"><span class="u-chip ok">✅ 已完成 ' + done + "/" + total + ' 个任务</span>' +
+      '<span class="u-chip">📷 ' + photos.length + " 张照片</span></div>" +
+      (joinHref ? '<a class="u-btn sec sm btn-inline" href="' + esc(joinHref) + '">去任务墙看看</a>' : "") +
+      "</div>";
+  }
+  function loadTasks(s) {
+    var base = (Q.get("b") || OSS_BASE).replace(/\/+$/, "");
+    var url = base + "/spaces/" + encodeURIComponent(s.id) + "/space.json?t=" + Date.now();
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var settled = false;
+    var timer = setTimeout(function () {
+      if (settled) return;
+      settled = true;
+      if (ctrl) ctrl.abort();
+    }, 9000);
+    fetch(url, { cache: "no-store", signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) {
+        if (settled) return null;
+        settled = true; clearTimeout(timer);
+        if (!r.ok) throw new Error("http_" + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data) return;
+        var area = document.getElementById("taskArea");
+        if (area) area.innerHTML = ringHtml(s, data);
+        renderMoments(data.photos);   // 视角区跟任务区共用这一次 fetch,不再多打一趟
+      })
+      .catch(function () {
+        settled = true; clearTimeout(timer);
+        var area = document.getElementById("taskArea");
+        if (area) area.innerHTML = taskFallbackHtml(s);
+        momentsFail();
+      });
+  }
+
+  // ---------------------------------------------------------------- 任务:本地草稿的心愿清单
+  function wishKey(id) { return "unseen.wishes." + id; }
+  function loadWishes(id) {
+    try { return JSON.parse(localStorage.getItem(wishKey(id)) || "[]"); }
+    catch (e) { return []; }
+  }
+  function saveWishes(id, arr) { localStorage.setItem(wishKey(id), JSON.stringify(arr)); }
+  function wishlistHtml(s) {
+    var wishes = loadWishes(s.id);
+    var rows = wishes.map(function (w, i) {
+      return '<div class="wish-row"><span>' + esc(w.text) + '</span><button class="wish-del" data-i="' +
+        i + '" aria-label="删除这条心愿">×</button></div>';
+    }).join("");
+    var empty = wishes.length ? "" :
+      '<div class="u-empty small">写下你想收到的画面,比如:我想要一张我妈妈笑的照片</div>';
+    return '<div class="u-card wish-card">' + rows + empty +
+      '<div class="wish-add"><input type="text" id="wishInput" placeholder="写下你想收到的画面…" maxlength="60">' +
+      '<button class="u-btn sm" id="wishAddBtn">加入</button></div></div>';
+  }
+  function bindWishlist(s) {
+    var area = document.getElementById("taskArea");
+    var addBtn = document.getElementById("wishAddBtn");
+    var input = document.getElementById("wishInput");
+    if (!addBtn || !input || !area) return;
+    function refresh() {
+      area.innerHTML = wishlistHtml(s);
+      bindWishlist(s);
+    }
+    addBtn.addEventListener("click", function () {
+      var v = (input.value || "").trim();
+      if (!v) return;
+      var wishes = loadWishes(s.id);
+      wishes.push({ text: v, at: Date.now() });
+      saveWishes(s.id, wishes);
+      U.toast("写下了");
+      refresh();
+    });
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") addBtn.click();
+    });
+    area.querySelectorAll(".wish-del").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var i = parseInt(btn.getAttribute("data-i"), 10);
+        var wishes = loadWishes(s.id);
+        wishes.splice(i, 1);
+        saveWishes(s.id, wishes);
+        refresh();
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------- 任务区外壳
+  function taskSectionHtml(s) {
+    var isCloud = s.kind === "cloud";
+    var note = isCloud ? "" : "心愿清单";
+    var head = '<div class="u-sec"><h2>任务</h2>' + (note ? '<span class="u-note">' + note + "</span>" : "") + "</div>";
+    var body = isCloud
+      ? '<div class="u-card u-empty"><div class="big">⏳</div>正在读取任务数据…</div>'
+      : wishlistHtml(s);
+    return head + '<div id="taskArea">' + body + "</div>";
+  }
+
+  // ---------------------------------------------------------------- 邀请
+  function inviteHtml(s) {
+    return '<div class="u-sec"><h2>邀请</h2><span class="u-note">拉更多视角进来</span></div>' +
+      '<a class="u-card invite-strip" href="invite.html?s=' + encodeURIComponent(s.id) + '">' +
+      '<span class="ic">✉</span><span class="tx"><b>邀请卡</b><span>生成二维码,发给一起在场的人</span></span>' +
+      '<span class="go">→</span></a>';
+  }
+
+  // ---------------------------------------------------------------- 删除草稿
+  function deleteZoneHtml(s) {
+    var isLocal = U.localScenes().some(function (x) { return x.id === s.id; });
+    return isLocal
+      ? '<div class="danger-zone"><button class="u-btn ghost sm btn-inline danger" id="deleteDraftBtn">删除草稿</button></div>'
+      : "";
+  }
+  function bindDelete(s) {
+    var btn = document.getElementById("deleteDraftBtn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      if (!confirm("确定删除这个草稿场景吗,本地数据删掉就找不回来了。")) return;
+      U.removeLocalScene(s.id);
+      localStorage.removeItem(wishKey(s.id));
+      U.toast("已删除");
+      setTimeout(function () { location.href = "../index.html"; }, 400);
+    });
+  }
+
+  // ---------------------------------------------------------------- 场景不存在
+  function notFoundHtml() {
+    return '<div class="u-card u-empty"><div class="big">🔍</div>没找到这个场景,链接可能不对,或者场景已经被删除了。' +
+      '<div style="margin-top:14px"><a class="u-btn sm btn-inline" href="../index.html">回首页</a></div></div>';
+  }
+
+  // ---------------------------------------------------------------- 启动
+  function renderScene(s, live) {
+    document.title = (s.title || s.id) + " · UNSEEN";
+    document.getElementById("sceneTitle").textContent = s.title || s.id;
+    document.getElementById("sceneBody").innerHTML =
+      heroHtml(s) + metaHtml(s) +
+      '<div id="nextStep">' + nextStepHtml(s, live) + "</div>" +
+      playGridHtml(s) + momentSectionHtml(s) +
+      taskSectionHtml(s) + inviteHtml(s) + deleteZoneHtml(s);
+    bindMoments();
+    bindDelete(s);
+    if (s.kind === "cloud") loadTasks(s);
+    else bindWishlist(s);
+    if (live === undefined) refreshLive(s);
+  }
+  // 后端空间的真状态只有后端知道(有没有全景/发没发布/推没推云),
+  // 拿到之后只重画"下一步"那一块,不动已经渲好的其余部分,避免闪一下。
+  function refreshLive(s) {
+    if (s.kind === "cloud") return;
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var t = setTimeout(function () { if (ctrl) ctrl.abort(); }, 2500);
+    fetch(U.API + "/api/space/" + encodeURIComponent(s.id), { signal: ctrl ? ctrl.signal : undefined })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (j) {
+        clearTimeout(t);
+        var live = j && j.ok && j.space;
+        if (!live) return;
+        var box = document.getElementById("nextStep");
+        if (box) box.innerHTML = nextStepHtml(s, live);
+        // 玩法入口按后端真状态重画:有全景就点亮走进空间,发布了就点亮交照片
+        var grid = document.getElementById("playGrid");
+        if (grid) {
+          var rich = enrichLinks(s, live);
+          var tmp = document.createElement("div");
+          tmp.innerHTML = playGridHtml(rich);
+          var fresh = tmp.querySelector("#playGrid");
+          if (fresh) grid.innerHTML = fresh.innerHTML;
+        }
+      })
+      .catch(function () { clearTimeout(t); });
+  }
+  function renderNotFound() {
+    document.getElementById("sceneTitle").textContent = "没找到这个场景";
+    document.getElementById("sceneBody").innerHTML = notFoundHtml();
+  }
+
+  var scene = U.findScene(SID);
+  renderSwitch(scene ? scene.id : "");
+  if (scene) renderScene(scene);
+  else {
+    // 后端还没探完之前先别宣判"没找到",本机后端里可能就有它
+    document.getElementById("sceneTitle").textContent = "正在找…";
+    document.getElementById("sceneBody").innerHTML =
+      '<div class="u-card u-empty"><div class="big">🔎</div>正在找这个场景…</div>';
+  }
+
+  // 本页自己探一次后端,不指望用户先访问过首页(扫码/分享链接直接进来的就是这种)
+  // 探不到是常态不是错误:那就只有内置场景和本地草稿,下拉自己会收起来
+  U.probeBackend(function (ok, j) {
+    if (ok && j && j.spaces) {
+      var have = {};
+      U.allScenes().forEach(function (x) { have[x.id] = 1; });
+      EXTRA = j.spaces.filter(function (x) { return x && x.id && !have[x.id]; }).map(backendScene);
+    }
+    renderSwitch(scene ? scene.id : SID);
+    if (scene) return;
+    var hit = EXTRA.filter(function (x) { return x.id === SID; })[0];
+    if (hit) { scene = hit; renderScene(hit); }
+    else renderNotFound();
+  });
+})();
+</script>
+</body>
+</html>

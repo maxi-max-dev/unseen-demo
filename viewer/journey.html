@@ -55,8 +55,10 @@
 .lightbox .lbCap { color: #fff; margin-top: 10px; font-size: 13.5px; text-align: center; opacity: .9; max-width: 80vw; }
 .lightbox .close {
   position: fixed; top: calc(16px + env(safe-area-inset-top, 0px)); right: 16px;
-  color: #fff; font-size: 30px; line-height: 1; z-index: 31; cursor: pointer;
-  width: 44px; height: 44px; display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 26px; line-height: 1; z-index: 31; cursor: pointer;
+  width: 42px; height: 42px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.28);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
 
 /* ============================================================
@@ -77,7 +79,18 @@ html, body {
   background: linear-gradient(#000b, transparent);
   color: #fff;
 }
-.top-hud h1 { margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .4px; opacity: .8; }
+.top-hud h1 {
+  margin: 0 0 8px; font-size: 13px; font-weight: 600; letter-spacing: .4px; opacity: .8;
+  flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* 进度条外壳：UNSEEN 玻璃胶囊(只统一控件语言,不动里面的婚礼红金) */
+.progress-wrap {
+  max-width: 420px; margin: 0 auto; padding: 9px 14px 8px;
+  border-radius: 999px; pointer-events: auto;
+  background: rgba(255,255,255,.09);
+  border: 1px solid rgba(255,255,255,.15);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+}
 .progress-line {
   display: flex; align-items: flex-start; justify-content: space-between;
   pointer-events: auto; max-width: 420px; margin: 0 auto; position: relative;
@@ -104,6 +117,17 @@ html, body {
 .pl-step.unlocked { cursor: pointer; pointer-events: auto; }
 .pl-step.unlocked:active .pl-dot { transform: scale(1.1); }
 
+/* pannellum 自带的场景名小标签：只把外观统一成玻璃胶囊,内容和位置逻辑不动 */
+.pnlm-panorama-info {
+  left: 14px; bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  background: rgba(70,52,60,.7); border-radius: 999px; padding: 5px 14px;
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+}
+.pnlm-panorama-info .pnlm-title-box {
+  font-size: 12.5px; padding-left: 0; margin-bottom: 0; letter-spacing: .3px;
+}
+
 .hint {
   position: fixed; bottom: calc(30px + env(safe-area-inset-bottom, 0px));
   left: 0; right: 0; text-align: center;
@@ -112,8 +136,19 @@ html, body {
 }
 .hint.hide { opacity: 0; }
 
-/* ---- 顶部标题行：标题左 + 小导航右 ---- */
+/* ---- 顶部标题行：返回左 + 标题 + 小导航右 ---- */
 .th-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+/* 页面级返回(回到我来的地方),和站点级「上一站」区分：这里用 ← ，上一站用 ‹ */
+.back-btn {
+  flex: none; width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; line-height: 1; text-decoration: none; color: #fff;
+  background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.3);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  pointer-events: auto; cursor: pointer; transition: transform .15s ease;
+}
+.back-btn:active { transform: scale(.94); }
+.back-btn.hidden { display: none; }
 .nav-mini { display: flex; align-items: center; gap: 7px; pointer-events: auto; flex: none; }
 .nav-btn {
   -webkit-tap-highlight-color: transparent; cursor: pointer; border: none;
@@ -122,11 +157,12 @@ html, body {
 }
 .nav-btn.prev {
   width: 34px; border-radius: 50%; font-size: 19px; line-height: 1;
-  background: rgba(0,0,0,.42); color: #fff; border: 1px solid rgba(255,255,255,.34);
+  background: rgba(255,255,255,.14); color: #fff; border: 1px solid rgba(255,255,255,.3);
+  backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
 }
 .nav-btn.next {
-  padding: 0 15px; border-radius: 17px; font-size: 13px;
-  background: #c0392b; color: #fff; box-shadow: 0 3px 12px rgba(192,57,43,.45);
+  padding: 0 16px; border-radius: 999px; font-size: 13px;
+  background: #c0392b; color: #fff; box-shadow: 0 6px 18px rgba(192,57,43,.42);
 }
 .nav-btn:active { transform: scale(.94); }
 .nav-btn[disabled] { opacity: .4; pointer-events: none; }
@@ -169,6 +205,16 @@ html, body {
   opacity: 0; pointer-events: none; transition: opacity .5s ease;
 }
 .title-card.on { opacity: 1; }
+/* 玻璃卡壳:圆角+质感跟 UNSEEN 一致,里面的红金叙事配色一个字不动 */
+.title-card .tc-inner {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 38px 32px 34px; border-radius: 24px;
+  max-width: min(360px, calc(100vw - 44px));
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow: 0 18px 44px rgba(0,0,0,.45);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
 .title-card .tc-chapter {
   font-size: 30px; font-weight: 700; color: #f6f2ea; letter-spacing: 4px;
 }
@@ -200,7 +246,7 @@ html, body {
 .opening .op-start {
   display: inline-flex; align-items: center; gap: 8px; border: none; cursor: pointer;
   background: #c0392b; color: #fff; font-size: 16px; font-weight: 700; letter-spacing: 1px;
-  padding: 0 32px; height: 52px; border-radius: 26px; box-shadow: 0 8px 24px rgba(192,57,43,.34);
+  padding: 0 32px; height: 52px; border-radius: 999px; box-shadow: 0 8px 24px rgba(192,57,43,.34);
   transition: transform .15s ease;
 }
 .opening .op-start:active { transform: scale(.97); }
@@ -221,29 +267,34 @@ html, body {
 .ep-timeline { width: 100%; max-width: 340px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 30px; }
 .ep-row {
   display: flex; align-items: center; justify-content: space-between;
-  background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.1);
-  border-radius: 12px; padding: 11px 15px;
+  background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12);
+  border-radius: 16px; padding: 11px 15px;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .ep-row .ep-chapter { font-size: 14px; font-weight: 700; }
 .ep-row .ep-time { font-size: 11.5px; color: rgba(246,242,234,.55); margin-top: 2px; }
 .ep-row .ep-count { font-size: 11.5px; color: #e0736a; font-weight: 600; white-space: nowrap; }
 .ep-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 340px; }
 .ep-btn {
-  min-height: 46px; border-radius: 23px; border: none; cursor: pointer;
+  min-height: 46px; border-radius: 999px; border: none; cursor: pointer;
   font-size: 14px; font-weight: 700; -webkit-tap-highlight-color: transparent;
 }
-.ep-btn.primary { background: #c0392b; color: #fff; box-shadow: 0 4px 18px rgba(192,57,43,.5); }
-.ep-btn.ghost { background: rgba(255,255,255,.1); color: #f6f2ea; border: 1px solid rgba(255,255,255,.28); }
+.ep-btn.primary { background: #c0392b; color: #fff; box-shadow: 0 8px 22px rgba(192,57,43,.45); }
+.ep-btn.ghost {
+  background: rgba(255,255,255,.12); color: #f6f2ea; border: 1px solid rgba(255,255,255,.28);
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
 .ep-btn:active { transform: scale(.98); }
 
 /* ---- 「走进这里」入口 + 小提示 toast ---- */
 .toast {
   position: fixed; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%) translateY(8px);
-  background: rgba(0,0,0,.82); color: #fff; font-size: 12.5px;
-  padding: 10px 18px; border-radius: 20px; z-index: 40;
+  background: rgba(70,52,60,.92); color: #fff; font-size: 12.5px;
+  padding: 10px 18px; border-radius: 999px; z-index: 40;
   opacity: 0; pointer-events: none; transition: opacity .3s ease, transform .3s ease;
-  white-space: nowrap;
+  max-width: 86vw; text-align: center;
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
 }
 .toast.on { opacity: 1; transform: translateX(-50%) translateY(0); }
 
@@ -261,13 +312,16 @@ html, body {
 
 <div class="top-hud">
   <div class="th-row">
+    <a class="back-btn hidden" id="backBtn" href="../index.html" aria-label="返回" title="返回">←</a>
     <h1 id="topTitle">空间记忆 · 那一天的旅程</h1>
     <div class="nav-mini" id="navMini">
       <button class="nav-btn prev hidden" id="prevBtn" type="button" aria-label="上一站">‹</button>
       <button class="nav-btn next" id="nextBtn" type="button">下一站 ›</button>
     </div>
   </div>
-  <div class="progress-line" id="progressLine"></div>
+  <div class="progress-wrap">
+    <div class="progress-line" id="progressLine"></div>
+  </div>
 </div>
 
 <div class="hint" id="hint">👆 拖动环视 · 点亮点看照片</div>
@@ -285,10 +339,12 @@ html, body {
 
 <!-- 到达标题卡 -->
 <div class="title-card" id="titleCard">
-  <div class="tc-chapter" id="tcChapter"></div>
-  <div class="tc-rule"></div>
-  <div class="tc-time" id="tcTime"></div>
-  <div class="tc-line" id="tcLine"></div>
+  <div class="tc-inner">
+    <div class="tc-chapter" id="tcChapter"></div>
+    <div class="tc-rule"></div>
+    <div class="tc-time" id="tcTime"></div>
+    <div class="tc-line" id="tcLine"></div>
+  </div>
 </div>
 
 <div class="opening" id="opening">
@@ -453,6 +509,27 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
 (function () {
   "use strict";
 
+  // ============================================================
+  // 返回动线：?back=<相对仓库根的路径,已 encodeURIComponent> 优先,
+  // 没有就回页面原来的落点。只收站内相对路径,http:// 和 // 开头一律拒绝(防开放重定向)。
+  // ============================================================
+  function backTarget(fallback){
+    try{
+      var b = new URLSearchParams(location.search).get("back");
+      if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+    }catch(e){}
+    return fallback;
+  }
+  var BACK_HREF = backTarget("../index.html");
+  var HAS_BACK = BACK_HREF !== "../index.html";
+
+  // 顶部返回控件：只在顶层窗口露出(嵌在 show.html 的 iframe 里时不显示,外壳自己有导航)
+  var backBtn = document.getElementById("backBtn");
+  backBtn.href = BACK_HREF;
+  var embedded = true;
+  try { embedded = window.self !== window.top; } catch (e) { embedded = true; }
+  if (!embedded) backBtn.classList.remove("hidden");
+
   var TOUR = window.TOUR;
   if (!TOUR || !TOUR.nodes || !TOUR.nodes.length) {
     document.getElementById("psmBoot").textContent = "tour.js 没读到数据（检查 ../tour.js 是否存在）";
@@ -547,7 +624,7 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     }
     document.getElementById("lbCap").textContent = photo.caption || "";
     var badge = document.getElementById("lbBadge");
-    badge.textContent = photo.video ? "现场视频" : (isAuto ? ("AI 自动放置 · 置信度 " + pct + "%") : "人工校正 ✓");
+    badge.textContent = photo.video ? (photo.badgeText || "现场视频") : (isAuto ? ("AI 自动放置 · 置信度 " + pct + "%") : "人工校正 ✓");
     badge.className = "lbBadge " + (photo.video ? "auto" : (isAuto ? "auto" : "manual"));
     document.getElementById("lightbox").classList.add("on");
   }
@@ -692,7 +769,8 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
       step.appendChild(label);
       step.addEventListener("click", function () {
         var idx2 = Number(step.dataset.idx);
-        if (!step.classList.contains("unlocked")) return;
+        // 没走到的站点点了没反应会像坏了,给一句话解释(不改解锁规则)
+        if (!step.classList.contains("unlocked")) { showToast("这一站还没走到,先跟着往下走"); return; }
         if (idx2 === i) return;
         goToStation(idx2);
       });
@@ -877,7 +955,10 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
         '</div><div class="ep-time">' + (node.time || "") + "</div>";
       var count = document.createElement("div");
       count.className = "ep-count";
-      count.textContent = EFF[node.id].photos.length + " 张照片";
+      // 视频热点不是照片,分开数,别把 9 张照片 + 1 段视频报成 10 张照片
+      var items = EFF[node.id].photos;
+      var vids = items.filter(function (p) { return !!p.video; }).length;
+      count.textContent = (items.length - vids) + " 张照片" + (vids ? " · " + vids + " 段视频" : "");
       row.appendChild(left);
       row.appendChild(count);
       epTimeline.appendChild(row);
@@ -906,12 +987,15 @@ $,!1),g.removeEventListener("mouseleave",ma,!1));s.innerHTML="";s.classList.remo
     });
   });
 
-  document.getElementById("coverBtn").addEventListener("click", function () {
-    window.location.href = "../index.html";
+  var coverBtn = document.getElementById("coverBtn");
+  if (HAS_BACK) coverBtn.textContent = "返回";
+  coverBtn.addEventListener("click", function () {
+    window.location.href = BACK_HREF;
   });
 
+  // 影片:直接在灯箱里播已成片的 memory-film-web.mp4(和 album.html / demo.html 同一份)
   document.getElementById("filmBtnEnd").addEventListener("click", function () {
-    showToast("影片轨敬请期待");
+    openLightbox({ video: "film/out/memory-film-web.mp4", badgeText: "影片", caption: "那一天 · 影片" });
   });
 
   // ============================================================

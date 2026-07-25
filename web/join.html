@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>空间记忆 · 他们请你交一张照片</title>
+<title>UNSEEN · 他们请你交一张照片</title>
 <!--
   公开版宾客页(云版)。和 server/join.html 的区别只有一个:这一页【一个后端接口都不调】。
     读 = fetch(<OSS基址>/spaces/<sid>/space.json)
@@ -13,7 +13,30 @@
 
   入口:  join.html?s=<空间id>&b=<OSS基址>   (b 可省, 用下面的默认值)
   调试:  &mock=1 整页假数据   &screen=welcome|mine|upload|waiting|result 停在某一屏
+
+  换肤记录(2026-07-25,如实版):**这一页仍然是米白纸质风,没有换成 app 壳的粉金玻璃风。**
+  当初那次换皮做到一半就中断了:theme.css 引进来了但 body 没挂 u-body,
+  下面的 :root 还把 --ink/--line 反向覆盖回纸质色,所以视觉上等于没换。
+  这是刻意保留的现状,不是遗漏 —— 宾客页是唯一给外人看的一屏,纸质请柬感和婚礼场景更贴,
+  真要统一到粉金请整页重做并重新验收,别只删这段注释。
+  已做的:字标统一成 UNSEEN(原来写"空间记忆",和 app 壳对不上)。罗盘 compass() 已删,详见 taskDirWidget()。
+
+  2026-07-25 两处改动,都是"别说假话":
+    ① 回执和「我的贡献」不再自己算分。原来传完立刻报"这次拿到 +20 分",可后端只给
+       auto_ok / approved 的照片算分,被判 needs_review 的人根本不上贡献榜,报出去的分是编的。
+       详见 sumHtml() 上面那段。
+    ② 云版 space.json 的 photos[] 根本没有 state 字段(只有 pending[] 有),
+       所以"已经挂进空间"的照片以前会被回执说成"正在处理"。详见 photoState()。
+  OSS 拉取/直传/轮询/base64url 昵称这几条链路一行没动,动的只有回执上的文案和数字来源。
+
+  2026-07-25 第二轮,又两处"别说假话",同样只动文案:
+    ③ 开场那句从"会被放回它被拍下的位置"改成"会回到它当时朝着的方向"。系统只定得到
+       30 度扇区,承诺"位置"是做不到的事,全站已经统一成方向口径。
+    ④ 开场那颗小药丸从"已有 N 位宾客交了 M 张"改成"已有 N 位宾客的 M 张照片放进了空间"。
+       这两个数来自 contributors,后端只把已入选的照片记进去,待审的宾客一行都没有,
+       原话会被读成"交过照片的总人数",系统性偏低。详见 renderWelcome() 里那段。
 -->
+<link rel="stylesheet" href="../app/theme.css">
 <style>
   :root{
     --cream:#f6f2ea; --ink:#3a352f; --sub:#9a9186; --red:#c0392b; --gold:#b08d57;
@@ -84,6 +107,15 @@
   }
   .btn-main:active{ transform:scale(.975); }
   .btn-main:disabled{ opacity:.4; box-shadow:none; }
+  /* 名字不是门槛,这条是「不填也能进」的明面出口 */
+  .btn-skip{
+    display:block; width:100%; margin-top:12px; padding:8px 0;
+    background:none; border:none; cursor:pointer;
+    color:var(--sub); font-size:13px; letter-spacing:.5px;
+    text-decoration:underline; text-underline-offset:4px; text-decoration-color:#d8cfc0;
+  }
+  .btn-skip:active{ opacity:.55; }
+  .nick-label .opt{ color:#c0b6a6; margin-left:6px; }
   .tiny{ font-size:11px; color:#b8b0a4; margin-top:16px; letter-spacing:.5px; }
 
   /* ============ 顶部条 ============ */
@@ -186,21 +218,39 @@
   .card-title{ font-size:18px; font-weight:700; margin:0 0 6px; letter-spacing:.5px; }
   .card.wish .card-title{ font-family:"Kaiti SC","STKaiti","Songti SC",serif; font-size:20px; line-height:1.45; }
   .card-brief{ font-size:13px; color:#6f675d; line-height:1.7; margin:0; }
-  .card-foot{ display:flex; align-items:center; gap:12px; margin-top:15px; }
+  /* 卡片底一行:缩略图 / 方向 / 分数 / 主按钮。放不下就换行,永远不许把按钮挤扁。 */
+  .card-foot{ display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:15px; }
+  /* 罗盘删掉之后换上的两个承载件。之前这两个类一条规则都没有,
+     通缉令图按原始宽度铺开,把同一行的按钮压成 60px,文字竖排溢出。 */
+  .dir-shot{ flex:none; width:92px; }
+  .dir-shot img{
+    width:92px; height:69px; object-fit:cover; display:block;
+    border-radius:10px; border:1px solid var(--line); background:#efe8dc;
+  }
+  .dir-shot i{
+    display:block; font-style:normal; font-size:11px; line-height:1.4;
+    color:var(--sub); margin-top:5px; letter-spacing:.5px;
+  }
+  .dir-pill{
+    flex:none; font-size:12px; color:#7d6c50; background:#f1ece1;
+    border-radius:999px; padding:5px 11px; letter-spacing:.5px;
+  }
   .bounty{
     font-family:"Songti SC",serif; font-size:15px; color:var(--gold); font-weight:700;
     flex:none; letter-spacing:.5px;
   }
   .bounty i{ font-style:normal; font-size:11px; color:var(--sub); font-family:inherit; margin-left:2px; }
   .btn-take{
-    flex:1; height:48px; border-radius:24px; border:none; cursor:pointer;
+    flex:1 1 auto; width:auto; height:48px; padding:0 18px; white-space:nowrap;
+    border-radius:24px; border:none; cursor:pointer;
     background:var(--red); color:#fff; font-size:15px; font-weight:700; letter-spacing:1px;
     box-shadow:0 6px 16px rgba(192,57,43,.26); transition:transform .15s ease;
   }
   .btn-take:active{ transform:scale(.97); }
   .card.wish .btn-take{ background:#a8443a; }
   .claimed{
-    flex:1; height:48px; border-radius:24px; background:#f0ebe1; color:var(--sub);
+    flex:1 1 auto; height:48px; padding:0 14px; white-space:nowrap;
+    border-radius:24px; background:#f0ebe1; color:var(--sub);
     font-size:13.5px; display:flex; align-items:center; justify-content:center; gap:6px;
   }
 
@@ -357,22 +407,27 @@
 <!-- ==================== 开场:一屏只干一件事,填个昵称 ==================== -->
 <div id="welcome" class="off">
   <div style="max-width:400px;margin:0 auto;width:100%">
-    <div class="kicker">空间记忆 <span>· SPATIAL MEMORY</span></div>
+    <div class="kicker">U N S E E N <span>· 看见没被看见的</span></div>
     <h1 class="names" id="wNames">— <span class="heart">♥</span> —</h1>
     <div class="subdate" id="wDate">&nbsp;</div>
 
     <div class="invite-line">他们请你交一张照片</div>
-    <p class="invite-sub">那一天散在每个人手机里。<br>你交的这张,会被放回它被拍下的位置。</p>
+    <!-- ⚠️ 不许写"放回它被拍下的位置"。系统只把照片定到 30 度的扇区(方向),定不到位置,
+         写"位置"就是当场承诺一件做不到的事。全站统一口径:回到它当时朝着的方向。 -->
+    <p class="invite-sub">那一天散在每个人手机里。<br>你交的这张,会回到它当时朝着的方向。</p>
 
     <div class="proof" id="wProof" style="display:none">
       <span class="faces" id="wFaces"></span>
-      <span>已有 <b id="wPeople">0</b> 位宾客交了 <b id="wPhotos">0</b> 张</span>
+      <!-- ⚠️ 这两个数来自 contributors,而 contributors 只统计已入选的照片(见 renderWelcome)。
+           所以只能说"放进空间的",不能说"交了多少张",待审的宾客压根不在这份数据里。 -->
+      <span>已有 <b id="wPeople">0</b> 位宾客的 <b id="wPhotos">0</b> 张照片放进了空间</span>
     </div>
 
     <div class="nick-box">
-      <div class="nick-label">照片上写谁的名字?</div>
+      <div class="nick-label">照片上写谁的名字?<span class="opt">可以不填</span></div>
       <input type="text" id="nickInput" maxlength="12" placeholder="比如:新郎表弟 小明" autocomplete="off">
-      <button class="btn-main" id="nickGo" disabled>好了,带我去看看 →</button>
+      <button class="btn-main" id="nickGo">好了,带我去看看 →</button>
+      <button class="btn-skip" id="nickSkip">先不写名字,直接看看</button>
       <div class="tiny">不用注册、不用装 app,名字只存在你这台手机里</div>
     </div>
   </div>
@@ -382,7 +437,7 @@
 <header>
   <div class="head-in">
     <div class="head-row">
-      <div class="head-names" id="hNames">空间记忆</div>
+      <div class="head-names" id="hNames">UNSEEN</div>
       <div class="head-me" id="hMe" style="visibility:hidden"><span>你好,</span><b id="hNick">—</b></div>
     </div>
     <div class="tabs">
@@ -444,6 +499,7 @@
   var MOCK = Q.get("mock") === "1";
   var FORCE = Q.get("screen") || "";      // 截图/演示用:强制停在某个界面
   var NICK_KEY = "psm_nick";
+  var ANON_NICK = "匿名宾客";       // 不填名字直接进来时用的兜底身份
   // 假数据模式单独存一份,别把演示记录混进真实空间的账本里
   var MINE_KEY = "psm_mine_" + SID + (MOCK ? "_mock" : "");
 
@@ -485,16 +541,15 @@
     return best[1];
   }
 
-  // 小罗盘:红针指向任务要求的方位,比写"210°"直观
-  function compass(yaw, size) {
-    var s = size || 44, r = s / 2, a = (yaw || 0) * Math.PI / 180;
-    var x = r + Math.sin(a) * (r - 8), y = r - Math.cos(a) * (r - 8);
-    return '<svg class="compass" width="' + s + '" height="' + s + '" viewBox="0 0 ' + s + ' ' + s + '">' +
-      '<circle cx="' + r + '" cy="' + r + '" r="' + (r - 1) + '" fill="#fffaf0" stroke="#e6dccb"/>' +
-      '<circle cx="' + r + '" cy="' + r + '" r="2" fill="#9a9186"/>' +
-      '<line x1="' + r + '" y1="' + r + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) +
-      '" stroke="#c0392b" stroke-width="2.5" stroke-linecap="round"/>' +
-      '<text x="' + r + '" y="8" font-size="6" fill="#b8b0a4" text-anchor="middle">前</text></svg>';
+  // 罗盘删了(Max 拍板)。任务卡上那个位置改放:有通缉令裁切图就放圆角小图,没有就放方向文字 pill。
+  // yaw 数据来源和读法完全不变(还是 t.yaw + dirWord()),只是换了个画法。
+  function taskDirWidget(t) {
+    var dir = Math.round(t.yaw || 0) + "° " + dirWord(t.yaw);
+    if (t.briefImage) {
+      return '<span class="dir-shot"><img src="' + esc(assetUrl(t.briefImage)) + '" alt="任务示意图" ' +
+        'onerror="this.src=\'' + posterPlaceholder(t.yaw) + '\'"><i>' + dir + "</i></span>";
+    }
+    return '<span class="dir-pill">朝 ' + dir + "</span>";
   }
 
   function toast(msg) {
@@ -912,8 +967,12 @@
     $("wDate").textContent = (sp.title || "").split("·").pop().trim() || "";
 
     var people = (sp.contributors || []).length;
-    // 用 contributors 的累计张数,不用 photos.length:待审核的那些宾客视角看不到,会少报
     var photos = (sp.contributors || []).reduce(function (a, c) { return a + (c.photos || 0); }, 0);
+    // ⚠️ 这两个数的口径是【已入选】,不是【交过】。后端 recompute_contributors 只统计
+    //    auto_ok / approved 的照片(server/space.py 那段注释写死了这条规则),
+    //    被判 needs_review 还在等新人确认的宾客根本不在 contributors 里,连一行都没有。
+    //    所以这两个数天生偏低,页面上那句话只能说"放进了空间",说"已经有多少人交了"就是假的。
+    //    真想报"交过的总人数"得后端另发一个字段,这一页自己无论怎么算都算不出来。
     if (people > 0) {
       $("wProof").style.display = "inline-flex";
       $("wPeople").textContent = people;
@@ -931,27 +990,22 @@
     var who = (t.filledBy || []).join("、");
     var foot = done
       ? '<div class="claimed">✅ 已被 ' + esc(who || "宾客") + " 认领</div>"
+      // 这里故意不挂 u-btn:theme.css 的 .u-btn 带 padding:15px 22px + width:100%,
+      // 漏进这颗行内小按钮就会把文字挤成一列。.btn-take 自己样式是全的。
       : '<button class="btn-take" data-task="' + esc(t.id) + '">' +
         (t.type === "gap" ? "我去拍这张" : "我有这张") + "</button>";
     var bounty = '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>";
 
     if (t.type === "gap") {
-      var img = t.briefImage ? assetUrl(t.briefImage) : posterPlaceholder(t.yaw);
-      return '<div class="card gap' + (done ? " done" : "") + '">' +
-        '<div class="poster">' +
-          '<img src="' + esc(img) + '" alt="缺失方位的全景裁切" ' +
-          'onerror="this.src=\'' + posterPlaceholder(t.yaw) + '\'">' +
-          '<div class="stamp">' + (done ? "已认领" : "待认领") + "</div>" +
-          '<div class="yawtag">全景裁切 · ' + Math.round(t.yaw || 0) + "° " + dirWord(t.yaw) + "</div>" +
-        "</div>" +
+      return '<div class="card gap u-card' + (done ? " done" : "") + '">' +
         '<div class="card-body">' +
           '<span class="badge gap">🧭 空间任务 · 系统发现的空洞</span>' +
           '<h3 class="card-title">' + esc(t.title || "缺这个角度") + "</h3>" +
           '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
-          '<div class="card-foot">' + compass(t.yaw) + bounty + foot + "</div>" +
+          '<div class="card-foot">' + taskDirWidget(t) + bounty + foot + "</div>" +
         "</div></div>";
     }
-    return '<div class="card wish' + (done ? " done" : "") + '">' +
+    return '<div class="card wish u-card' + (done ? " done" : "") + '">' +
       '<div class="card-body">' +
         '<span class="badge wish">💌 心愿任务 · 新人亲手写的</span>' +
         '<h3 class="card-title"><span class="wish-quote">“</span>' + esc(t.title || "") + "</h3>" +
@@ -1018,7 +1072,7 @@
     var fromServer = (sp.photos || []).filter(function (p) {
       return p.contributor === state.nick && !seen[p.id];
     }).map(function (p) {
-      return { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason,
+      return { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason,
                thumb: assetUrl(p.thumb || p.src), taskTitle: "" };
     });
 
@@ -1028,7 +1082,7 @@
         photoId: m.photoId,
         thumb: (s && assetUrl(s.thumb || s.src)) || m.thumb,
         yaw: s ? s.yaw : m.yaw,
-        state: s ? s.state : m.state,
+        state: s ? photoState(s) : m.state,
         reason: s ? s.reason : m.reason,
         taskTitle: m.taskTitle
       };
@@ -1041,9 +1095,10 @@
     // 张数就用下面这张列表的长度:它已经把服务端认的和本机记的并过一遍了。
     // 用 contributors 里的数字会出现"上面写 3 张、下面列了 4 条"这种当场露馅的矛盾。
     $("stPhotos").textContent = merged.length;
-    $("stPoints").textContent = me ? me.points : merged.reduce(function (a, m) {
-      return a + (m.state === "rejected" ? 0 : 10);
-    }, 0);
+    // 分只认贡献榜上的真数字。以前榜上查无此人时会按"每张非拒绝的 10 分"自己乘一个出来,
+    // 那是和回执同一个假分:后端只给已入选的照片算分,还在等新人确认的那些榜上就是 0。
+    // 编出来的数会和榜、和空间里那面墙对不上,当场露馅。榜上没有就写 0,让下面每一行的状态自己说话。
+    $("stPoints").textContent = me ? (me.points || 0) : 0;
     $("stDirs").textContent = Object.keys(dirs).length;
 
     if (!merged.length) {
@@ -1053,9 +1108,13 @@
     }
     $("mineList").innerHTML = merged.slice().reverse().map(function (m) {
       var st = stateLabel(m.state);
-      // 没有 yaw 的两种情况得分开说:还在算 ≠ 心愿任务(心愿任务本来就不算方位)
+      // 没有 yaw 的三种情况得分开说:还在算 ≠ 等新人确认 ≠ 心愿任务(心愿任务本来就不算方位)。
+      // 待确认那份回执按隐私红线不带 yaw,以前会掉进"送给新人"那一档,
+      // 交了张补空洞的照片却被告知送人了,是假话。
       var dir = m.yaw != null ? esc(dirWord(m.yaw)) + " · " + Math.round(m.yaw) + "°"
-              : (m.state === "uploaded" ? "机器正在认方位…" : "送给新人");
+              : m.state === "uploaded" ? "机器正在认方位…"
+              : m.state === "needs_review" ? "方位等新人确认"
+              : "送给新人";
       return '<div class="mine-row">' +
         '<img src="' + esc(m.thumb || "") + '" alt="">' +
         '<div class="mine-meta">' +
@@ -1064,6 +1123,20 @@
         "</div>" +
         '<span class="pill ' + st.cls + '">' + st.txt + "</span></div>";
     }).join("");
+  }
+
+  // ⚠️ 云版 space.json 的 photos[] 里【没有 state 这个字段】。
+  //    publish.py 只把 auto_ok / approved 的照片放进 photos(那一行就是隐私红线),
+  //    所以"能出现在 photos 里"本身就等于"已经进空间";带 state 的只有 pending[] 那份回执。
+  //    2026-07-25 拉了一次线上 s4 的 space.json 数过:photos[0] 的字段是
+  //    id / src / thumb / nodeId / yaw / pitch / confidence / contributor / taskId /
+  //    uploadedAt / inboxKey,一个 state 都没有。
+  //    不补这一手的话,明明已经挂进空间的照片会被回执说成"正在处理",
+  //    「我的贡献」里的小标签也永远停在"处理中"。
+  function photoState(p) {
+    if (!p) return "";
+    if (p.state) return p.state;
+    return (p.src || p.thumb) ? "auto_ok" : "";
   }
 
   function stateLabel(s) {
@@ -1303,7 +1376,7 @@
 
     function resolveOne(sid, p) {
       settleRow(sid, p, task);
-      patchMine(sid, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+      patchMine(sid, { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason });
       // 把认到的那条挂回 rec 上,结算悬赏时直接用,不能再按短 id 找一遍
       //(工人改过名之后短 id 就没了,再找必然落空,悬赏会算成 10 分)
       if (left[sid]) left[sid].resolved = p;
@@ -1346,27 +1419,32 @@
   function settleRow(shortId, p, task) {
     var el = rowEl(shortId);
     if (!el) return;
-    var head, sub;
-    if (p.state === "auto_ok" || p.state === "approved") {
+    var head, sub, st = photoState(p);   // 云版 photos[] 不带 state, 见 photoState()
+    if (st === "auto_ok" || st === "approved") {
       head = "你这张放在了 <b>" + esc(dirWord(p.yaw)) + "</b> · 已进入空间 ✅";
       sub = "匹配度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "—") +
             " · " + Math.round(p.yaw || 0) + "°";
-    } else if (p.state === "needs_review") {
+    } else if (st === "needs_review") {
       head = "机器拿不准,已交给新人确认 ⏳";
-      sub = p.reason || "两项判据没同时达标,等新人裁决";
-    } else if (p.state === "quarantined") {
+      // note 是后端在 pending 回执里给的人话(publish.py),云版拿得到的只有它;
+      // reason 是本机账本/假数据里的字段。都没有时的兜底不许再猜是哪一项没达标,
+      // 只说这一步之后会怎样,这也是"没通过就不算分"这件事唯一说得清的地方。
+      sub = p.note || p.reason || "通过之后才会进空间,也才计入贡献榜";
+    } else if (st === "quarantined") {
       head = "这张看着不像这个场地,先放一边了";
-      sub = p.reason || "自检环自动隔离";
-    } else if (p.state === "rejected") {
+      sub = p.note || p.reason || "自检环自动隔离";
+    } else if (st === "rejected") {
       head = "新人这次没选上它";
-      sub = p.reason || "";
+      sub = p.note || p.reason || "";
     } else {
       head = "已收到,正在处理";
-      sub = p.reason || "";
+      sub = p.note || p.reason || "";
     }
-    if (task && task.type === "wish" && p.state !== "quarantined") {
+    // 心愿任务由新人亲自看,所以正常路径改成"送到手上"的说法。
+    // 但已经被隔离/被新人否掉的那两种不能套这句,结论都出来了还说"已送到"是自欺。
+    if (task && task.type === "wish" && st !== "quarantined" && st !== "rejected") {
       head = "已经送到新人手上 💌";
-      sub = p.reason || "心愿任务由新人亲自看";
+      sub = p.note || p.reason || "心愿任务由新人亲自看";
     }
     el.classList.remove("pending");
     el.querySelector(".res-t").innerHTML = head;
@@ -1387,19 +1465,66 @@
     if (s) { s.innerHTML = "结果会自己出现在「我的贡献」里"; s.classList.add("in"); }
   }
 
+  // 回执最下面那句总结。
+  // ⚠️ 这里以前直接报分:补上任务算 bounty,否则按"每张 10 分"自己乘一个数出来。
+  //    那个数是编的。后端 recompute_contributors 只给 auto_ok / approved 的照片算分,
+  //    apply_task_fill 也只在这两种状态下才把人记进 filledBy —— 被判 needs_review 的照片
+  //    一分不给,连贡献榜都不上。所以"这次拿到 +20 分"在最常见的待审情况下是凭空发的 20 分,
+  //    人一转头看榜上没自己就当场露馅(实测 s20 四个人上传只上榜两人,s21 四个人上榜三人)。
+  //    现在只说两种能被验证的事:① 每张照片的真实去向 ② 贡献榜上此刻真实记着多少分。
+  //    第二项直接读 space.json 里的 contributors,这一页自己一个数都不算;榜上查无此人就明说还没上榜。
+  function sumHtml(recs, task) {
+    var into = 0, wait = 0, out = 0, filled = false, missYaw = null;
+    recs.forEach(function (r) {
+      var p = r.resolved, st = photoState(p);   // 云版 photos[] 不带 state, 见 photoState()
+      if (st === "auto_ok" || st === "approved") {
+        into++;
+        if (task && p.taskId === task.id) filled = true;
+        else if (missYaw == null && p.yaw != null) missYaw = p.yaw;   // 进了空间却没记在这个任务头上
+      } else if (st === "rejected" || st === "quarantined") { out++; }
+      else { wait++; }
+    });
+    var parts = [];
+    if (into) parts.push(into + " 张已经进空间");
+    if (wait) parts.push(wait + " 张等新人确认");
+    if (out) parts.push(out + " 张没被收进空间");
+    var html = parts.join(" · ") || "都收到了";
+    if (filled) html += "<br>这个任务被你补上了 🎉";
+    // 照片进了空间、却没被记在这个任务头上 = 后端校验过方位对不上,把 taskId 清掉了
+    //(server/space.py apply_task_fill,7/25 修的那条 P0)。这时任务照旧开着、悬赏一分没发。
+    // 以前这里一个字都不说,宾客点的是"我去拍这张 +50 分",看到「✅ 已进入空间」就当悬赏到手了,
+    // 回头看任务墙还开着才发现 —— 这和报假分是同一种谎,只是换成了沉默。
+    // 本机自己就能判:选中的照片带的 taskId 不是他点的那个,就是没认领上。
+    // 云版 space.json 不带 taskMismatch 字段,所以理由只按方位说,不编后端没给的话。
+    else if (into && task && task.type === "gap") {
+      var live = ((state.space && state.space.tasks) || []).filter(function (t) {
+        return t.id === task.id;
+      })[0];
+      // 度数必须带上:八方位只有 45 度一格,"左后方"和"左后方"可以差 30 度,
+      // 只写方位词会写出"照片朝的是左后方,它要的是左后方"这种看着像 bug 的句子。
+      html += "<br>这个任务没算你补上:" +
+        ((missYaw != null && task.yaw != null)
+          ? "照片朝的是 " + esc(dirWord(missYaw)) + " " + Math.round(missYaw) + "°" +
+            ",它要的是 " + esc(dirWord(task.yaw)) + " " + Math.round(task.yaw) + "°"
+          : "照片的方位和它要的对不上") +
+        ((!live || live.status === "open") ? ",任务还开着" : "");
+    }
+    // 榜上的分只报 space.json 里真有的那个,而且它是总分不是这次的增量,措辞照实写
+    var me = ((state.space && state.space.contributors) || []).filter(function (c) {
+      return c.name === state.nick;
+    })[0];
+    if (me) html += "<br>贡献榜上现在记着你 <b>" + (me.points || 0) + "</b> 分";
+    else if (wait) html += "<br>还没上贡献榜,新人确认过才算分";
+    return html;
+  }
+
   function finishSum(recs, task) {
     // 全算完了就把那根还在跑的等待条收掉,别让人以为还有东西没好
     var w = $("waitBar"); if (w) w.style.display = "none";
     var b = $("btnGoWalk"); if (b) b.textContent = "看看它在空间里 →";
     var s = $("resSum");
     if (!s) return;
-    var filled = recs.some(function (r) {
-      var p = r.resolved;
-      return p && (p.state === "auto_ok" || p.state === "approved") && p.taskId === task.id;
-    });
-    var gained = filled ? (task.bounty || 0) : recs.length * 10;
-    s.innerHTML = (filled ? "悬赏到账 " : "这次拿到 ") + "<b>+" + gained + "</b> 分" +
-      (filled ? " · 这个任务被你补上了 🎉" : "");
+    s.innerHTML = sumHtml(recs, task);
     s.classList.add("in");
     if (state.view === "mine") renderMine();
   }
@@ -1485,7 +1610,7 @@
         var p = findMine(sp, m.shortId);
         if (p && !claimed[p.id]) {
           claimed[p.id] = 1; m.matched = p;
-          patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+          patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason });
         }
       });
       // 已被认走的既算"旧"也算"已占";时间线用本机账本里最早那条待认领的上传时刻
@@ -1496,7 +1621,7 @@
         var p = fresh.shift();
         if (!p) return;
         claimed[p.id] = 1;
-        patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: p.state, reason: p.reason });
+        patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason });
       });
       if (state.view === "mine") renderMine();
       renderTasks();
@@ -1513,21 +1638,22 @@
   }
 
   // ================================================================ 事件
-  $("nickInput").addEventListener("input", function () {
-    $("nickGo").disabled = this.value.trim().length === 0;
-  });
-  $("nickGo").addEventListener("click", function () {
-    var v = $("nickInput").value.trim();
-    if (!v) return;
+  // 名字不是门槛:不填也能进,兜底成「匿名宾客」(这个空间的贡献者里本来就有匿名的)
+  function enterAs(raw) {
+    var v = (raw || "").trim() || ANON_NICK;
     state.nick = v;
     try { localStorage.setItem(NICK_KEY, v); } catch (e) { /* 隐私模式下存不了也能用 */ }
     $("welcome").classList.add("off");
     bootMain();
     toast("好的 " + v + ",挑一个任务吧");
+  }
+  $("nickInput").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") enterAs(this.value);
   });
+  $("nickGo").addEventListener("click", function () { enterAs($("nickInput").value); });
+  $("nickSkip").addEventListener("click", function () { enterAs(""); });
   $("hMe").addEventListener("click", function () {
-    $("nickInput").value = state.nick;
-    $("nickGo").disabled = false;
+    $("nickInput").value = state.nick === ANON_NICK ? "" : state.nick;
     $("welcome").classList.remove("off");
   });
   document.addEventListener("click", function (e) {
@@ -1565,7 +1691,7 @@
 
     var needNick = !state.nick || FORCE === "welcome";
     $("welcome").classList.toggle("off", !needNick);
-    if (state.nick) { $("nickInput").value = state.nick; $("nickGo").disabled = false; }
+    if (state.nick && state.nick !== ANON_NICK) $("nickInput").value = state.nick;
     bootMain();                 // 背景先渲染好,关掉开场就是完整页面
 
     refreshRedo().then(function (all) {
@@ -1578,7 +1704,7 @@
     if (FORCE === "result") mockShowResult();
   }).catch(function (e) {
     // 空间没加载出来时别留一堆占位骨架,把头部收干净,只留一句人话 + 一个能按的重试
-    $("hNames").textContent = "空间记忆";
+    $("hNames").textContent = "UNSEEN";
     $("hMe").style.display = "none";
     $("welcome").classList.add("off");
     $("taskList").innerHTML = '<div class="empty"><span class="big">🥀</span>' +
@@ -1676,14 +1802,16 @@
   function mockShowResult() {
     mockShowWaiting();
     setTimeout(function () {
-      settleRow("w1", { id: "x1", yaw: 213.4, confidence: 0.9142, state: "auto_ok",
-        reason: "匹配度 0.91、辨识度 0.088,两项都达标,自动入选", taskId: "t1" }, MOCK_SPACE.tasks[0]);
-      settleRow("w2", { id: "x2", yaw: 118.9, confidence: 0.8310, state: "needs_review",
-        reason: "辨识度 0.031 偏低,交给新人裁决" }, MOCK_SPACE.tasks[0]);
+      // 一进一待:这才是现场最常见的组合,也正是"报分会露馅"的那一种
+      var p1 = { id: "x1", yaw: 213.4, confidence: 0.9142, state: "auto_ok", taskId: "t1" };
+      var p2 = { id: "x2", state: "needs_review", note: "已收到,等新人确认" };
+      settleRow("w1", p1, MOCK_SPACE.tasks[0]);
+      settleRow("w2", p2, MOCK_SPACE.tasks[0]);
       var w = $("waitBar"); if (w) w.style.display = "none";
       var b = $("btnGoWalk"); if (b) b.textContent = "看看它在空间里 →";
       var s = $("resSum");
-      s.innerHTML = "悬赏到账 <b>+50</b> 分 · 这个任务被你补上了 🎉";
+      // 和真回执共用同一个 sumHtml,演示屏就没法再飘回"悬赏到账 +50 分"那种写死的假数
+      s.innerHTML = sumHtml([{ resolved: p1 }, { resolved: p2 }], MOCK_SPACE.tasks[0]);
       s.classList.add("in");
     }, 700);
   }

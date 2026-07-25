@@ -8,8 +8,8 @@
   viewer/album.html —— 时间轴相册。
   设计取向:一本装订好的摄影画册。左侧是「装订边」(墨色书脊,承担时间导航),
   右侧是米色纸面上的照片版面。每一章一个时间戳,章内用手工版式(band)排布,不做九宫格。
-  和普通相册的区别写在罗盘上:每张照片都带自己的全景方位角(yaw),
-  章节罗盘把这一章所有照片的朝向画成刻度 —— 「这一章大家都看向哪儿」。
+  和普通相册的区别写在方位上:每张照片都带自己的全景方位角(yaw),
+  卷首的读数表和每章章头把这些角度逐张列出来,「这一章大家都看向哪儿」。
   数据源 = ../tour.js(window.TOUR)。图片走和 timeline.html/journey.html 一致的可插拔演示层。
 -->
 <style>
@@ -23,7 +23,7 @@
   --ink:#211D19;          /* 墨:书脊与标题 */
   --ink-2:#6A6259;        /* 墨-次:说明文字 */
   --ink-3:#9C948A;        /* 墨-弱:标注 */
-  --zhu:#B03A2B;          /* 朱:只给罗盘指针和当前章节,别处不用 */
+  --zhu:#B03A2B;          /* 朱:只给人工锚定的方位和当前章节,别处不用 */
   --brass:#A88A4E;        /* 金:发丝线与刻度 */
 
   --serif:"Songti SC","STSong","Noto Serif SC",serif;
@@ -88,7 +88,7 @@ a{ text-decoration:none; color:inherit; }
 .wrap{ max-width:1180px; margin:0 auto; padding:0 var(--pad); }
 
 /* ============================================================
-   3. 卷首(hero)—— 主角是那只「四圈罗盘」
+   3. 卷首(hero)。右边是「方位读数表」:一行一个空间,把每张照片的朝向摊成数字
    ============================================================ */
 .hero{ padding:38px 0 30px; }
 .eyebrow{
@@ -107,18 +107,26 @@ a{ text-decoration:none; color:inherit; }
 .hero .lead b{ font-weight:600; color:var(--ink); }
 
 .hero-figure{
-  display:flex; flex-direction:column; align-items:center; gap:10px;
+  display:flex; flex-direction:column; align-items:stretch; gap:10px;
   padding:16px 0 0; margin:0;
 }
-.hero-figure svg{ width:min(76vw,282px); height:auto; display:block; }
-.ringkey{
-  font-family:var(--mono); font-size:10px; letter-spacing:.1em; color:var(--ink-2);
-  display:flex; align-items:center; gap:6px; flex-wrap:wrap; justify-content:center;
+.bt-head{
+  font-family:var(--mono); font-size:10px; letter-spacing:.2em; color:var(--brass);
+  text-transform:uppercase;
 }
-.ringkey .edge{ color:var(--ink-3); }
-.ringkey .arw{ color:var(--brass); }
+.btable{ border-top:1px solid var(--ink); }
+.btrow{ padding:9px 0 10px; border-bottom:1px solid var(--paper-2); }
+.btrow .k{ display:flex; align-items:baseline; gap:9px; }
+.btrow .k .t{ font-family:var(--mono); font-size:11px; letter-spacing:.06em; color:var(--zhu); }
+.btrow .k .nm{ font-family:var(--serif); font-size:15px; letter-spacing:.08em; }
+.btrow .k .c{ margin-left:auto; font-size:10.5px; color:var(--ink-3); }
+.btrow .d{
+  display:flex; flex-wrap:wrap; gap:2px 9px; margin-top:5px;
+  font-family:var(--mono); font-size:10.5px; letter-spacing:.04em; color:var(--ink-2);
+}
+.btrow .d .anchor{ color:var(--zhu); font-weight:600; }
 .hero-figure .cap{
-  font-size:11.5px; color:var(--ink-3); text-align:center; max-width:24em; line-height:1.7;
+  font-size:11.5px; color:var(--ink-3); text-align:left; max-width:26em; line-height:1.7;
 }
 
 .facts{
@@ -128,7 +136,7 @@ a{ text-decoration:none; color:inherit; }
 .fact .n{ font-family:var(--mono); font-size:20px; letter-spacing:-.01em; line-height:1.3; }
 .fact .l{ font-size:10.5px; color:var(--ink-3); letter-spacing:.1em; }
 
-/* 主按钮:墨色,克制。红只留给罗盘 */
+/* 主按钮:墨色,克制。红只留给锚定的方位 */
 .btn-film{
   display:inline-flex; align-items:center; gap:11px;
   background:var(--ink); color:var(--paper);
@@ -175,10 +183,17 @@ a{ text-decoration:none; color:inherit; }
 }
 .ch-sub{ font-size:12.5px; color:var(--ink-2); margin-top:7px; }
 .ch-sub .sep{ color:var(--paper-2); margin:0 7px; }
-.ch-compass{ flex:0 0 auto; display:none; text-align:center; }
-.ch-compass svg{ width:112px; height:112px; display:block; }
-.ch-compass .cc-cap{
-  font-family:var(--mono); font-size:9px; letter-spacing:.1em; color:var(--ink-3); margin-top:2px;
+/* 章头右侧:这一章每张照片的朝向读数。悬停照片时对应那个读数会亮起来 */
+.ch-bearings{ flex:0 0 auto; display:none; text-align:right; max-width:236px; }
+.ch-bearings .cb-list{
+  display:flex; flex-wrap:wrap; justify-content:flex-end; gap:3px 9px;
+  font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--ink-3);
+}
+.ch-bearings .cb-i{ transition:color .2s ease; }
+.ch-bearings .cb-i.anchor{ color:var(--zhu); }
+.ch-bearings .cb-i.hot{ color:var(--zhu); font-weight:600; }
+.ch-bearings .cb-cap{
+  font-family:var(--mono); font-size:9px; letter-spacing:.1em; color:var(--ink-3); margin-top:6px;
 }
 
 /* ---- 版面:band 是一行,plate 是一张照片 ---- */
@@ -216,15 +231,11 @@ a{ text-decoration:none; color:inherit; }
   overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
 .bearing{
-  flex:0 0 auto; display:inline-flex; align-items:center; gap:5px;
+  flex:0 0 auto; white-space:nowrap;
   font-family:var(--mono); font-size:10px; letter-spacing:.06em; color:var(--ink-3);
 }
-.needle{
-  width:9px; height:9px; flex:0 0 auto; color:var(--brass);
-  transform:rotate(var(--yaw,0deg));
-}
-.plate.anchor .needle{ color:var(--zhu); }
-.plate.anchor .bearing{ color:var(--ink-2); }
+/* 人工锚定的那张,方位读数用朱色标出来 */
+.plate.anchor .bearing{ color:var(--zhu); }
 
 /* ============================================================
    5. 尾页
@@ -272,7 +283,6 @@ a{ text-decoration:none; color:inherit; }
   display:flex; align-items:center; gap:7px;
   font-family:var(--mono); font-size:12px; color:#cfc5b6; letter-spacing:.06em;
 }
-.viewer-foot .vb .needle{ width:13px; height:13px; color:var(--zhu); }
 .viewer-nav{ display:flex; gap:6px; }
 .viewer-nav button{
   width:38px; height:38px; border:1px solid rgba(233,226,214,.22); color:#e9e2d6;
@@ -410,13 +420,12 @@ a{ text-decoration:none; color:inherit; }
   .hero{ padding:76px 0 8px; display:grid; grid-template-columns:minmax(0,1fr) auto; gap:0; align-items:center; }
   .hero-text{ max-width:34em; padding-right:56px; }
   /* 一道竖发丝线,把「说的话」和「量出来的东西」分开,留白就成了版式 */
-  .hero-figure{ padding:6px 0 6px 56px; border-left:1px solid var(--paper-2); }
-  .hero-figure svg{ width:336px; }
+  .hero-figure{ width:392px; padding:6px 0 6px 56px; border-left:1px solid var(--paper-2); }
   .hero-figure .cap{ max-width:22em; }
   .facts{ grid-column:1 / -1; margin-top:12px; }
 
   .ch-head{ padding:24px 0 18px; margin-top:52px; }
-  .ch-compass{ display:block; }
+  .ch-bearings{ display:block; }
 
   /* 桌面端 band 定高,plate 按权重分宽 —— 这是「版式」而不是瀑布流 */
   .band{ flex-wrap:nowrap; height:var(--h); }
@@ -503,9 +512,9 @@ a{ text-decoration:none; color:inherit; }
     </div>
 
     <figure class="hero-figure">
-      <svg id="masterCompass" viewBox="0 0 400 400" role="img" aria-label="全部照片的方位分布"></svg>
-      <div class="ringkey" id="ringkey"></div>
-      <figcaption class="cap">一圈一个空间,由里到外按时间走。每一道刻度是一张照片的朝向,朱色那道是人工锚定的。</figcaption>
+      <div class="bt-head">方位读数</div>
+      <div class="btable" id="btable"></div>
+      <figcaption class="cap">一行一个空间,由上到下按时间走。每个数字是一张照片的朝向,朱色那个是人工锚定的。</figcaption>
     </figure>
 
     <div class="facts" id="facts"></div>
@@ -515,10 +524,10 @@ a{ text-decoration:none; color:inherit; }
 
   <footer class="colophon">
     <span class="note">
-      方位角以各自全景图的 0° 为基准,不等同于真北。红色指针 = 人工锚定的那张,其余由自动匹配得到。
+      方位角以各自全景图的 0° 为基准,不等同于真北。朱色读数 = 人工锚定的那张,其余由自动匹配得到。
     </span>
     <span>
-      <a href="../index.html">回到开场</a> ·
+      <a id="backHome" href="../index.html">回到开场</a> ·
       <a href="./journey.html">走进空间</a> ·
       <a href="./timeline.html">时光轴</a>
     </span>
@@ -547,7 +556,7 @@ a{ text-decoration:none; color:inherit; }
       <div class="vs" id="vSub"></div>
     </div>
     <div style="display:flex;align-items:center;gap:16px">
-      <span class="vb"><svg class="needle" id="vNeedle" viewBox="0 0 24 24" aria-hidden="true"></svg><span id="vBear"></span></span>
+      <span class="vb"><span id="vBear"></span></span>
       <span class="viewer-nav">
         <button id="vPrev" aria-label="上一张">←</button>
         <button id="vNext" aria-label="下一张">→</button>
@@ -599,6 +608,23 @@ a{ text-decoration:none; color:inherit; }
 var TOUR  = window.TOUR || {};
 var NODES = (TOUR.nodes || []).filter(function(n){ return n && (n.photos||[]).length; });
 
+/* ============================================================
+   返回契约:URL 上带 ?back=<仓库根相对路径> 时,返回键就回那儿;
+   没带就用页面自己写死的那个目标。只认站内相对路径,
+   http:// 和 // 开头一律不认,防开放重定向。
+   ============================================================ */
+function backTarget(fallback){
+  try{
+    var b = new URLSearchParams(location.search).get("back");
+    if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+  }catch(e){}
+  return fallback;
+}
+(function(){
+  var a = document.getElementById("backHome");
+  if (a) a.setAttribute("href", backTarget(a.getAttribute("href")));
+})();
+
 // 演示层:和 film/build_bg.py 用【同一套】场景映射(接亲=门厅、出发=咖啡厅、
 // 仪式=礼拜堂、宴席=宴会厅)。两个演示界面对同一章必须给出同一个空间,
 // 否则评委一对照就穿帮。真素材到位后把 DEMO_SCENES 置空,下面逻辑原样跑 tour.js 的 src。
@@ -607,7 +633,7 @@ var DEMO_SCENES = { jieqin:"entrance_hall", chufa:"comfy_cafe", yishi:"chapel_da
 // ⚠️ 铁律: 换了图就必须换方位角。
 // 这些 _j*.jpg 裁切图的真实方位是 server/film.py 用 solve_crop_pose() 从像素逐张回解出来的
 // (四个场景 36 张解出完全一致, 归一化残差 0.019-0.161), 不是编的。
-// 之前这里只换图不换角度 —— 拿 A 的角度配 B 的图, 罗盘刻度和分镜表全是假的,
+// 之前这里只换图不换角度 —— 拿 A 的角度配 B 的图, 方位读数和分镜表全是假的,
 // 评委随手把一张图和它标的角度对一下就当场塌。图和角度必须成对取。
 var DEMO_POSE = {
   j1:[20,-8], j2:[60,6], j3:[100,-3], j4:[145,10], j5:[185,0],
@@ -655,101 +681,38 @@ NODES.forEach(function(node, ni){
 var DIRS = ["北","东北","东","东南","南","西南","西","西北"];
 function dirName(yaw){ return DIRS[Math.round(((yaw%360)+360)%360 / 45) % 8]; }
 function pad3(v){ v = Math.round(v); return (v<10?"00":v<100?"0":"") + v; }
-// yaw=0 朝上,顺时针
-function polar(cx, cy, r, yaw){
-  var t = yaw * Math.PI / 180;
-  return [cx + r*Math.sin(t), cy - r*Math.cos(t)];
-}
-function svgEl(tag, attrs){
-  var e = document.createElementNS("http://www.w3.org/2000/svg", tag);
-  for (var k in attrs) e.setAttribute(k, attrs[k]);
-  return e;
-}
-// 指针图形(细长三角),旋转靠 CSS 的 --yaw
-var NEEDLE_PATH = '<path d="M12 2 L16 21 L12 17.6 L8 21 Z" fill="currentColor"/>';
+// 取某一章的照片(和版面里的顺序、角度完全同源,读数不会和图下面的标注打架)
+function itemsOf(ni){ return FLAT.filter(function(f){ return f.ni === ni; }); }
 
 /* ============================================================
-   卷首罗盘:四圈同心,由里到外 = 四个章节
+   卷首方位读数表:一行一个章节,把这一章每张照片的朝向摊成数字
    ============================================================ */
-function buildMasterCompass(){
-  var svg = document.getElementById("masterCompass");
-  if (!svg) return;
-  var C = 200, R0 = 62, STEP = 28;
-  var n = Math.max(NODES.length, 1);
-  var Router = R0 + STEP*(n-1) + 17;
-
-  // 四条极淡的方位轴,帮读角度
-  [0,90,180,270].forEach(function(a){
-    var p = polar(C,C,Router,a);
-    svg.appendChild(svgEl("line",{ x1:C, y1:C, x2:p[0], y2:p[1],
-      stroke:"#211D19", "stroke-width":.5, "stroke-opacity":.09 }));
-  });
-
-  // 外圈刻度环 + 方位读数
-  svg.appendChild(svgEl("circle",{ cx:C, cy:C, r:Router,
-    fill:"none", stroke:"#A88A4E", "stroke-width":.7, "stroke-opacity":.55 }));
-  [0,90,180,270].forEach(function(a){
-    var p1 = polar(C,C,Router,a), p2 = polar(C,C,Router+8,a);
-    svg.appendChild(svgEl("line",{ x1:p1[0], y1:p1[1], x2:p2[0], y2:p2[1],
-      stroke:"#A88A4E", "stroke-width":1 }));
-    var lp = polar(C,C,Router+20,a);
-    var t = svgEl("text",{ x:lp[0], y:lp[1]+3.5, "text-anchor":"middle",
-      "font-family":"ui-monospace,Menlo,monospace", "font-size":10, fill:"#9C948A",
-      "letter-spacing":".08em" });
-    t.textContent = pad3(a) + "°";
-    svg.appendChild(t);
-  });
-
-  // 由里到外一圈一个章节;刻度往外逐圈加重,时间感自然往外走
-  NODES.forEach(function(node, ni){
-    var r = R0 + STEP*ni;
-    svg.appendChild(svgEl("circle",{ cx:C, cy:C, r:r, fill:"none",
-      stroke:"#211D19", "stroke-width":.5, "stroke-opacity":.16 }));
-    (node.photos||[]).forEach(function(p){
-      var yaw = ((+p.yaw||0)%360+360)%360;
-      var anchor = (p.by === "manual" || p.confidence === 1);
-      var a = polar(C,C, r - 8.5, yaw), b = polar(C,C, r + 8.5, yaw);
-      svg.appendChild(svgEl("line",{ x1:a[0], y1:a[1], x2:b[0], y2:b[1],
-        stroke: anchor ? "#B03A2B" : "#211D19",
-        "stroke-width": anchor ? 2.2 : 1.5,
-        "stroke-opacity": anchor ? 1 : (0.34 + ni*0.11),
-        "stroke-linecap":"round" }));
-    });
-  });
-
-  svg.appendChild(svgEl("circle",{ cx:C, cy:C, r:2.4, fill:"#211D19" }));
-
-  // 圈序说明放在图外,免得压在刻度上
-  var key = document.getElementById("ringkey");
-  if (key){
-    key.innerHTML = '<span class="edge">内</span>' +
-      NODES.map(function(nd){ return (nd.chapter || nd.name || ""); })
-           .join('<span class="arw"> › </span>') +
-      '<span class="edge">外</span>';
-  }
+function buildBearingTable(){
+  var box = document.getElementById("btable");
+  if (!box) return;
+  box.innerHTML = NODES.map(function(node, ni){
+    var items = itemsOf(ni);
+    return '<div class="btrow">' +
+        '<div class="k">' +
+          '<span class="t">' + (node.time||"") + '</span>' +
+          '<span class="nm">' + (node.chapter || node.name || "") + '</span>' +
+          '<span class="c">' + items.length + ' 张</span>' +
+        '</div>' +
+        '<div class="d">' + items.map(function(it){
+          return '<span' + (it.anchor ? ' class="anchor"' : '') + '>' + pad3(it.yaw) + '°</span>';
+        }).join("") + '</div>' +
+      '</div>';
+  }).join("");
 }
 
 /* ============================================================
-   章节罗盘:只画这一章
+   章头方位读数:只列这一章
    ============================================================ */
-function chapterCompassSVG(node){
-  var C = 52, R = 40;
-  var parts = ['<circle cx="52" cy="52" r="'+R+'" fill="none" stroke="#A88A4E" stroke-width=".6" stroke-opacity=".5"/>'];
-  [0,90,180,270].forEach(function(a){
-    var p1 = polar(C,C,R,a), p2 = polar(C,C,R+5,a);
-    parts.push('<line x1="'+p1[0].toFixed(1)+'" y1="'+p1[1].toFixed(1)+'" x2="'+p2[0].toFixed(1)+'" y2="'+p2[1].toFixed(1)+'" stroke="#A88A4E" stroke-width=".9"/>');
-  });
-  (node.photos||[]).forEach(function(p, i){
-    var yaw = ((+p.yaw||0)%360+360)%360;
-    var anchor = (p.by === "manual" || p.confidence === 1);
-    var a = polar(C,C, anchor ? 0 : R-12, yaw), b = polar(C,C, R-1, yaw);
-    parts.push('<line class="tick" data-t="'+i+'" x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+
-      '" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+
-      '" stroke="'+(anchor?"#B03A2B":"#211D19")+'" stroke-width="'+(anchor?1.8:1.4)+
-      '" stroke-opacity="'+(anchor?1:.5)+'" stroke-linecap="round"/>');
-  });
-  parts.push('<circle cx="52" cy="52" r="2" fill="#211D19"/>');
-  return parts.join("");
+function chapterBearingsHTML(ni){
+  return itemsOf(ni).map(function(it, i){
+    return '<span class="cb-i' + (it.anchor ? " anchor" : "") + '" data-t="' + i + '">' +
+           pad3(it.yaw) + '°</span>';
+  }).join("");
 }
 
 /* ============================================================
@@ -794,7 +757,7 @@ function plateHTML(item, flatIndex, w){
     '</button>' +
     '<figcaption class="meta">' +
       '<span class="cap">' + item.caption + '</span>' +
-      '<span class="bearing"><svg class="needle" viewBox="0 0 24 24" style="--yaw:' + item.yaw.toFixed(0) + 'deg" aria-hidden="true">' + NEEDLE_PATH + '</svg>' + deg + '</span>' +
+      '<span class="bearing">朝 ' + deg + '</span>' +
     '</figcaption>' +
   '</figure>';
 }
@@ -824,9 +787,9 @@ function renderChapters(){
             '<div class="ch-sub">' + (node.sub || node.name || "") +
               '<span class="sep">/</span>' + photos.length + ' 张照片</div>' +
           '</div>' +
-          '<div class="ch-compass">' +
-            '<svg viewBox="0 0 104 104" aria-hidden="true">' + chapterCompassSVG(node) + '</svg>' +
-            '<div class="cc-cap">这一章的朝向</div>' +
+          '<div class="ch-bearings">' +
+            '<div class="cb-list">' + chapterBearingsHTML(ni) + '</div>' +
+            '<div class="cb-cap">这一章的朝向</div>' +
           '</div>' +
         '</header>' +
         '<div class="bands">' + bandsHTML + '</div>' +
@@ -911,19 +874,17 @@ function wireScroll(){
 }
 
 /* ============================================================
-   照片 ↔ 章节罗盘刻度联动
+   照片 ↔ 章头方位读数联动
    ============================================================ */
-function wireCompassLink(){
+function wireBearingLink(){
   [].slice.call(document.querySelectorAll(".chapter")).forEach(function(sec){
-    var ticks = sec.querySelectorAll(".ch-compass .tick");
-    if (!ticks.length) return;
+    var reads = sec.querySelectorAll(".ch-bearings .cb-i");
+    if (!reads.length) return;
     sec.querySelectorAll(".plate").forEach(function(pl){
-      var tick = ticks[+pl.dataset.p];
-      if (!tick) return;
-      function on(){  tick.setAttribute("stroke","#B03A2B"); tick.setAttribute("stroke-opacity","1"); tick.setAttribute("stroke-width","2.4"); }
-      function off(){ tick.setAttribute("stroke", pl.classList.contains("anchor") ? "#B03A2B" : "#211D19");
-                      tick.setAttribute("stroke-opacity", pl.classList.contains("anchor") ? "1" : ".5");
-                      tick.setAttribute("stroke-width", pl.classList.contains("anchor") ? "1.8" : "1.4"); }
+      var read = reads[+pl.dataset.p];
+      if (!read) return;
+      function on(){  read.classList.add("hot"); }
+      function off(){ read.classList.remove("hot"); }
       pl.addEventListener("mouseenter", on);
       pl.addEventListener("mouseleave", off);
       pl.addEventListener("focusin", on);
@@ -945,10 +906,7 @@ function openViewer(i){
   document.getElementById("vSub").textContent =
     (it.node.chapter||"") + "　" + (it.node.time||"") + "　" + (it.node.sub||"");
   document.getElementById("vBear").textContent =
-    pad3(it.yaw) + "° " + dirName(it.yaw) + (it.pitch ? "　俯仰 " + (it.pitch>0?"+":"") + it.pitch + "°" : "");
-  var nd = document.getElementById("vNeedle");
-  nd.innerHTML = NEEDLE_PATH;
-  nd.style.setProperty("--yaw", it.yaw.toFixed(0) + "deg");
+    "朝 " + pad3(it.yaw) + "° " + dirName(it.yaw) + (it.pitch ? "　俯仰 " + (it.pitch>0?"+":"") + it.pitch + "°" : "");
   document.getElementById("vIdx").textContent = (vCur+1) + " / " + FLAT.length;
   viewer.classList.add("on");
   document.body.style.overflow = "hidden";
@@ -1086,13 +1044,13 @@ document.addEventListener("keydown", function(e){
 if (!NODES.length){
   host.innerHTML = '<p style="padding:60px 0;color:var(--ink-3)">没读到 ../tour.js 里的节点数据。</p>';
 } else {
-  buildMasterCompass();
+  buildBearingTable();
   renderFacts();
   renderNav();
   renderChapters();
   buildShotList();
   wireScroll();
-  wireCompassLink();
+  wireBearingLink();
 }
 })();
 </script>

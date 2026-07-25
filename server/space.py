@@ -40,11 +40,12 @@ import subprocess
 import sys
 import threading
 import time
+import traceback
 
 import numpy as np
 from fastapi import APIRouter, Body, File, Form, UploadFile
 from fastapi.responses import JSONResponse
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SPACES_DIR = os.path.join(REPO_ROOT, "server", "spaces")
@@ -75,12 +76,35 @@ SCHEMA = "psm-space/1"
 #         本空间  0.0423 ~ 0.1026
 #         外来    0.0142 ~ 0.0528   ← 只有 1 张本空间照片掉进外来区间
 #
-#   为什么必须有 margin: confidence 是 CLIP 给【自己刚做的决定】打的分, 循环论证 ——
-#   它只回答"我有多喜欢这个 yaw", 不回答"这张照片到底属不属于这个空间"。margin 问的是
-#   "最佳匹配比平均水平突出多少": 外来照片跟哪个朝向都不太像, 于是 margin 塌下来。
+#   当初加 margin 的理由: confidence 是 CLIP 给【自己刚做的决定】打的分, 有循环论证的嫌疑,
+#   它只回答"我有多喜欢这个 yaw"。margin 问的是"最佳匹配比平均水平突出多少", 在 ballroom
+#   这张全景上外来照片的 margin 确实塌了下去(见上面两组区间), 于是当时把它当成了
+#   "这张照片到底属不属于这个空间"的判据。
 #
-#   按下面这组阈值实测 23/24: 外来照片入侵 0/15 全部拦下(这是唯一要命的失败模式),
-#   代价是 1 张本空间照片(margin 0.0423)被推给新人确认 —— 错在安全的那一侧, 点一下就收下。
+# ⚠️ 2026-07-25 换全景复测: 上面那句话【不成立】, 别再照抄。
+#   换成三张全新的 Poly Haven 全景(billiard_hall / church_museum / combination_room),
+#   建 s20 到 s26 重跑同样的标注实验(s20+s21 共 24 张本空间 vs 12 张外来), 实测:
+#
+#     判据            本空间区间        外来区间          结论
+#     confidence     0.7016 ~ 0.9973   0.7087 ~ 0.7921   外来【全部】低于 0.82 门槛
+#     margin         0.0332 ~ 0.2038   0.0370 ~ 0.1045   两组区间几乎完全重叠
+#
+#   最扎眼的一条: s20 里 margin 最高的【外来】照片是 0.1045(p16), 比每一张本空间重损照片
+#   (最高 0.0678)都高。判别力量化(全集 AUC): confidence 0.927, margin 0.830;
+#   只看难分的那一段(本空间重损档 8 张 vs 外来 12 张): confidence 0.781, margin 0.510,
+#   也就是 margin 在真正需要它拿主意的地方等于抛硬币。
+#
+#   这一轮 margin 的实际贡献是 0: 12 张外来照片【全部】是被 confidence 拦下的, 没有一张
+#   是"conf 过了、被 margin 拦下"; 同时它也没误伤任何一张本空间照片。它是惰性的, 不是有效的。
+#
+#   所以下面这组阈值现在的如实表述是: 拦外来照片靠的是 confidence >= 0.82,
+#   margin >= 0.055 是一道低成本的冗余闸, 在 ballroom 上有效、在新全景上空转,
+#   【不要】把它当成场景无关的"归属判据"。换场景/换全景/换 CLIP 权重都必须重新标定,
+#   0.055 这个数只在 clip-ViT-B-32 + 12 张裁切 bank 这条管线上有意义。
+#
+#   ballroom 那一轮的验收结论(保留作为历史): 实测 23/24, 外来照片入侵 0/15 全部拦下
+#   (这是唯一要命的失败模式), 代价是 1 张本空间照片(margin 0.0423)被推给新人确认,
+#   错在安全的那一侧, 点一下就收下。新全景那一轮: 外来入侵 0/12, 本空间自动入选 19/24。
 #   原契约值 0.45 实测会让 needs_review 永不触发, 外来照片不仅能进空间还能冒领悬赏任务。
 CONF_MIN = float(os.environ.get("PSM_CONF_MIN", "0.82"))
 MARGIN_MIN = float(os.environ.get("PSM_MARGIN_MIN", "0.055"))
@@ -229,8 +253,31 @@ class space_txn:
         return False
 
 
-def create_space(title, couple):
-    """建一个新空间, 返回 sid。目录骨架一次建齐, 后面各处就不用到处 makedirs 了。"""
+def _clean_meta(date=None, place=None, cover=None, private=None):
+    """把建空间时那几个【可选】的展示字段规整成固定形状。
+
+    全部可选:一个都不传就是四个空值(private 空值 = False), 老的
+    create_space(title, couple) 调用行为一字不差。
+    """
+    return {
+        "date": (date or "").strip(),      # 形如 "2026-07-26", 只当字符串存, 后端不解析
+        "place": (place or "").strip(),
+        # cover 可能是前端压到 640px 的 base64 dataURL(几十上百 KB), 也可能是
+        # 模板封面的根相对路径。这里原样存, 不截断(截断 dataURL 等于把图弄坏)。
+        # 撑爆列表响应的问题在 list_spaces 里解决, 见那边的注释。
+        "cover": (cover or "").strip(),
+        # 有的前端会把布尔值当字符串发过来("false" 在 Python 里是 True), 这里挡一下
+        "private": (private.strip().lower() not in ("", "false", "0", "no")
+                    if isinstance(private, str) else bool(private)),
+    }
+
+
+def create_space(title, couple, date=None, place=None, cover=None, private=None):
+    """建一个新空间, 返回 sid。目录骨架一次建齐, 后面各处就不用到处 makedirs 了。
+
+    date / place / cover / private 都是可选的展示字段, 只为了换台设备也还在
+    (以前它们只躺在浏览器 localStorage 里)。不传就是空, 不影响任何已有行为。
+    """
     with _LOCK:
         os.makedirs(SPACES_DIR, exist_ok=True)
         sid = _next_id("s", _listdir(SPACES_DIR))
@@ -249,6 +296,7 @@ def create_space(title, couple):
             "photos": [],
             "contributors": [],
         }
+        space.update(_clean_meta(date, place, cover, private))
         save_space(sid, space)
         return sid
 
@@ -263,12 +311,31 @@ def list_spaces():
                 sp = load_space(sid)
             except Exception:
                 continue
+            # 封面处理:cover 可能是一整张 base64 dataURL, 一个空间就几十上百 KB。
+            # 列表接口会把所有空间拼在一起返回, 原样带上去几十个空间就是几 MB,
+            # 所以列表里【只给短的】(模板封面那种根相对路径), dataURL 一律不带,
+            # 只用 hasCover 告诉前端"有封面, 想要完整的去详情接口拿"。
+            cover = sp.get("cover") or ""
+            light_cover = cover if (cover and not cover.startswith("data:")
+                                    and len(cover) <= 512) else ""
             out.append({
                 "id": sp["id"],
                 "title": sp.get("title", ""),
                 "couple": sp.get("couple", ""),
                 "photoCount": len(sp.get("photos", [])),
+                # ⚠️ photoCount 是【收到的总张数】, 含被拒和待审的, 含义和值都不许改(别处在用)。
+                # 想说"空间里有几张照片"要用下面这个 selectedCount = auto_ok + approved。
+                # 实测 s20 的 18 张里真正在空间里的只有 8 张, s21 的 18 张里有 6 张是新人
+                # 亲手点了"不要"的 —— 首屏拿 photoCount 写"18 张照片"就是穿帮。
+                "selectedCount": sum(1 for p in sp.get("photos", [])
+                                     if p.get("state") in SELECTED_STATES),
                 "taskCount": sum(1 for t in sp.get("tasks", []) if t.get("status") == "open"),
+                # 下面几个是加法, 老前端不认就当没看见, 不影响上面任何字段
+                "date": sp.get("date", ""),
+                "place": sp.get("place", ""),
+                "cover": light_cover,
+                "hasCover": bool(cover),
+                "private": bool(sp.get("private", False)),
             })
         return out
 
@@ -408,6 +475,33 @@ def _ranges_overlap(a, b):
 
 
 # ================================================================ 覆盖盲区算法
+def _selected_yaws(space, node_id):
+    """这个节点下【已入选】照片的 yaw 列表 —— 覆盖率的唯一真值来源。
+    待审/被拒的照片不算数, 它们还没出现在空间里。"""
+    return [
+        float(p["yaw"]) for p in space.get("photos", [])
+        if p.get("nodeId") == node_id
+        and p.get("state") in SELECTED_STATES
+        and p.get("yaw") is not None
+    ]
+
+
+def _coverage_mask(yaws, half_width_deg=20.0):
+    """把一组照片 yaw 摊成 360 格的"哪些方位已经有照片"掩码, 每张覆盖 ±half_width。
+
+    ⚠️ 这是"三把尺子"里的【第二把】(覆盖尺, 一张照片只算 ±20°)。
+    另外两把在 _task_accepts_yaw(认领尺)和 _gap_brief/_slice_brief_image(文案尺)那儿,
+    三者口径不同是【有意的】, 完整说明见 _task_accepts_yaw 上方那段"三把尺子"注释,
+    改任何一把之前先读那段。
+    """
+    hw = int(round(half_width_deg))
+    covered = np.zeros(360, dtype=bool)
+    for y in yaws:
+        c = int(round(y)) % 360
+        covered[(np.arange(c - hw, c + hw + 1)) % 360] = True
+    return covered
+
+
 def find_coverage_gaps(space, node_id, half_width_deg=20.0, min_gap_deg=40.0, max_tasks=3):
     """算出这个节点的全景圆环上,哪几段方位还没有照片覆盖 —— 这是"系统指挥人拍照"的源头。
 
@@ -423,12 +517,7 @@ def find_coverage_gaps(space, node_id, half_width_deg=20.0, min_gap_deg=40.0, ma
       start/end 是区间两端(闭区间, 可能 start > end 表示跨 0 度), center 是中点 yaw。
       empty=True 表示"这个节点一张照片都没有"这种特殊情况。
     """
-    yaws = [
-        float(p["yaw"]) for p in space.get("photos", [])
-        if p.get("nodeId") == node_id
-        and p.get("state") in SELECTED_STATES
-        and p.get("yaw") is not None
-    ]
+    yaws = _selected_yaws(space, node_id)
 
     # 零照片: 整圈都是空的。这时候不该只发一个 360° 的巨型任务(没法指挥人往哪拍),
     # 而是均匀撒 3 个方向, 让第一批宾客把骨架先撑起来。
@@ -440,11 +529,7 @@ def find_coverage_gaps(space, node_id, half_width_deg=20.0, min_gap_deg=40.0, ma
             for c in (0, 120, 240)
         ][:max_tasks]
 
-    hw = int(round(half_width_deg))
-    covered = np.zeros(360, dtype=bool)
-    for y in yaws:
-        c = int(round(y)) % 360
-        covered[(np.arange(c - hw, c + hw + 1)) % 360] = True
+    covered = _coverage_mask(yaws, half_width_deg)
 
     if covered.all():
         return []   # 一圈全被覆盖, 没缺口
@@ -480,7 +565,12 @@ def find_coverage_gaps(space, node_id, half_width_deg=20.0, min_gap_deg=40.0, ma
 
 
 def _gap_brief(center, empty):
-    """gap 任务的人话文案。用方位词而不是角度 —— 宾客不会看着 210° 去转身。"""
+    """gap 任务的人话文案。用方位词而不是角度 —— 宾客不会看着 210° 去转身。
+
+    ⚠️ 这是"三把尺子"里的【第三把】(文案尺, 取区间【中点】, 通缉令切图 _slice_brief_image
+    用的也是这个 center)。它比认领尺窄得多: 文案喊的是中点一个方向, 认领收的是整个区间。
+    完整说明见 _task_accepts_yaw 上方那段"三把尺子"注释。
+    """
     d = yaw_to_direction(center)
     if empty:
         return f"这个空间还没有任何照片,站在原地朝{d}先拍一张,把这里撑起来"
@@ -499,10 +589,49 @@ def _slice_brief_image(pano_path, yaw, out_path):
     return out_path
 
 
+def _close_stale_gap_tasks(space, node_id, half_width_deg=20.0, min_gap_deg=40.0):
+    """缺口已经被补上的 gap 任务, 关掉它。
+
+    ⚠️ 2026-07-25 修的 P0: 以前任务【只创建从不关闭】。实测 s20 的任务墙一直挂着
+    「还缺这 2 张」+50 分悬赏, 而那两个区间里其实已经躺着 4 张入选照片,
+    find_coverage_gaps 早就返回 [] 了 —— 宾客被指挥去拍一个根本不缺的方向。
+
+    判定口径和【发任务时】用的是同一把尺子: 任务区间里还没被照片覆盖的格子
+    不足 min_gap_deg 度, 就说明它已经不构成一个"缺口"了(发任务时也是宽度不够
+    min_gap_deg 就不发), 于是关掉。
+
+    只关系统按缺口自动发的那些(type == "gap" 且 createdBy == "system"),
+    新人手写的心愿任务(type == "wish" / createdBy == "couple")一律不碰 ——
+    心愿任务没有 yawRange, 也不该被覆盖率左右。
+
+    状态用 "closed": 这个取值前端早就认(host.html 显示"已关闭"并排到最后,
+    join.html / scene.html 都按 status !== "open" 当已完成处理), 不会把前端弄崩。
+    返回被关掉的任务列表。
+    """
+    covered = _coverage_mask(_selected_yaws(space, node_id), half_width_deg)
+    closed = []
+    for t in space.get("tasks", []):
+        if (t.get("nodeId") != node_id or t.get("type") != "gap"
+                or t.get("status") != "open" or t.get("createdBy") != "system"):
+            continue
+        rng = t.get("yawRange")
+        if not rng or len(rng) != 2:
+            continue        # 没方位要求的, 没法用覆盖率判定, 留着
+        still_missing = int((_arc_mask(rng[0], rng[1]) & ~covered).sum())
+        if still_missing >= min_gap_deg:
+            continue        # 这一片是真还缺, 别关
+        t["status"] = "closed"
+        t["closedAt"] = time.time()
+        t["closedReason"] = f"这个方向已经有照片了,还差 {still_missing}°,系统自动结束"
+        closed.append(t)
+    return closed
+
+
 def sync_gap_tasks(sid, space, node_id, half_width_deg=20.0, min_gap_deg=40.0, max_tasks=3):
     """把 find_coverage_gaps 算出的缺口变成真的 gap 任务(切通缉令图 + 落进 space["tasks"])。
 
-    三条约束:
+    四条约束:
+      - 缺口已经补上的 open gap 任务, 先关掉(_close_stale_gap_tasks);
       - 一个节点上同时最多 max_tasks 个 open 的 gap 任务;
       - 已经存在覆盖同一区间的 open 任务, 不重复发;
       - 覆盖率变化后调用即可(传全景后 / 上传后 / 审核后), 幂等。
@@ -512,6 +641,10 @@ def sync_gap_tasks(sid, space, node_id, half_width_deg=20.0, min_gap_deg=40.0, m
     node = next((n for n in space.get("nodes", []) if n["id"] == node_id), None)
     if node is None:
         return []
+
+    # 先关过期的, 再算还缺哪儿 —— 顺序反了的话, 名额会被那些其实已经补上的任务白占着。
+    for t in _close_stale_gap_tasks(space, node_id, half_width_deg, min_gap_deg):
+        print(f"== [space {sid}] 缺口已补上, 关掉任务 {t['id']} {t.get('yawRange')} ==", flush=True)
 
     open_gaps = [
         t for t in space.get("tasks", [])
@@ -626,8 +759,10 @@ def place_photos(sid, space, photo_paths, node_id=None):
     node_id 不为空就只跟那个节点比(前端明确指定了在哪儿拍的)。
 
     返回 [{nodeId, yaw, confidence, sim, margin}, ...], 与 photo_paths 一一对应。
-    margin = 最佳相似度 减去 所有裁切的平均相似度, 用来判"这张到底属不属于这个空间"
-    (见文件顶部 CONF_MIN/MARGIN_MIN 的实测数据注释)。
+    margin = 最佳相似度 减去 所有裁切的平均相似度, 意思是"最佳匹配比平均水平突出多少"。
+    ⚠️ 它不是可靠的"这张到底属不属于这个空间"判据: 2026-07-25 换全景复测里本空间和外来
+    两组的 margin 区间几乎完全重叠(难分段 AUC 0.510, 约等于抛硬币), 真正拦住外来照片的是
+    confidence。详见文件顶部 CONF_MIN/MARGIN_MIN 上方的实测数据注释。
     """
     nodes = [n for n in space.get("nodes", []) if node_id is None or n["id"] == node_id]
     if not nodes:
@@ -668,18 +803,256 @@ def _find_task(space, task_id):
     return next((t for t in space.get("tasks", []) if t["id"] == task_id), None)
 
 
+# ---------------------------------------------------------------- 三把尺子(读完再改任何一把)
+# 同一件事"这个方向到底算不算有照片了", 全系统有三处在量, 口径【不一样】, 是有意的:
+#
+#   ① 认领尺  _task_accepts_yaw: 照片 yaw 落进任务【整个 yawRange】就算完成。
+#              空空间发的第一批任务区间宽 120°(find_coverage_gaps 的 empty 分支),
+#              也就是站在原地转 120° 内随便哪个方向拍都算补上了这一条。
+#   ② 覆盖尺  _coverage_mask: 一张照片只覆盖 ±20°(共 41 格), 缺口/关任务全按这把量。
+#   ③ 文案尺  _gap_brief + _slice_brief_image: 任务说的那句话和那张通缉令图, 取的是
+#              区间【中点】一个方向。宾客看到的是"转向正前方"和一张正前方的图。
+#
+# 于是必然出现两种看着矛盾的现象(都不是 bug, 是三把尺子的算术结果):
+#   A. 任务显示"已完成", 而它区间的中间还空着 —— 照片落在区间边缘, 只覆盖了 ±20°。
+#   B. 明明按图拍了, 缺口还在 —— 120° 的区间要三张 ±20° 的照片才铺满。
+#
+# 【2026-07-25 的判断: 不收窄认领尺, 只把口径写清楚。】理由三条:
+#   1. 现象 A 最后系统自己会兜住, 缺口【不会被吞掉】, 只是那 50 分发早了。
+#      本轮在 s10010 的 n1 上实测(数字都是接口原样返回的):
+#        · 空空间发的 t2 区间 [60,179](120° 宽), 一张 yaw=134.9 的照片就把它变成 filled,
+#          而这张照片按覆盖尺只盖住了 [115,155] 这 41 格, 区间里还空着 79 格;
+#        · 【当场并没有】补发新任务 —— n1 的 open gap 名额(max_tasks=3)那时被 t1/t3 占满,
+#          新算出来的缺口跟它俩重叠, 被去重规则挡掉了;
+#        · 等 t1/t3 也被填掉、名额空出来之后, 下一次 sync_gap_tasks 立刻按覆盖尺补发了
+#          三条更窄的: t7 [156,234]、t8 [36,114]、t9 [276,354](各 79°), 正好盯着还空的三段。
+#      所以准确说法是"补发会延后到名额空出来", 不是"当场补发"。
+#   2. 收窄的代价【落在宾客头上】: 认领判据一旦改成"中点 ±20°", 空空间那批 120° 的
+#      任务就只有 41/120 = 34% 的方向能拿到悬赏, 其余 66% 会收到一句"没算完成",
+#      而宾客明明是照着任务文案转身拍的。这是把系统内部的尺子差额转嫁成宾客的挫败感,
+#      现场演示最怕的就是这个。
+#   3. 真要统一, 该动的是【发任务那一端】而不是认领端: 让 find_coverage_gaps 把
+#      120° 的空区间直接切成三条 ±20° 的窄任务, 三把尺子自然就对齐了, 而且宾客
+#      拿到的指令更具体。那是产品改动, 不是收口 bug, 不该在这一轮顺手做。
+# 已知残留风险(如实记下): 一张落在区间边缘的照片会拿满 50 分悬赏, 而它只补上了这段
+# 缺口的三分之一。悬赏发多了, 但没有人被少发, 也没有缺口被吞掉。
+def _task_accepts_yaw(task, yaw):
+    """这张照片的方位, 够不够格算完成这个任务(只管方位, 不管在哪个节点拍的)。
+
+    ⚠️ yawRange 是【圆环】区间, 可能跨 0 度(例如 [300, 59] 表示 300→360→59),
+    所以必须走 yaw_in_range(它处理了绕回), 千万别写成 start <= yaw <= end。
+    心愿任务(wish)没有 yawRange, 本来就不挑方位, 一律放行。
+    yawRange 在但照片没算出 yaw: 没法核对, 不给认领。
+
+    ⚠️ 单独用它当认领闸门是【不够】的, 它不看节点。调用方一律走 _task_accepts_photo。
+    """
+    rng = task.get("yawRange")
+    if not rng or len(rng) != 2:
+        return True
+    return yaw is not None and yaw_in_range(yaw, rng)
+
+
+def _task_is_located(task):
+    """这个任务挑不挑"在哪儿拍" —— 也就是它有没有一个具体的方位要求。
+
+    判据用 yawRange 而不是 type: 有 yawRange 的任务(系统按缺口发的 gap)天生绑死
+    "某个节点的某一段圆环", 换个节点它就没有意义了。
+    心愿任务(wish)的 nodeId 是建任务时随手记的第一个节点(见 create_wish_task),
+    【不是】位置要求 —— "我想要一张我妈笑起来的照片"在哪个房间拍都算数,
+    拿它的 nodeId 去卡人就是误伤。所以这里只认 yawRange。
+    """
+    rng = task.get("yawRange")
+    return bool(rng) and len(rng) == 2
+
+
+def _task_accepts_photo(task, photo):
+    """认领闸门: 这张照片够不够格算完成这个任务。返回 (行不行, 不行的原因)。
+
+    原因取值 None / "node" / "yaw", 调用方拿它挑该说哪句人话。
+
+    ⚠️ 2026-07-25 收口: 以前这里只比方位, 不比节点, 结果是【跨节点冒领】——
+    客户端明确带 taskId 的那条分支上, 从 n2 拍的照片可以去认领 n1 的任务,
+    只要 yaw 恰好落进 n1 那个任务的区间里(圆环角度和节点无关, 两个房间的 110° 一样是 110°)。
+    实测复现(s10001/p7): n2 的照片 yaw=105.1 认领了 n1 的 t5(区间 [66,145]),
+    返回 nodeId=n2、taskFilled=t5、50 分照发, 而同一时刻后端自己算出来的 n1 那段缺口
+    依然空着 —— "系统指挥人把没拍到的方位补齐"这个核心卖点原地失效。
+    自动判定那条分支一直有节点校验(t["nodeId"] == photo["nodeId"]), 唯独指定 taskId
+    这条没有, 而它恰好是宾客点任务上传时走的那条路。
+    """
+    if not _task_is_located(task):
+        return True, None                       # 心愿任务: 不挑位置也不挑方位
+    want_node, got_node = task.get("nodeId"), photo.get("nodeId")
+    if want_node and got_node and want_node != got_node:
+        return False, "node"
+    if not _task_accepts_yaw(task, photo.get("yaw")):
+        return False, "yaw"
+    return True, None
+
+
+def _range_direction(rng):
+    """把一个圆环区间说成人话方位(取环形中点)。跨 0 度也对: [300,59] 的中点是 359.5°。"""
+    if not rng or len(rng) != 2:
+        return ""
+    s, e = float(rng[0]) % 360, float(rng[1]) % 360
+    return yaw_to_direction((s + ((e - s) % 360) / 2.0) % 360)
+
+
+def _node_name(space, node_id):
+    """节点的人话名字(新人建节点时起的, 比如"大厅")。没有就退回节点 id, 再没有就空串。"""
+    if not node_id:
+        return ""
+    n = next((n for n in space.get("nodes", []) if n.get("id") == node_id), None)
+    return ((n.get("name") or "").strip() or node_id) if n else node_id
+
+
+def _photo_landing(photo):
+    """这张照片【此刻真实】在哪儿, 一句人话(不带句号, 调用方自己接标点)。
+
+    ⚠️ 2026-07-25 修的 P1: 这句话以前写死成"照片已经收下并放进空间里了", 而
+    _mismatch_note 是在状态判断【之前】跑的, 于是一张被判 needs_review 的低置信度照片
+    也会拿到这句 —— 它此刻在新人的待审队列里, 根本不在空间里, 还可能被拒掉。
+    同一个文件里 recompute_contributors 的注释自己写着"待审 = 正在等新人过目,
+    宾客端回执必须把话说清楚", 两处自相矛盾。现在按 photo["state"] 分支说实话。
+    """
+    st = photo.get("state")
+    if st in SELECTED_STATES:
+        return "照片已经收下并放进空间里了"
+    if st == "needs_review":
+        return "照片收下了,机器拿不准是不是在这儿拍的,正在等新人过目"
+    if st in ("rejected", "quarantined"):
+        return "这张照片没有被收进空间"
+    return "照片收下了"
+
+
+def _mismatch_note(space, task, photo, kind="yaw"):
+    """认领对不上时(方位不符 kind="yaw" / 根本不在一个位置 kind="node"), 给宾客的如实说明。
+
+    照片照收照定位, 只是不算完成这个任务 —— 既不静默丢弃, 也不假装成功。
+    前端怎么显示不归这里管, 这里只负责把真相给出去(message 是可以直接念的人话)。
+    字段只增不改: 老前端(server/join.html mismatchOf)读的 taskId/taskTitle/
+    wantDirection/wantYawRange/photoDirection/photoYaw/message 全部原样保留。
+    """
+    want_yaw = task.get("yaw")
+    want_dir = (yaw_to_direction(want_yaw) if want_yaw is not None
+                else _range_direction(task.get("yawRange")))
+    got = photo.get("yaw")
+    got_dir = yaw_to_direction(got) if got is not None else ""
+    title = task.get("title") or "这个任务"
+    landing = _photo_landing(photo)
+    want_node, got_node = task.get("nodeId"), photo.get("nodeId")
+    want_place, got_place = _node_name(space, want_node), _node_name(space, got_node)
+
+    if kind == "node":
+        # 位置对不上。方位说得再准也没用, 先把"不是同一个地方"讲清楚。
+        where = f"是在「{got_place}」拍的" if got_place else "是在另一个位置拍的"
+        want_where = f"要的是「{want_place}」那边" if want_place else "要的是另一个位置"
+        msg = (f"这张照片系统认出来{where},而「{title}」{want_where},"
+               f"不是同一个地方,所以这次没算完成它。{landing}。"
+               + (f"想拿这份悬赏的话,走回「{want_place}」再拍一张。" if want_place else ""))
+    elif got is None:
+        msg = (f"系统没能认出这张照片是朝哪个方向拍的,所以这次没算完成「{title}」。"
+               f"{landing}。")
+    else:
+        msg = (f"这张照片系统认出来是朝{got_dir}拍的(约 {got:.0f}°),"
+               f"而「{title}」要的是{want_dir},所以这次没算完成它。"
+               f"{landing}。想拿这份悬赏的话,站在原地转向{want_dir}再补一张。")
+    return {
+        "taskId": task.get("id"),
+        "taskTitle": task.get("title") or "",
+        "wantDirection": want_dir,
+        "wantYawRange": task.get("yawRange"),
+        "photoDirection": got_dir,
+        "photoYaw": got,
+        # 下面五个是 7/25 新增的, 老前端不认就当没看见(它只读上面那几个 + message)
+        "kind": kind,                       # "node" = 位置不符, "yaw" = 方位不符
+        "wantNodeId": want_node,
+        "wantNodeName": want_place,
+        "photoNodeId": got_node,
+        "photoNodeName": got_place,
+        "photoState": photo.get("state"),
+        "message": msg,
+    }
+
+
+def _task_unavailable_note(task_id, task, photo, kind):
+    """客户端指定的任务不存在,或者已经不能再认领时,给宾客一份结构化实话。
+
+    kind 只取 "missing" / "status"。照片仍然照常定位和分流,只是这次不能冒充完成
+    那个任务。调用方会清掉 photo.taskId,再允许它按真实节点和方位顺手补上别的 open
+    缺口,所以回执里必须保留 taskMismatch,前端才能把两件事同时说清楚。
+    """
+    landing = _photo_landing(photo)
+    status = task.get("status") if task else None
+    title = (task.get("title") or "这个任务") if task else "这个任务"
+    if kind == "missing":
+        msg = f"这份任务已经失效了,所以这次没算完成它。{landing}。"
+    elif status == "closed":
+        msg = f"「{title}」对应的方向已经补齐了,不用再认领。{landing}。"
+    else:
+        msg = f"「{title}」已经被认领了,不能重复领取悬赏。{landing}。"
+    return {
+        "taskId": task_id,
+        "taskTitle": (task.get("title") or "") if task else "",
+        "kind": kind,
+        "taskStatus": status,
+        "photoState": photo.get("state"),
+        "message": msg,
+    }
+
+
 def apply_task_fill(space, photo):
     """照片真进空间之后, 判定它完成了哪个任务。返回被填上的 task id, 没有就 None。
 
     只有【已入选】的照片才算数 —— 待审的照片先不动任务状态, 等新人 approve 了再算,
     不然一张机器都拿不准的照片就能把悬赏关掉, 任务系统就废了。
+
+    ⚠️ 2026-07-25 修的 P0: 认领【必须校验方位】。以前拿客户端给的 taskId 就直接写
+    filledBy、发悬赏, 从不看照片到底朝哪拍。实测在一个只有一张全景的空间里点
+    t1「正前方」(区间 [300,59]), 传一张系统自己算出 yaw=193.9「正后方」的照片,
+    t1 照样变 filled、照样给分、墙上照样显示已认领, 而正前方至今零照片 ——
+    "系统指挥人把没拍到的方位补齐"这个核心卖点就断在这一行上(s20 历史数据里 13 处)。
+    现在方位不符就不算完成那个任务, 但照片照常收下照常定位, 并把原因写进
+    photo["taskMismatch"], 由上传接口原样带回给宾客。
+
+    ⚠️ 2026-07-25 第二轮收口: 上面那道闸只比了【方位】, 没比【节点】, 于是同一个 P0
+    换个姿势就复活了 —— 从 n2 拍的照片照样能认领 n1 的任务(见 _task_accepts_photo)。
+    闸门现在统一走 _task_accepts_photo(节点 + 方位一起校验), 心愿任务不受影响。
     """
+    photo.pop("taskMismatch", None)     # 每次重算, 别留上一轮的陈旧结论
+    requested_task_id = photo.get("taskId")
+    task = _find_task(space, requested_task_id) if requested_task_id else None
+
+    # 野 taskId 不能静默残留,也不能冒充成别的任务成功。照片照常收下,如果它按真实
+    # 节点和方位正好补上另一个 open 缺口,下面的自动判定仍会如实返回那个任务。
+    if requested_task_id and task is None:
+        photo["taskMismatch"] = _task_unavailable_note(
+            requested_task_id, None, photo, kind="missing")
+        photo["taskId"] = None
+
+    # 已 filled / closed 的任务都不能再追加认领人。以前这里只在最后把 open 改 filled,
+    # 却从没挡住非 open 状态,结果重复上传会重复发整份悬赏,closed 卡也会被伪装成
+    # “已被某人认领”。legacy 任务没 status 时按 open 处理。
+    if task is not None and task.get("status", "open") != "open":
+        photo["taskMismatch"] = _task_unavailable_note(
+            requested_task_id, task, photo, kind="status")
+        photo["taskId"] = None
+        task = None
+
+    # 客户端说"这张是来完成 t1 的", 但照片实际可能压根不在 t1 那个节点、
+    # 或者方向根本不在 t1 要的区间里。对不上就撤销这次认领(taskId 清掉), 下面照样走
+    # 自动判定 —— 万一它正好补上了【它自己所在节点】的别的缺口, 那份悬赏是它该得的。
+    if task is not None:
+        ok, why = _task_accepts_photo(task, photo)
+        if not ok:
+            photo["taskMismatch"] = _mismatch_note(space, task, photo, kind=why)
+            photo["taskId"] = None
+            task = None
+
     if photo.get("state") not in SELECTED_STATES:
         return None
 
-    task = _find_task(space, photo["taskId"]) if photo.get("taskId") else None
-
-    # 没指定 taskId 就自动判定: 照片 yaw 落进某个 open 的 gap 任务的 yawRange 里
+    # 没指定 taskId(或者指定的那个节点/方位对不上)就自动判定:
+    # 照片 yaw 落进【同一个节点】某个 open 的 gap 任务的 yawRange 里
     if task is None and photo.get("yaw") is not None:
         for t in space.get("tasks", []):
             if (t.get("type") == "gap" and t.get("status") == "open"
@@ -699,11 +1072,63 @@ def apply_task_fill(space, photo):
     return task["id"]
 
 
+def _release_task_fill(space, photo):
+    """这张照片【不再算数】了(新人拒了它), 把它填过的任务退回去。返回被退回的 task id。
+
+    ⚠️ 2026-07-25 修的 P2: reject 分支以前只改 photo["state"], 一个字都不碰任务。
+    实测(s10001): 把 p6 拒掉之后 t3 依然是 filled / filledBy=["复验-擦边哥"],
+    而 recompute_contributors 按 status in ("filled","closed") 照发 50 分, 于是贡献榜上
+    出现「复验-擦边哥 · 0 张 · 50 分」—— 一张照片都没进空间的人挂着 50 分的悬赏。
+    更要命的是缺口: _close_stale_gap_tasks 只看 status=="open", filled 的一律不看,
+    所以这条任务永远不会回到任务墙上, 那个方向从此没人再去补。
+
+    退回的口径 —— filledBy 里存的是【人名】不是照片 id, 所以真值只能从照片反推:
+    "还入选着、且 taskId 指着这个任务"的照片, 它们的贡献者才有资格留在 filledBy 里。
+      · 同一位宾客还有别的入选照片填着它  -> 名字留着, 任务照旧 filled(只退这一张对应的那份);
+      · 一个填着它的入选照片都不剩了      -> filledBy 清空, 任务退回 open, 缺口重新广播。
+    照片自己的 taskId 【故意不清】: 它是"这张当初认领的是哪一条"的记录, 新人反悔再点通过时,
+    apply_task_fill 会拿它重新校验一遍(节点 + 方位)再决定给不给分。
+    """
+    tid = photo.get("taskId")
+    task = _find_task(space, tid) if tid else None
+    if task is None:
+        return None
+    still = []
+    for p in space.get("photos", []):
+        if p is photo or p.get("taskId") != tid or p.get("state") not in SELECTED_STATES:
+            continue
+        name = p.get("contributor") or "匿名宾客"
+        if name not in still:
+            still.append(name)
+    task["filledBy"] = [w for w in task.get("filledBy", []) if w in still]
+    if not task["filledBy"] and task.get("status") in ("filled", "closed"):
+        task["status"] = "open"
+        # 关闭理由是上一任状态留下的, 任务都重新开着了还挂着"已关闭"的说辞会穿帮
+        task.pop("closedAt", None)
+        task.pop("closedReason", None)
+    return task["id"]
+
+
 def recompute_contributors(space):
     """整表重算贡献榜, 而不是到处 +=。
 
     这样"拒了又通过""同一张照片被处理两次"都不会把积分算重 —— 积分永远等于
     当前数据的函数。规则: 每张入选照片 BASE_POINTS 分; 完成任务的人额外拿一次该任务 bounty。
+
+    ⚠️ 榜单口径(踩过的坑, 改之前先看完这段):
+    只统计 SELECTED_STATES = ("auto_ok", "approved"), 也就是【真的已经出现在空间里】的照片。
+    needs_review / quarantined / rejected 一律不计分, 也不上榜。
+    这是有意的: 榜单代表"这个空间里的画面有多少是你贡献的", 待审的照片还没进空间,
+    先给分等于承诺了一件新人还没点头的事, 万一后面被拒还得倒扣。
+
+    由此产生一个必然的现象, 不是 bug: 一位宾客传的照片【全部】落进 needs_review 队列时,
+    他在榜上是不存在的(不是 0 分, 是压根没这一行), 要等新人在审核台点了通过、
+    review_photos 把状态改成 approved 并重新调用本函数, 他才会出现。
+    宾客端(web/join.html)的上传回执因此必须把话说清楚: 待审 = 照片已收到、正在等新人过目,
+    不是没收到, 也不是被拒了; 榜上暂时没有你的名字是这个原因。
+    回执文案归 web/join.html 管, 这里【只管统计】。要改"待审也上榜"就得连回执、
+    积分倒扣、任务悬赏发放(apply_task_fill 同样只认 SELECTED_STATES)一起重新设计,
+    别只动这一个函数。
     """
     tally = {}
 
@@ -836,15 +1261,32 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
         nodes_snapshot = copy.deepcopy(space["nodes"])
 
     # 2) 锁外面干重活: 落盘 + 缩略图 + CLIP 编码
+    # ⚠️ 中途炸了必须把这一批占的位子全清干净: 占位文件 + 半张残图 + 缩略图。
+    # 不清的话磁盘上会留一个打不开的残骸, 还白白占掉一个照片编号
+    # (踩过: 一张坏图在 photos/ 里留了个 19 字节的 p2.jpg, p2 这个号从此报废)。
     paths = []
-    for pid, (fname, ctype, raw) in zip(pids, files):
-        dest = os.path.join(photos_dir, pid + ".jpg")
-        save_photo_and_thumb(raw, dest, os.path.join(thumbs_dir, pid + ".jpg"))
-        paths.append(dest)
+    try:
+        for pid, (fname, ctype, raw) in zip(pids, files):
+            dest = os.path.join(photos_dir, pid + ".jpg")
+            save_photo_and_thumb(raw, dest, os.path.join(thumbs_dir, pid + ".jpg"))
+            paths.append(dest)
 
-    t0 = time.time()
-    placed = place_photos(sid, {"nodes": nodes_snapshot}, paths, node_id=node_id)
-    clip_s = time.time() - t0
+        t0 = time.time()
+        # 点任务上传时,客户端传来的 nodeId 表示“任务希望你去哪里拍”,不是照片实际
+        # 属于哪个节点。拿它限制 CLIP bank 会形成循环论证:先强制只搜任务节点,再拿
+        # 这个必然相同的结果做节点闸。凡是带 taskId 的上传一律全节点独立匹配。
+        # 自由投稿若明确选了节点,仍保留原来的定向匹配行为。
+        match_node_id = None if task_id else node_id
+        placed = place_photos(sid, {"nodes": nodes_snapshot}, paths, node_id=match_node_id)
+        clip_s = time.time() - t0
+    except Exception:
+        # 这时候还没往 space["photos"] 里写任何一条记录, 所以把文件删掉 = 编号也一起放回去
+        for pid in pids:
+            for junk in (os.path.join(photos_dir, pid + ".jpg"),
+                         os.path.join(thumbs_dir, pid + ".jpg")):
+                if os.path.exists(junk):
+                    os.remove(junk)
+        raise
 
     # 3) 回锁里落记录 + 分流 + 任务判定 + 积分
     out = []
@@ -855,20 +1297,29 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
             margin = r.get("margin", 0.0)
             # 两个判据都要过。差哪个就在 reason 里说清楚差哪个 —— 新人在审核台上
             # 看到的是人话理由, 不是一个孤零零的数字。
+            #
+            # ⚠️ 数值和门槛【一律用 4 位小数】, 而且两边用同一个精度。踩过的坑:
+            # 原来数值印 2 位、门槛直接印 0.82, 于是 conf=0.8198 的照片打印成
+            # "匹配度只有 0.82(低于 0.82)", 观众会以为系统坏了。3 位也救不了
+            # (0.8198 四舍五入还是 0.820, 跟 0.82 看着一样), 4 位才彻底不自相矛盾。
+            # confidence/margin 落盘时就是 round(x, 4), 所以 4 位是无损的。
             if conf >= CONF_MIN and margin >= MARGIN_MIN:
                 state = "auto_ok"
-                reason = f"匹配度 {conf:.2f}、辨识度 {margin:.3f},两项都达标,自动入选"
+                reason = f"匹配度 {conf:.4f}、辨识度 {margin:.4f},两项都达标,自动入选"
             elif conf < CONF_MIN and margin < MARGIN_MIN:
                 state = "needs_review"
-                reason = (f"匹配度 {conf:.2f} 偏低,辨识度 {margin:.3f} 也偏低 —— "
+                reason = (f"匹配度 {conf:.4f} 偏低(门槛 {CONF_MIN:.4f}),"
+                          f"辨识度 {margin:.4f} 也偏低(门槛 {MARGIN_MIN:.4f}),"
                           f"这张很可能不是在这个空间拍的,请你看一眼")
             elif margin < MARGIN_MIN:
                 state = "needs_review"
-                reason = (f"匹配度 {conf:.2f} 够高,但辨识度只有 {margin:.3f}(低于 {MARGIN_MIN}):"
+                reason = (f"匹配度 {conf:.4f} 够高,但辨识度只有 {margin:.4f}"
+                          f"(低于门槛 {MARGIN_MIN:.4f}):"
                           f"它跟这个空间哪个方向都差不多像,机器拿不准是不是这儿拍的")
             else:
                 state = "needs_review"
-                reason = (f"辨识度 {margin:.3f} 够,但匹配度只有 {conf:.2f}(低于 {CONF_MIN}),"
+                reason = (f"辨识度 {margin:.4f} 够,但匹配度只有 {conf:.4f}"
+                          f"(低于门槛 {CONF_MIN:.4f}),"
                           f"方位可能不准,请你看一眼")
 
             photo = {
@@ -899,6 +1350,9 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
                 "state": state,
                 "reason": reason,
                 "taskFilled": filled,
+                # 宾客点了某个任务, 但照片的方位对不上 -> 这里如实说明为什么没算完成。
+                # 老前端不认这个字段就当没看见(照片本身照常收下), 认的话可以直接念 message。
+                "taskMismatch": photo.get("taskMismatch"),
                 "thumb": f"/spaces/{sid}/thumbs/{pid}.jpg",
             })
 
@@ -915,6 +1369,10 @@ def review_photos(sid, decisions):
 
     approve 之后要做三件事: 补任务完成判定、补积分、**重算覆盖盲区**
     —— 因为照片入选了, 原来的缺口可能被补上, 也可能因为覆盖版图变了而露出新的缺口。
+
+    reject 是 approve 的镜像, 三件事一件都不能少: 把它填过的任务退回去
+    (_release_task_fill, 顺带收回悬赏)、重算积分、重算覆盖盲区 ——
+    照片退出空间, 它当初补上的那段缺口就又空了, 必须重新广播出去。
     """
     updated = 0
     with space_txn(sid) as space:
@@ -932,6 +1390,9 @@ def review_photos(sid, decisions):
             elif action == "reject":
                 p["state"] = "rejected"
                 p["reason"] = "新人手动拒绝"
+                # 状态先改再退任务: _release_task_fill 按"还入选着的照片"反推 filledBy,
+                # 这张自己得先不是入选状态(它另外也会被按对象身份跳过, 两道保险)。
+                _release_task_fill(space, p)
             else:
                 continue
             updated += 1
@@ -955,6 +1416,9 @@ def space_stats(space):
         if key:
             stats[key] += 1
     stats["total"] = len(space.get("photos", []))
+    # total 是收到的总张数(含待审/被拒), selectedCount 才是【真的出现在空间里】的张数。
+    # 两个数字不是一回事, 首屏要显示"这个空间有几张照片"用 selectedCount。
+    stats["selectedCount"] = stats["autoOk"] + stats["approved"]
     return stats
 
 
@@ -963,6 +1427,15 @@ def get_space(sid, role="host"):
     role=host 全返回, 外加一份统计, 前端拿它显示"本次自动处理 12 张, 需要你看的只有 2 张"。"""
     with space_txn(sid, write=False) as space:
         data = copy.deepcopy(space)
+    # 详情接口给全:cover 就算是几十 KB 的 dataURL 也原样返回(列表接口才省)。
+    # 这里只补在返回的副本上, 不回写磁盘, 老空间的 space.json 一个字节都不动。
+    for k, dflt in (("date", ""), ("place", ""), ("cover", ""), ("private", False)):
+        data.setdefault(k, dflt)
+    data["hasCover"] = bool(data.get("cover"))
+    # 两种 role 都给 selectedCount(= 真的出现在空间里的照片数), 前端不用自己数、
+    # 也不用拿 photos.length 猜(host 拿到的 photos 里还混着待审和被拒的)。
+    data["selectedCount"] = sum(
+        1 for p in space.get("photos", []) if p.get("state") in SELECTED_STATES)
     if role == "guest":
         data["photos"] = [p for p in data["photos"] if p.get("state") in SELECTED_STATES]
     else:
@@ -1118,13 +1591,50 @@ def _fail(msg, code=200):
     return JSONResponse({"ok": False, "error": str(msg)}, status_code=code)
 
 
+def _guest_safe(msg):
+    """这句话能不能直接摆到宾客手机上。
+
+    放行条件: 是中文短句、不带路径、不带英文异常名。我们自己 raise 的那些
+    ("空间 s99 不存在""这个空间还没有全景节点,请新人先传一张全景")本来就是人话,
+    照原样给出去比换成套话有用得多; 系统异常的原文一律拦下。
+    """
+    if not msg or len(msg) > 80 or "\n" in msg:
+        return False
+    if any(bad in msg for bad in ("/", "\\", ":", "Error", "error", "Exception", "Traceback")):
+        return False
+    return any("一" <= ch <= "鿿" for ch in msg)
+
+
+def _fail_user(e, fallback, tag):
+    """给前端的错误一律中文人话:不带路径、不带异常类名、不带堆栈。
+
+    ⚠️ 这是演示大屏上的硬穿帮点(踩过): PIL 的原始异常
+    "cannot identify image file '/Users/xxx/code/.../photos/p2.jpg'" 被原样吐给
+    join.html, 宾客手机上直接显示英文报错 + 主办电脑的用户名和目录结构。
+    完整异常照旧打进服务端日志(带堆栈), 排查能力一点没丢。
+    """
+    print(f"== [space] {tag}出错: {type(e).__name__}: {e} ==", flush=True)
+    traceback.print_exc()
+    msg = str(e)
+    if isinstance(e, UnidentifiedImageError) or "cannot identify image file" in msg:
+        return _fail("这张图片打不开,换一张试试")
+    return _fail(msg if _guest_safe(msg) else fallback)
+
+
 @router.post("/space")
 def api_create_space(payload: dict = Body(default={})):
     try:
-        sid = create_space(payload.get("title"), payload.get("couple"))
+        # title / couple 是老契约, 一字不动。
+        # date / place / cover / private 全是可选加法:老调用只传 {title, couple} 时
+        # payload.get() 全拿到 None, _clean_meta 把它们变成空值, 结果和以前一模一样。
+        sid = create_space(
+            payload.get("title"), payload.get("couple"),
+            date=payload.get("date"), place=payload.get("place"),
+            cover=payload.get("cover"), private=payload.get("private"),
+        )
         return {"ok": True, "spaceId": sid}
     except Exception as e:
-        return _fail(f"建空间失败: {e}")
+        return _fail_user(e, "空间没建成,稍后再试一次", "建空间")
 
 
 @router.get("/spaces")
@@ -1132,7 +1642,7 @@ def api_list_spaces():
     try:
         return {"ok": True, "spaces": list_spaces()}
     except Exception as e:
-        return _fail(f"读空间列表失败: {e}")
+        return _fail_user(e, "空间列表读不出来,刷新一下页面", "读空间列表")
 
 
 @router.get("/space/{sid}")
@@ -1140,9 +1650,9 @@ def api_get_space(sid: str, role: str = "host"):
     try:
         return {"ok": True, "space": get_space(sid, role)}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "读空间")
     except Exception as e:
-        return _fail(f"读空间失败: {e}")
+        return _fail_user(e, "空间读不出来,刷新一下页面再试", "读空间")
 
 
 @router.post("/space/{sid}/node")
@@ -1159,9 +1669,9 @@ def api_add_node(
         )
         return {"ok": True, "nodeId": nid, "tasks": tasks, "timings": timings}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "传全景")
     except Exception as e:
-        return _fail(f"传全景失败: {e}")
+        return _fail_user(e, "这张全景没能处理,换一张再试试", "传全景")
 
 
 @router.post("/space/{sid}/upload")
@@ -1185,9 +1695,9 @@ def api_upload(
         )
         return {"ok": True, "results": results}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "宾客上传")
     except Exception as e:
-        return _fail(f"上传失败: {e}")
+        return _fail_user(e, "照片没能收下,换一张再试试", "宾客上传")
 
 
 @router.post("/space/{sid}/task")
@@ -1198,9 +1708,9 @@ def api_create_task(sid: str, payload: dict = Body(default={})):
         )
         return {"ok": True, "task": task}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "发心愿任务")
     except Exception as e:
-        return _fail(f"发心愿任务失败: {e}")
+        return _fail_user(e, "心愿任务没发出去,再试一次", "发心愿任务")
 
 
 @router.post("/space/{sid}/review")
@@ -1209,9 +1719,9 @@ def api_review(sid: str, payload: dict = Body(default={})):
         n = review_photos(sid, payload.get("decisions") or [])
         return {"ok": True, "updated": n}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "审核")
     except Exception as e:
-        return _fail(f"审核失败: {e}")
+        return _fail_user(e, "审核没保存成功,再试一次", "审核")
 
 
 @router.post("/space/{sid}/publish")
@@ -1229,9 +1739,9 @@ def api_publish(sid: str, payload: dict = Body(default={})):
             "reportUrl": f"/server/report.html?src=/spaces/{sid}/report.json",
         }
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "发布")
     except Exception as e:
-        return _fail(f"发布失败: {e}")
+        return _fail_user(e, "发布没成功,再试一次", "发布")
 
 
 # ---------------------------------------------------------------- 发布到云 + 工人心跳
@@ -1290,9 +1800,9 @@ def api_publish_cloud(sid: str, payload: dict = Body(default={})):
         started = kick_publish_cloud(sid)
         return {"ok": True, "started": started, "state": _cloud_get(sid)}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "云发布点火")
     except Exception as e:
-        return _fail(f"云发布起不来: {e}")
+        return _fail_user(e, "云发布没起来,再试一次", "云发布点火")
 
 
 @router.get("/space/{sid}/publish-cloud")
@@ -1323,9 +1833,9 @@ def api_joinurl(sid: str):
             pass    # 只是确认空间存在
         return {"ok": True, "url": guest_url(sid)}
     except FileNotFoundError as e:
-        return _fail(e)
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "生成宾客链接")
     except Exception as e:
-        return _fail(f"生成宾客链接失败: {e}")
+        return _fail_user(e, "宾客链接没生成出来,刷新一下页面", "生成宾客链接")
 
 
 os.makedirs(SPACES_DIR, exist_ok=True)

@@ -3,1230 +3,225 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#1b1815">
-  <title>空间记忆 · 六种观看方式</title>
+  <meta name="theme-color" content="#fff8f5">
+  <title>六个展厅 · UNSEEN</title>
+  <link rel="stylesheet" href="../app/theme.css">
   <style>
-    :root {
-      --paper: #f1eadf;
-      --paper-light: #faf6ef;
-      --paper-deep: #ded3c3;
-      --ink: #1b1815;
-      --ink-soft: #595149;
-      --line: rgba(27, 24, 21, .16);
-      --red: #af392d;
-      --red-bright: #cc4a3b;
-      --gold: #9a7848;
-      --serif: "Songti SC", "STSong", "SimSun", serif;
-      --sans: -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans CJK SC",
-        "Microsoft YaHei", sans-serif;
-      --ease: cubic-bezier(.22, .72, .24, 1);
+    /* 本页只写版式，不覆盖 theme.css 的设计变量。 */
+    .hub {
+      padding-bottom: calc(26px + env(safe-area-inset-bottom, 0));
     }
 
-    * {
-      box-sizing: border-box;
-    }
-
-    html,
-    body {
-      width: 100%;
-      height: 100%;
-      margin: 0;
-      overflow: hidden;
-      background: var(--ink);
-    }
-
-    body {
-      color: var(--ink);
-      font-family: var(--sans);
-      -webkit-font-smoothing: antialiased;
-      text-rendering: optimizeLegibility;
-    }
-
-    button {
-      color: inherit;
-      font: inherit;
-    }
-
-    button,
-    iframe {
-      -webkit-tap-highlight-color: transparent;
-    }
-
-    .shell {
-      position: relative;
-      display: grid;
-      grid-template-columns: clamp(300px, 23vw, 350px) minmax(0, 1fr);
-      gap: 14px;
-      width: 100%;
-      height: 100vh;
-      height: 100dvh;
-      padding: 14px;
-      overflow: hidden;
-      background:
-        radial-gradient(circle at 16% 6%, rgba(255, 255, 255, .7), transparent 27%),
-        repeating-linear-gradient(93deg, transparent 0 23px, rgba(69, 54, 37, .022) 24px),
-        var(--paper-deep);
-    }
-
-    /* 左侧像一本展览目录：纸张与右侧深色画框形成清楚的层次。 */
-    .catalog {
-      position: relative;
-      z-index: 2;
-      display: flex;
-      min-height: 0;
-      flex-direction: column;
-      overflow: hidden;
-      border: 1px solid rgba(27, 24, 21, .2);
-      background:
-        linear-gradient(115deg, rgba(255, 255, 255, .58), transparent 34%),
-        repeating-linear-gradient(0deg, transparent 0 5px, rgba(56, 44, 31, .018) 6px),
-        var(--paper);
-      box-shadow: 0 18px 55px rgba(38, 29, 20, .16);
-    }
-
-    .catalog::after {
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 7px;
-      border-left: 1px solid rgba(27, 24, 21, .08);
-      background: linear-gradient(90deg, rgba(27, 24, 21, .04), transparent);
-      content: "";
-      pointer-events: none;
-    }
-
-    .catalog-head {
-      position: relative;
-      flex: 0 0 auto;
-      padding: 31px 32px 25px;
-    }
-
-    .edition {
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      margin-bottom: 22px;
-      color: var(--gold);
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: .28em;
-      line-height: 1;
-    }
-
-    .edition::before {
-      width: 27px;
-      height: 1px;
-      background: currentColor;
-      content: "";
-    }
-
-    .catalog-head h1 {
-      margin: 0;
-      font-family: var(--serif);
-      font-size: clamp(31px, 2.5vw, 39px);
-      font-weight: 600;
-      letter-spacing: .055em;
-      line-height: 1.18;
-    }
-
-    .catalog-head h1 span {
-      color: var(--red);
-    }
-
-    .catalog-intro {
-      max-width: 18em;
-      margin: 15px 0 0;
-      color: var(--ink-soft);
-      font-size: 12px;
-      letter-spacing: .055em;
-      line-height: 1.75;
-    }
-
-    .gallery-nav {
-      position: relative;
-      display: flex;
-      min-height: 0;
-      flex: 1 1 auto;
-      flex-direction: column;
-      padding: 0 20px;
-    }
-
-    .gallery-nav::before {
-      position: absolute;
-      top: 0;
-      right: 31px;
-      left: 31px;
-      height: 1px;
-      background: var(--ink);
-      content: "";
-      opacity: .8;
-    }
-
-    .room-button {
-      position: relative;
-      display: grid;
-      min-height: 0;
-      flex: 1 1 0;
-      grid-template-columns: 42px minmax(0, 1fr);
-      align-items: center;
-      width: 100%;
-      padding: 9px 11px;
-      border: 0;
-      border-bottom: 1px solid var(--line);
-      outline: none;
-      background: transparent;
-      cursor: pointer;
-      text-align: left;
-      transition:
-        color .28s var(--ease),
-        background-color .28s var(--ease),
-        transform .28s var(--ease);
-      touch-action: manipulation;
-    }
-
-    .room-button::after {
-      position: absolute;
-      top: 0;
-      right: 0;
-      bottom: 0;
-      width: 3px;
-      background: var(--red-bright);
-      content: "";
-      opacity: 0;
-      transform: scaleY(.25);
-      transition: opacity .25s ease, transform .4s var(--ease);
-    }
-
-    .room-button:hover {
-      background: rgba(255, 255, 255, .38);
-      transform: translateX(2px);
-    }
-
-    .room-button:focus-visible {
-      box-shadow: inset 0 0 0 2px var(--red);
-    }
-
-    .room-button[aria-selected="true"] {
-      z-index: 1;
-      color: var(--paper-light);
-      background: var(--ink);
-      transform: translateX(0);
-    }
-
-    .room-button[aria-selected="true"]::after {
-      opacity: 1;
-      transform: scaleY(1);
-    }
-
-    .room-no {
-      align-self: start;
-      padding-top: 2px;
-      color: var(--gold);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 11px;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: .08em;
-    }
-
-    .room-button[aria-selected="true"] .room-no {
-      color: #d9b275;
-    }
-
-    .room-name {
+    .mark {
+      flex: none;
+      width: 26px;
+      height: 26px;
       display: block;
-      font-family: var(--serif);
+    }
+
+    .mark .lens {
+      mix-blend-mode: multiply;
+    }
+
+    .lede {
+      margin: 4px 4px 14px;
+      font-size: 13.5px;
+      color: var(--ink-2);
+    }
+
+    .rooms {
+      display: grid;
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    /* 权重要压过 theme.css 的 a.u-card{display:block}，否则卡片不会变成一行 */
+    a.u-card.room {
+      display: grid;
+      grid-template-columns: 40px minmax(0, 1fr) 10px;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 14px;
+    }
+
+    .room .no {
+      width: 40px;
+      height: 40px;
+      border-radius: 14px;
+      display: grid;
+      place-items: center;
+      background: var(--grad-soft);
+      color: #c2536f;
+      font-size: 13px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .02em;
+    }
+
+    .room .nm {
+      display: block;
       font-size: 15px;
-      font-weight: 600;
-      letter-spacing: .075em;
+      font-weight: 700;
       line-height: 1.35;
     }
 
-    .room-desc {
+    .room .ds {
       display: block;
-      margin-top: 3px;
-      color: var(--ink-soft);
-      font-size: 10.5px;
-      letter-spacing: .025em;
-      line-height: 1.48;
-      transition: color .25s ease;
-    }
-
-    .room-button[aria-selected="true"] .room-desc {
-      color: rgba(250, 246, 239, .62);
-    }
-
-    .catalog-foot {
-      display: flex;
-      flex: 0 0 auto;
-      align-items: center;
-      justify-content: space-between;
-      margin: 16px 31px 19px;
-      color: var(--ink-soft);
-      font-size: 8px;
-      font-weight: 700;
-      letter-spacing: .22em;
-      text-transform: uppercase;
-    }
-
-    .catalog-foot .live {
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      color: var(--red);
-    }
-
-    .catalog-foot .live::before {
-      width: 5px;
-      height: 5px;
-      border-radius: 50%;
-      background: currentColor;
-      box-shadow: 0 0 0 4px rgba(175, 57, 45, .1);
-      content: "";
-    }
-
-    /* 右侧是克制的深色画框，内部页面保持自己的完整个性。 */
-    .presentation {
-      position: relative;
-      z-index: 1;
-      display: grid;
-      min-width: 0;
-      min-height: 0;
-      grid-template-rows: auto minmax(0, 1fr);
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, .09);
-      background: var(--ink);
-      box-shadow: 0 24px 70px rgba(22, 17, 13, .3);
-    }
-
-    .presentation::before {
-      position: absolute;
-      z-index: 4;
-      top: 0;
-      right: 0;
-      width: 16px;
-      height: 16px;
-      border-top: 1px solid rgba(255, 255, 255, .38);
-      border-right: 1px solid rgba(255, 255, 255, .38);
-      content: "";
-      pointer-events: none;
-    }
-
-    .stage-head {
-      position: relative;
-      z-index: 3;
-      display: grid;
-      grid-template-columns: 74px minmax(0, 1fr) auto;
-      align-items: center;
-      min-height: 92px;
-      padding: 16px 24px 15px;
-      border-bottom: 1px solid rgba(255, 255, 255, .12);
-      color: var(--paper-light);
-      background:
-        linear-gradient(90deg, rgba(255, 255, 255, .025), transparent 45%),
-        #1b1815;
-    }
-
-    .stage-count {
-      display: flex;
-      align-items: baseline;
-      gap: 3px;
-      color: rgba(250, 246, 239, .32);
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 11px;
-      letter-spacing: .06em;
-    }
-
-    .stage-count strong {
-      color: #d9b275;
-      font-size: 27px;
-      font-weight: 400;
-      line-height: 1;
-    }
-
-    .stage-copy {
-      min-width: 0;
-      padding-right: 18px;
-    }
-
-    .stage-copy h2 {
-      margin: 0 0 5px;
-      overflow: hidden;
-      font-family: var(--serif);
-      font-size: 20px;
-      font-weight: 600;
-      letter-spacing: .11em;
-      line-height: 1.2;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .stage-copy p {
-      margin: 0;
-      overflow: hidden;
-      color: rgba(250, 246, 239, .58);
-      font-size: 11px;
-      letter-spacing: .045em;
+      margin-top: 1px;
+      font-size: 12px;
       line-height: 1.5;
-      text-overflow: ellipsis;
-      white-space: nowrap;
+      color: var(--ink-3);
     }
 
-    .room-state {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: rgba(250, 246, 239, .52);
-      font-size: 9px;
-      font-weight: 700;
-      letter-spacing: .16em;
-      white-space: nowrap;
-    }
-
-    .room-state::before {
-      width: 6px;
-      height: 6px;
-      border-radius: 50%;
-      background: #d9b275;
-      content: "";
-      box-shadow: 0 0 0 4px rgba(217, 178, 117, .08);
-    }
-
-    .room-state[data-state="loading"]::before {
-      animation: state-pulse 1.15s ease-in-out infinite;
-    }
-
-    .room-state[data-state="ready"]::before {
-      background: #b7c7a1;
-      box-shadow: 0 0 0 4px rgba(183, 199, 161, .08);
-    }
-
-    .room-state[data-state="error"]::before {
-      background: var(--red-bright);
-      box-shadow: 0 0 0 4px rgba(204, 74, 59, .1);
-    }
-
-    .frame-mat {
-      position: relative;
-      min-width: 0;
-      min-height: 0;
-      padding: 11px;
-      background:
-        linear-gradient(135deg, rgba(255, 255, 255, .035), transparent 28%),
-        #11100e;
-    }
-
-    .view-stack {
-      position: relative;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      background: #080807;
-      box-shadow:
-        0 0 0 1px rgba(255, 255, 255, .08),
-        0 12px 35px rgba(0, 0, 0, .32);
-    }
-
-    .view-panel {
-      position: absolute;
-      inset: 0;
-      overflow: hidden;
-      background: #080807;
-    }
-
-    .view-panel[hidden] {
-      display: none;
-    }
-
-    .view-panel.is-active {
-      animation: room-in .46s var(--ease) both;
-    }
-
-    .room-frame {
-      display: block;
-      width: 100%;
-      height: 100%;
-      border: 0;
-      background: #080807;
-    }
-
-    .loader {
-      position: absolute;
-      z-index: 2;
-      inset: 0;
-      display: grid;
-      place-items: center;
-      overflow: hidden;
-      color: var(--paper-light);
-      background:
-        radial-gradient(circle at 50% 35%, rgba(154, 120, 72, .09), transparent 35%),
-        #11100e;
-      transition: opacity .38s ease, visibility .38s ease;
-    }
-
-    .loader::before {
-      position: absolute;
-      top: 0;
-      right: 0;
-      left: 0;
-      height: 2px;
-      background: linear-gradient(90deg, transparent, #d9b275, var(--red-bright), transparent);
-      content: "";
-      transform: translateX(-100%);
-      animation: load-line 1.65s var(--ease) infinite;
-    }
-
-    .loader.is-done {
-      visibility: hidden;
-      opacity: 0;
-      pointer-events: none;
-    }
-
-    .loading-card {
-      width: min(430px, calc(100% - 48px));
-      text-align: center;
-    }
-
-    .loading-index {
-      margin-bottom: 15px;
-      color: #d9b275;
-      font-family: Georgia, "Times New Roman", serif;
-      font-size: 10px;
-      letter-spacing: .22em;
-    }
-
-    .loading-card h3 {
-      margin: 0;
-      font-family: var(--serif);
-      font-size: 24px;
-      font-weight: 500;
-      letter-spacing: .11em;
-    }
-
-    .loading-card p {
-      margin: 11px 0 0;
-      color: rgba(250, 246, 239, .52);
-      font-size: 11px;
-      letter-spacing: .07em;
-      line-height: 1.65;
-    }
-
-    .skeleton {
-      display: grid;
-      grid-template-columns: 1.55fr 1fr;
-      gap: 9px;
-      height: 98px;
-      margin-top: 28px;
-      opacity: .62;
-    }
-
-    .skeleton span {
-      position: relative;
-      overflow: hidden;
-      border: 1px solid rgba(255, 255, 255, .08);
-      background: rgba(255, 255, 255, .045);
-    }
-
-    .skeleton span::after {
-      position: absolute;
-      inset: 0;
-      background: linear-gradient(105deg, transparent 32%, rgba(255, 255, 255, .09), transparent 68%);
-      content: "";
-      transform: translateX(-100%);
-      animation: skeleton-sweep 1.7s ease-in-out infinite;
-    }
-
-    .skeleton span:nth-child(2) {
-      animation-delay: .12s;
-    }
-
-    .load-error {
-      display: none;
-    }
-
-    .loader.has-error .loading-view {
-      display: none;
-    }
-
-    .loader.has-error .load-error {
+    .room .go {
+      color: var(--ink-3);
       display: block;
     }
 
-    .loader.has-error::before {
-      background: var(--red-bright);
-      transform: none;
-      animation: none;
+    .room:hover .go {
+      color: var(--pink);
     }
 
-    .retry-button {
-      margin-top: 22px;
-      padding: 10px 18px;
-      border: 1px solid rgba(250, 246, 239, .35);
-      border-radius: 0;
-      color: var(--paper-light);
-      background: transparent;
-      cursor: pointer;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: .12em;
-    }
-
-    .retry-button:hover,
-    .retry-button:focus-visible {
-      border-color: #d9b275;
-      outline: none;
-      color: #f1d09e;
-    }
-
-    .no-script {
-      display: grid;
-      height: 100%;
-      place-items: center;
-      padding: 30px;
-      color: var(--paper-light);
-      font-size: 14px;
+    .foot {
+      margin: 18px 4px 0;
       text-align: center;
     }
 
-    @keyframes room-in {
-      from {
-        opacity: .18;
-        transform: translateY(5px);
-      }
-      to {
-        opacity: 1;
-        transform: translateY(0);
-      }
-    }
-
-    @keyframes load-line {
-      0% {
-        transform: translateX(-100%);
-      }
-      55%,
-      100% {
-        transform: translateX(100%);
-      }
-    }
-
-    @keyframes skeleton-sweep {
-      0% {
-        transform: translateX(-100%);
-      }
-      70%,
-      100% {
-        transform: translateX(100%);
-      }
-    }
-
-    @keyframes state-pulse {
-      50% {
-        opacity: .3;
-        transform: scale(.72);
-      }
-    }
-
-    @media (max-width: 860px) {
-      .shell {
-        display: grid;
-        grid-template-columns: 1fr;
-        grid-template-rows: auto minmax(0, 1fr);
-        gap: 0;
-        padding:
-          env(safe-area-inset-top)
-          env(safe-area-inset-right)
-          env(safe-area-inset-bottom)
-          env(safe-area-inset-left);
-        background: var(--paper);
+    @media (min-width: 900px) {
+      .rooms {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
       }
 
-      .catalog {
-        display: grid;
-        grid-template-rows: 57px auto;
-        border: 0;
-        border-bottom: 1px solid var(--ink);
-        box-shadow: none;
+      a.u-card.room {
+        padding: 14px 16px;
       }
 
-      .catalog::after {
-        display: none;
+      /* 桌面上主按钮不必拉满一整行 */
+      #startBtn {
+        max-width: 300px;
       }
-
-      .catalog-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0 15px;
-      }
-
-      .edition {
-        margin: 0;
-        font-size: 8px;
-      }
-
-      .edition::before {
-        width: 18px;
-      }
-
-      .catalog-head h1 {
-        font-size: 17px;
-        letter-spacing: .08em;
-        white-space: nowrap;
-      }
-
-      .catalog-head h1 br {
-        display: none;
-      }
-
-      .catalog-head h1 span {
-        margin-left: .35em;
-      }
-
-      .catalog-intro,
-      .catalog-foot {
-        display: none;
-      }
-
-      .gallery-nav {
-        display: grid;
-        flex: none;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        padding: 0 11px 11px;
-      }
-
-      .gallery-nav::before {
-        top: 0;
-        right: 11px;
-        left: 11px;
-      }
-
-      .room-button {
-        display: flex;
-        min-height: 43px;
-        align-items: center;
-        justify-content: center;
-        gap: 7px;
-        padding: 5px 4px;
-        border-right: 1px solid var(--line);
-        border-bottom: 1px solid var(--line);
-        text-align: center;
-      }
-
-      .room-button:nth-child(3n) {
-        border-right: 0;
-      }
-
-      .room-button:nth-child(n + 4) {
-        border-bottom: 0;
-      }
-
-      .room-button:hover {
-        transform: none;
-      }
-
-      .room-button::after {
-        top: auto;
-        right: 7px;
-        bottom: 0;
-        left: 7px;
-        width: auto;
-        height: 2px;
-        transform: scaleX(.25);
-      }
-
-      .room-button[aria-selected="true"]::after {
-        transform: scaleX(1);
-      }
-
-      .room-no {
-        align-self: auto;
-        padding: 0;
-        font-size: 8px;
-      }
-
-      .room-name {
-        font-size: 12px;
-        letter-spacing: .035em;
-      }
-
-      .room-desc {
-        display: none;
-      }
-
-      .presentation {
-        border: 0;
-        box-shadow: none;
-      }
-
-      .presentation::before {
-        display: none;
-      }
-
-      .stage-head {
-        grid-template-columns: 47px minmax(0, 1fr) auto;
-        min-height: 72px;
-        padding: 9px 13px;
-      }
-
-      .stage-count strong {
-        font-size: 21px;
-      }
-
-      .stage-count {
-        font-size: 8px;
-      }
-
-      .stage-copy {
-        padding-right: 8px;
-      }
-
-      .stage-copy h2 {
-        margin-bottom: 3px;
-        font-size: 16px;
-      }
-
-      .stage-copy p {
-        display: -webkit-box;
-        overflow: hidden;
-        font-size: 9px;
-        white-space: normal;
-        -webkit-box-orient: vertical;
-        -webkit-line-clamp: 2;
-      }
-
-      .room-state {
-        gap: 6px;
-        font-size: 0;
-      }
-
-      .room-state::after {
-        font-size: 8px;
-        letter-spacing: .08em;
-        content: attr(data-short);
-      }
-
-      .frame-mat {
-        padding: 0;
-      }
-
-      .loading-card {
-        width: min(330px, calc(100% - 40px));
-      }
-
-      .loading-card h3 {
-        font-size: 21px;
-      }
-
-      .skeleton {
-        height: 84px;
-      }
-    }
-
-    @media (max-height: 760px) and (min-width: 861px) {
-      .catalog-head {
-        padding-top: 22px;
-        padding-bottom: 18px;
-      }
-
-      .edition {
-        margin-bottom: 13px;
-      }
-
-      .catalog-intro {
-        margin-top: 9px;
-      }
-
-      .catalog-foot {
-        margin-top: 10px;
-        margin-bottom: 13px;
-      }
-
-      .stage-head {
-        min-height: 76px;
-      }
-    }
-
-    @media (max-width: 540px) {
-      .catalog-head {
-        padding-right: 12px;
-        padding-left: 12px;
-      }
-
-      .edition {
-        max-width: 116px;
-        letter-spacing: .19em;
-      }
-
-      .catalog-head h1 {
-        font-size: 15px;
-      }
-
-      .gallery-nav {
-        padding-right: 8px;
-        padding-bottom: 8px;
-        padding-left: 8px;
-      }
-
-      .gallery-nav::before {
-        right: 8px;
-        left: 8px;
-      }
-
-      .room-button {
-        min-height: 41px;
-      }
-
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *,
-      *::before,
-      *::after {
-        scroll-behavior: auto !important;
-        animation-duration: .01ms !important;
-        animation-iteration-count: 1 !important;
+      * {
         transition-duration: .01ms !important;
+        animation-duration: .01ms !important;
       }
     }
   </style>
 </head>
-<body>
-  <div class="shell">
-    <aside class="catalog" aria-label="空间记忆展厅目录">
-      <header class="catalog-head">
-        <div class="edition">SPATIAL MEMORY · 01</div>
-        <h1>把照片<br><span>放回现场</span></h1>
-        <p class="catalog-intro">同一段记忆，六种进入方式。选择一个视角，回到它发生的地方。</p>
-      </header>
+<body class="u-body">
+  <div class="u-bokeh" aria-hidden="true"></div>
 
-      <nav class="gallery-nav" id="galleryNav" aria-label="六个展厅" role="tablist">
-        <button class="room-button" id="tab-journey" type="button" role="tab"
-          aria-selected="false" aria-controls="view-journey" tabindex="-1"
-          data-view="journey" data-src="../viewer/journey.html"
-          data-name="重温那一天" data-desc="按当天的顺序前行，让散落的瞬间重新连成一段旅程。">
-          <span class="room-no">01</span>
-          <span>
-            <span class="room-name">重温那一天</span>
-            <span class="room-desc">按当天的顺序前行，让散落的瞬间重新连成一段旅程。</span>
-          </span>
-        </button>
+  <div class="u-page hub">
+    <div class="u-bar">
+      <a class="u-back" id="backLink" href="../index.html" aria-label="返回">←</a>
+      <h1>六个展厅</h1>
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
+        <g class="lens">
+          <circle cx="20" cy="14" r="11" fill="#ff9fc0" opacity=".55"></circle>
+          <circle cx="13.5" cy="25" r="11" fill="#ff6e9e" opacity=".55"></circle>
+          <circle cx="26.5" cy="25" r="11" fill="#ffc26b" opacity=".55"></circle>
+        </g>
+        <path d="M20 25.6c-3.8-3.3-6-4.9-6-6.9 0-1.6 1.2-2.8 2.8-2.8 1.2 0 2.5.7 3.2 1.8.7-1.1 2-1.8 3.2-1.8 1.6 0 2.8 1.2 2.8 2.8 0 2-2.2 3.6-6 6.9z"
+              fill="#fff" opacity=".92"></path>
+      </svg>
+    </div>
 
-        <button class="room-button" id="tab-walk" type="button" role="tab"
-          aria-selected="false" aria-controls="view-walk" tabindex="-1"
-          data-view="walk" data-src="../viewer/walk.html?demo=1"
-          data-name="走进全景" data-desc="让深度恢复距离感，像走回真实房间一样靠近照片。">
-          <span class="room-no">02</span>
-          <span>
-            <span class="room-name">走进全景</span>
-            <span class="room-desc">让深度恢复距离感，像走回真实房间一样靠近照片。</span>
-          </span>
-        </button>
+    <p class="lede">同一段记忆，六种进入方式。</p>
 
-        <button class="room-button" id="tab-album" type="button" role="tab"
-          aria-selected="false" aria-controls="view-album" tabindex="-1"
-          data-view="album" data-src="../viewer/album.html"
-          data-name="相册" data-desc="把空间摊成一本可翻阅的册子，适合慢慢看，也适合一键成片。">
-          <span class="room-no">03</span>
-          <span>
-            <span class="room-name">相册</span>
-            <span class="room-desc">把空间摊成一本可翻阅的册子，适合慢慢看，也适合一键成片。</span>
-          </span>
-        </button>
+    <a class="u-btn" id="startBtn" data-back-link
+       href="../viewer/journey.html?back=web%2Fshow.html">从第一个展厅开始</a>
 
-        <button class="room-button" id="tab-timeline" type="button" role="tab"
-          aria-selected="false" aria-controls="view-timeline" tabindex="-1"
-          data-view="timeline" data-src="../viewer/timeline.html"
-          data-name="时光轴" data-desc="沿时间拨动现场，让照片像记忆碎片一样重新浮现。">
-          <span class="room-no">04</span>
-          <span>
-            <span class="room-name">时光轴</span>
-            <span class="room-desc">沿时间拨动现场，让照片像记忆碎片一样重新浮现。</span>
-          </span>
-        </button>
+    <nav class="rooms" aria-label="六个展厅">
+      <a class="u-card room" data-back-link href="../viewer/journey.html?back=web%2Fshow.html">
+        <span class="no">01</span>
+        <span>
+          <b class="nm">重温那一天</b>
+          <span class="ds">按当天的顺序前行，让散落的瞬间重新连成一段旅程。</span>
+        </span>
+        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
 
-        <button class="room-button" id="tab-machine" type="button" role="tab"
-          aria-selected="false" aria-controls="view-machine" tabindex="-1"
-          data-view="machine" data-src="../viewer/machine.html"
-          data-name="机器记忆" data-desc="换成机器的冷静目光，看它如何识别、定位并保存一次相聚。">
-          <span class="room-no">05</span>
-          <span>
-            <span class="room-name">机器记忆</span>
-            <span class="room-desc">换成机器的冷静目光，看它如何识别、定位并保存一次相聚。</span>
-          </span>
-        </button>
+      <a class="u-card room" data-back-link href="../viewer/walk.html?demo=1&amp;back=web%2Fshow.html">
+        <span class="no">02</span>
+        <span>
+          <b class="nm">走进全景</b>
+          <span class="ds">让深度恢复距离感，像走回真实房间一样靠近照片。</span>
+        </span>
+        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
 
-        <button class="room-button" id="tab-map" type="button" role="tab"
-          aria-selected="false" aria-controls="view-map" tabindex="-1"
-          data-view="map" data-src="../viewer/online.html"
-          data-name="真实地图" data-desc="回到真实地理坐标，沿婚车路线看见记忆如何穿过一座城。">
-          <span class="room-no">06</span>
-          <span>
-            <span class="room-name">真实地图</span>
-            <span class="room-desc">回到真实地理坐标，沿婚车路线看见记忆如何穿过一座城。</span>
-          </span>
-        </button>
-      </nav>
+      <a class="u-card room" data-back-link href="../viewer/album.html?back=web%2Fshow.html">
+        <span class="no">03</span>
+        <span>
+          <b class="nm">相册</b>
+          <span class="ds">把空间摊成一本可翻阅的册子，适合慢慢看，也适合一键成片。</span>
+        </span>
+        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
 
-      <footer class="catalog-foot">
-        <span>六个展厅 · 同一段记忆</span>
-        <span class="live">LIVE</span>
-      </footer>
-    </aside>
+      <a class="u-card room" data-back-link href="../viewer/timeline.html?back=web%2Fshow.html">
+        <span class="no">04</span>
+        <span>
+          <b class="nm">时光轴</b>
+          <span class="ds">沿时间拨动现场，让照片像记忆碎片一样重新浮现。</span>
+        </span>
+        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
 
-    <main class="presentation">
-      <header class="stage-head" aria-live="polite">
-        <div class="stage-count"><strong id="currentNo">01</strong><span>/06</span></div>
-        <div class="stage-copy">
-          <h2 id="currentName">重温那一天</h2>
-          <p id="currentDesc">按当天的顺序前行，让散落的瞬间重新连成一段旅程。</p>
-        </div>
-        <div class="room-state" id="roomState" data-state="loading" data-short="载入中">正在打开</div>
-      </header>
+      <a class="u-card room" data-back-link href="../viewer/machine.html?back=web%2Fshow.html">
+        <span class="no">05</span>
+        <span>
+          <b class="nm">机器记忆</b>
+          <span class="ds">换成机器的冷静目光，看它如何识别、定位并保存一次相聚。</span>
+        </span>
+        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
 
-      <div class="frame-mat">
-        <div class="view-stack" id="viewStack">
-          <noscript>
-            <div class="no-script">请开启 JavaScript，以便切换并保留六个展厅。</div>
-          </noscript>
-        </div>
-      </div>
-    </main>
+      <a class="u-card room" data-back-link href="../viewer/online.html?back=web%2Fshow.html">
+        <span class="no">06</span>
+        <span>
+          <b class="nm">真实地图</b>
+          <span class="ds">回到真实地理坐标，沿婚车路线看见记忆如何穿过一座城。</span>
+        </span>
+        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </nav>
+
+    <p class="u-note foot">六个展厅，同一段记忆。</p>
   </div>
 
   <script>
     (function () {
       "use strict";
 
-      var nav = document.getElementById("galleryNav");
-      var stack = document.getElementById("viewStack");
-      var currentNo = document.getElementById("currentNo");
-      var currentName = document.getElementById("currentName");
-      var currentDesc = document.getElementById("currentDesc");
-      var roomState = document.getElementById("roomState");
-      var buttons = Array.prototype.slice.call(nav.querySelectorAll("[data-view]"));
-      var rooms = {};
-      var panels = {};
-      var activeId = "";
-
-      buttons.forEach(function (button, index) {
-        rooms[button.dataset.view] = {
-          id: button.dataset.view,
-          src: button.dataset.src,
-          name: button.dataset.name,
-          desc: button.dataset.desc,
-          number: String(index + 1).padStart(2, "0"),
-          button: button
-        };
-      });
-
-      function setRoomState(state, label, shortLabel) {
-        roomState.dataset.state = state;
-        roomState.dataset.short = shortLabel;
-        roomState.textContent = label;
+      function backTarget(fallback){
+        try{
+          var b = new URLSearchParams(location.search).get("back");
+          if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+        }catch(e){}
+        return fallback;
       }
 
-      function makeLoader(room) {
-        var loader = document.createElement("div");
-        loader.className = "loader";
-        loader.innerHTML =
-          '<div class="loading-card loading-view">' +
-            '<div class="loading-index">ROOM ' + room.number + ' / 06</div>' +
-            '<h3>' + room.name + '</h3>' +
-            '<p>正在为你打开这个展厅，请稍候。</p>' +
-            '<div class="skeleton" aria-hidden="true"><span></span><span></span></div>' +
-          '</div>' +
-          '<div class="loading-card load-error">' +
-            '<div class="loading-index">ROOM ' + room.number + ' / 06</div>' +
-            '<h3>这个展厅暂时没能打开</h3>' +
-            '<p>请确认演示服务仍在运行，然后再试一次。</p>' +
-            '<button class="retry-button" type="button">重新打开</button>' +
-          '</div>';
-        return loader;
-      }
+      var backLink = document.getElementById("backLink");
+      if (backLink) backLink.setAttribute("href", backTarget("../index.html"));
 
-      /* iframe 只在第一次进入展厅时创建；之后只切换 display，不重复加载。 */
-      function mountRoom(room) {
-        var panel = document.createElement("section");
-        var iframe = document.createElement("iframe");
-        var loader = makeLoader(room);
-        var finished = false;
-        var timeoutId;
+      /* 把"我从哪来"接力给展厅：从展厅退回本页时，本页的返回键仍然指向原点。
+         没有 back 参数时，各展厅链接保持 HTML 里写死的 back=web/show.html，无 JS 也正确。 */
+      var inherited = "";
+      try {
+        var raw = new URLSearchParams(location.search).get("back");
+        if (raw && !/^(https?:)?\/\//.test(raw)) inherited = raw;
+      } catch (e) {}
 
-        panel.className = "view-panel";
-        panel.id = "view-" + room.id;
-        panel.setAttribute("role", "tabpanel");
-        panel.setAttribute("aria-labelledby", "tab-" + room.id);
-        panel.hidden = true;
-        panel.appendChild(iframe);
-        panel.appendChild(loader);
-
-        iframe.className = "room-frame";
-        iframe.title = room.name + "展厅";
-        iframe.setAttribute("allow", "fullscreen; autoplay");
-        iframe.setAttribute("allowfullscreen", "");
-
-        panels[room.id] = {
-          element: panel,
-          iframe: iframe,
-          loader: loader,
-          state: "loading"
-        };
-        stack.appendChild(panel);
-
-        function showError() {
-          if (finished) return;
-          finished = true;
-          window.clearTimeout(timeoutId);
-          panels[room.id].state = "error";
-          loader.classList.add("has-error");
-          if (activeId === room.id) {
-            setRoomState("error", "打开失败", "失败");
-          }
-        }
-
-        iframe.addEventListener("load", function () {
-          if (finished) return;
-
-          /* 同源 404 会触发 load，额外识别浏览器生成的错误页。 */
-          try {
-            var doc = iframe.contentDocument;
-            if (doc && (doc.title === "Error response" || doc.body && /Error code: 404/.test(doc.body.textContent))) {
-              showError();
-              return;
-            }
-          } catch (ignore) {
-            /* 某些 file:// 环境不允许读取子页，但 load 本身仍可作为成功信号。 */
-          }
-
-          finished = true;
-          window.clearTimeout(timeoutId);
-          panels[room.id].state = "ready";
-          loader.classList.add("is-done");
-          loader.setAttribute("aria-hidden", "true");
-          if (activeId === room.id) {
-            setRoomState("ready", "展厅已就绪", "已就绪");
-          }
-          window.setTimeout(function () {
-            loader.hidden = true;
-          }, 420);
+      if (inherited) {
+        var relay = encodeURIComponent("web/show.html?back=" + encodeURIComponent(inherited));
+        Array.prototype.forEach.call(document.querySelectorAll("[data-back-link]"), function (a) {
+          a.setAttribute("href", a.getAttribute("href").replace(/back=[^&]*/, "back=" + relay));
         });
-
-        iframe.addEventListener("error", showError);
-        loader.querySelector(".retry-button").addEventListener("click", function () {
-          retryRoom(room.id);
-        });
-
-        timeoutId = window.setTimeout(showError, 30000);
-        iframe.src = room.src;
-        return panel;
       }
-
-      function retryRoom(id) {
-        var old = panels[id];
-        if (old) {
-          old.iframe.src = "about:blank";
-          old.element.remove();
-          delete panels[id];
-        }
-        var panel = mountRoom(rooms[id]);
-        panel.hidden = false;
-        panel.classList.add("is-active");
-        setRoomState("loading", "正在重新打开", "重试中");
-      }
-
-      function writeUrl(id, mode) {
-        var url = new URL(window.location.href);
-        url.searchParams.set("v", id);
-        var state = { v: id };
-        if (mode === "push") {
-          window.history.pushState(state, "", url);
-        } else if (mode === "replace") {
-          window.history.replaceState(state, "", url);
-        }
-      }
-
-      function activateRoom(id, historyMode, shouldFocus) {
-        var room = rooms[id] || rooms.journey;
-        var previous = panels[activeId];
-        var next = panels[room.id];
-
-        if (activeId === room.id && next) {
-          if (historyMode === "replace") writeUrl(room.id, "replace");
-          return;
-        }
-
-        if (previous) {
-          previous.element.hidden = true;
-          previous.element.classList.remove("is-active");
-        }
-
-        activeId = room.id;
-        if (!next) {
-          mountRoom(room);
-          next = panels[room.id];
-        }
-        next.element.hidden = false;
-        next.element.classList.remove("is-active");
-        void next.element.offsetWidth;
-        next.element.classList.add("is-active");
-
-        buttons.forEach(function (button) {
-          var selected = button.dataset.view === room.id;
-          button.setAttribute("aria-selected", selected ? "true" : "false");
-          button.tabIndex = selected ? 0 : -1;
-        });
-
-        currentNo.textContent = room.number;
-        currentName.textContent = room.name;
-        currentDesc.textContent = room.desc;
-
-        if (next.state === "ready") {
-          setRoomState("ready", "展厅已就绪", "已就绪");
-        } else if (next.state === "error") {
-          setRoomState("error", "打开失败", "失败");
-        } else {
-          setRoomState("loading", "正在打开", "载入中");
-        }
-
-        if (historyMode) writeUrl(room.id, historyMode);
-        if (shouldFocus) room.button.focus();
-      }
-
-      nav.addEventListener("click", function (event) {
-        var button = event.target.closest("[data-view]");
-        if (!button || !nav.contains(button)) return;
-        activateRoom(button.dataset.view, activeId ? "push" : "replace", false);
-      });
-
-      nav.addEventListener("keydown", function (event) {
-        var index = buttons.indexOf(document.activeElement);
-        var nextIndex = index;
-        if (index < 0) return;
-
-        if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-          nextIndex = (index + 1) % buttons.length;
-        } else if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-          nextIndex = (index - 1 + buttons.length) % buttons.length;
-        } else if (event.key === "Home") {
-          nextIndex = 0;
-        } else if (event.key === "End") {
-          nextIndex = buttons.length - 1;
-        } else {
-          return;
-        }
-
-        event.preventDefault();
-        activateRoom(buttons[nextIndex].dataset.view, "push", true);
-      });
-
-      window.addEventListener("popstate", function (event) {
-        var urlId = new URL(window.location.href).searchParams.get("v");
-        var target = event.state && event.state.v || urlId;
-        activateRoom(rooms[target] ? target : "journey", null, false);
-      });
-
-      var requested = new URL(window.location.href).searchParams.get("v");
-      activateRoom(rooms[requested] ? requested : "journey", "replace", false);
     })();
   </script>
 </body>

@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>创建记忆空间 · UNSEEN</title>
+<link rel="stylesheet" href="theme.css">
+<style>
+  /* ── 本页私有:这是个一条路走到底的向导表单,desktop 也收窄成单列,不铺成仪表盘 ── */
+  @media (min-width:900px){ .u-page{ max-width:560px; } }
+
+  #createForm{ margin-top:6px; }
+  .req{ color:var(--pink); }
+
+  @media (min-width:520px){
+    .two-col{ display:grid; grid-template-columns:1fr 1fr; gap:0 14px; }
+  }
+
+  /* ── 封面选择条:横向滑动,选中态描边+勾 ── */
+  .cover-row{ display:flex; gap:10px; overflow-x:auto; padding:2px 2px 10px; -webkit-overflow-scrolling:touch; }
+  .cov{ position:relative; flex:0 0 92px; aspect-ratio:3/4; border-radius:16px; overflow:hidden;
+        display:flex; align-items:flex-end; box-shadow:var(--shadow); cursor:pointer;
+        border:2px solid transparent; background:rgba(255,255,255,.6); }
+  .cov img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+  .cov .ovl{ position:absolute; inset:0; background:linear-gradient(180deg,rgba(60,30,40,0) 48%,rgba(60,30,40,.55) 100%); }
+  .cov b{ position:relative; z-index:1; color:#fff; font-size:11.5px; font-weight:700; padding:8px 7px;
+          text-shadow:0 1px 6px rgba(0,0,0,.4); }
+  .cov.sel{ border-color:var(--pink); box-shadow:0 0 0 3px rgba(242,115,155,.22), var(--shadow-lg); }
+  .cov .ck{ position:absolute; top:6px; right:6px; z-index:2; width:20px; height:20px; border-radius:50%;
+            background:var(--grad); color:#fff; font-size:11px; font-weight:700; display:grid; place-items:center;
+            box-shadow:0 2px 6px rgba(0,0,0,.25); }
+  .cov.upload{ border:2px dashed var(--line); box-shadow:none; align-items:center; justify-content:center;
+               flex-direction:column; gap:4px; }
+  .cov.upload.has-img{ align-items:flex-end; border-style:solid; flex-direction:row; }
+  .cov.upload .up-ic{ font-size:21px; color:var(--ink-3); position:relative; z-index:1; }
+  .cov.upload b{ color:var(--ink-2); text-shadow:none; padding:0; }
+  .cov.upload.has-img b{ color:#fff; text-shadow:0 1px 6px rgba(0,0,0,.4); padding:8px 7px; }
+  .cov.upload input{ position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; margin:0; }
+
+  /* ── 私密开关行 ── */
+  .priv-row{ display:flex; align-items:center; justify-content:space-between; gap:14px; padding:15px 16px; margin:0 0 18px; }
+  .priv-row .tt{ font-size:14.5px; font-weight:700; margin-bottom:3px; }
+  /* 权限系统还没做,这个开关必须一眼看出来是不能用的,不许装成可用功能 */
+  .priv-row.is-off .tt{ color:var(--ink-2); }
+  .priv-row.is-off .u-switch{ opacity:.45; pointer-events:none; }
+  .priv-row .tag{ display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px;
+                  border:1px solid var(--line); font-size:11px; font-weight:600; color:var(--ink-3);
+                  vertical-align:1px; white-space:nowrap; }
+</style>
+</head>
+<body class="u-body">
+<div class="u-bokeh"></div>
+<div class="u-page">
+
+  <div class="u-bar">
+    <a class="u-back" href="../index.html">‹</a>
+    <h1>创建记忆空间</h1>
+  </div>
+
+  <form id="createForm">
+    <div class="u-field">
+      <label class="lab" for="fName">空间名字 <span class="req">*</span></label>
+      <input type="text" id="fName" required maxlength="40" placeholder="给这个空间起个名字">
+    </div>
+
+    <div class="two-col">
+      <div class="u-field">
+        <label class="lab" for="fDate">日期</label>
+        <input type="date" id="fDate">
+      </div>
+      <div class="u-field">
+        <label class="lab" for="fPlace">地点</label>
+        <input type="text" id="fPlace" maxlength="30" placeholder="比如杭州西溪湿地">
+      </div>
+    </div>
+
+    <div class="u-field">
+      <label class="lab">封面</label>
+      <div class="cover-row" id="coverRow"></div>
+    </div>
+
+    <div class="u-card priv-row is-off">
+      <div>
+        <div class="tt">私密空间<span class="tag">暂未接入</span></div>
+        <div class="u-note">权限系统还没做,现在拿到链接的人都能进来放照片。</div>
+      </div>
+      <label class="u-switch" aria-hidden="true">
+        <input type="checkbox" id="fPrivate" disabled tabindex="-1">
+        <span class="tr"></span><span class="th"></span>
+      </label>
+    </div>
+
+    <button class="u-btn" id="submitBtn" type="submit">继续</button>
+  </form>
+
+</div>
+<script src="scenes.js"></script>
+<script>
+(function(){
+  "use strict";
+  var U = window.UNSEEN;
+  var qs = new URLSearchParams(location.search);
+  var tplKey = qs.get("template");
+
+  // 场景对象要存进 localStorage、跨页面(首页在根目录,这里在 app/ 下)反复读取,
+  // 所以封面存的必须是网站根相对路径(前导 "/"),不能用 U.PREFIX 拼出的 "../xxx" ——
+  // 那种路径只在"当前这一层目录"下才对,换个目录深度的页面读出来就是错的死链。
+  function toRootPath(prefixedUrl) {
+    return "/" + prefixedUrl.replace(/^(\.\.\/)+/, "");
+  }
+
+  // 4 选封面:前 3 个直接复用 scenes.js 的 TEMPLATES(和首页三连卡同一份数据源,不会走样),
+  // 第 4 个(纪念日)是美术素材里多出来的一张,单独补上。
+  var COVERS = U.TEMPLATES.map(function (t) { return { key: t.t, name: t.name, url: toRootPath(t.cover) }; });
+  COVERS.push({ key: "anniv", name: "纪念日", url: "/assets/walkdemo/chapel_day_j1.jpg" });
+
+  var fName = document.getElementById("fName");
+  var fDate = document.getElementById("fDate");
+  var fPlace = document.getElementById("fPlace");
+  var fPrivate = document.getElementById("fPrivate");
+  var coverRow = document.getElementById("coverRow");
+  var submitBtn = document.getElementById("submitBtn");
+  var form = document.getElementById("createForm");
+
+  var state = { cover: "", custom: false, customThumb: "" };
+
+  // ?template= 预填:封面真选中,名字只给占位提示,不代填(免得用户以为已经填过了)
+  var tpl = COVERS.filter(function (c) { return c.key === tplKey; })[0];
+  if (tpl) {
+    fName.placeholder = tpl.name;
+    state.cover = tpl.url;
+  }
+
+  function renderCovers() {
+    var html = COVERS.map(function (c, i) {
+      var sel = !state.custom && state.cover === c.url;
+      return '<div class="cov' + (sel ? " sel" : "") + '" data-i="' + i + '">' +
+        '<img src="' + c.url + '" alt="">' +
+        '<span class="ovl"></span>' +
+        (sel ? '<span class="ck">✓</span>' : "") +
+        "<b>" + c.name + "</b></div>";
+    }).join("");
+
+    var upSel = state.custom;
+    var upClass = "cov upload" + (upSel ? " sel" : "") + (state.customThumb ? " has-img" : "");
+    html += '<label class="' + upClass + '">' +
+      (state.customThumb
+        ? '<img src="' + state.customThumb + '" alt=""><span class="ovl"></span>' + (upSel ? '<span class="ck">✓</span>' : "")
+        : '<span class="up-ic">＋</span>') +
+      "<b>自己传</b>" +
+      '<input type="file" accept="image/*" id="fCoverFile">' +
+      "</label>";
+
+    coverRow.innerHTML = html;
+
+    Array.prototype.forEach.call(coverRow.querySelectorAll(".cov:not(.upload)"), function (el) {
+      el.addEventListener("click", function () {
+        var i = +el.getAttribute("data-i");
+        state.cover = COVERS[i].url;
+        state.custom = false;
+        renderCovers();
+      });
+    });
+    var fileInput = document.getElementById("fCoverFile");
+    fileInput.addEventListener("change", function () {
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      compressToDataURL(f, 640, function (durl) {
+        if (!durl) { U.toast("这张图片读取失败,换一张试试"); return; }
+        state.cover = durl;
+        state.custom = true;
+        state.customThumb = durl;
+        renderCovers();
+      });
+    });
+  }
+  renderCovers();
+
+  // 自传封面:压到 640 宽,jpeg dataURL,直接存进场景对象当封面预览用
+  function compressToDataURL(file, maxW, cb) {
+    function draw(src, w, h) {
+      var scale = Math.min(1, maxW / w);
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(src, 0, 0, cw, ch);
+      try { cb(canvas.toDataURL("image/jpeg", 0.82)); }
+      catch (e) { cb(null); }
+    }
+    function fallback() {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { draw(img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); };
+      img.onerror = function () { cb(null); URL.revokeObjectURL(url); };
+      img.src = url;
+    }
+    if (window.createImageBitmap) {
+      createImageBitmap(file, { imageOrientation: "from-image" })
+        .then(function (bmp) { draw(bmp, bmp.width, bmp.height); })
+        .catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  function baseFields() {
+    return {
+      title: fName.value.trim(),
+      date: fDate.value || "",
+      place: fPlace.value.trim(),
+      cover: state.cover || "",
+      // 这里不写 private:开关是 disabled 的,权限系统也还没做,存进 localStorage 没有任何一处读它。
+      // (后端那边倒是有这个字段,createBackend 会照实发一份过去,存在服务器上总比只存本地强。)
+      stats: { photos: 0, moments: 0 },
+      createdAt: Date.now()
+    };
+  }
+
+  function finishScene(scene) {
+    U.saveLocalScene(scene);
+    location.href = "invite.html?s=" + encodeURIComponent(scene.id) + "&new=1";
+  }
+
+  function createLocal() {
+    var scene = baseFields();
+    scene.id = "local-" + Date.now();
+    scene.kind = "local";
+    scene.links = {};
+    finishScene(scene);
+  }
+
+  function createBackend() {
+    var scene = baseFields();
+    // 日期/地点/封面一起发给后端。后端 /api/space 本来就收这四个可选字段
+    // (server/space.py 的 _clean_meta),只发 title 的话用户填的东西就只躺在这台设备的
+    // localStorage 里,换台设备打开同一个空间就全丢了。
+    // 封面大小:模板封面是一条几十字节的根相对路径;自己传的那张已经在 compressToDataURL 里
+    // 压到 640 宽 jpeg(0.82),dataURL 实测约 60KB 量级,本机同源 POST 扛得住,所以不截断。
+    // (截断 dataURL 等于把图弄坏,后端注释里也是这么写的;列表接口自己会把 dataURL 挡在外面。)
+    // private:开关现在是 disabled 的,永远读出 false,和后端默认值一致;
+    // 这里照实读取,权限系统真做出来那天不用再回来补一次。
+    fetch(U.API + "/api/space", {
+      method: "POST",
+      mode: "cors",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: scene.title,
+        couple: "",
+        date: scene.date,
+        place: scene.place,
+        cover: scene.cover,
+        private: !!(fPrivate && fPrivate.checked)
+      })
+    }).then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (!data || !data.ok || !data.spaceId) throw new Error((data && data.error) || "建空间失败");
+        scene.id = data.spaceId;
+        scene.kind = "backend";
+        // published 不写:发没发布是后端说了算的状态(新人在后台点发布才会翻 true),
+        // 建空间这一刻前端根本无从得知,写死一个值就是替后端猜。
+        // 需要判断的页面自己去 GET /api/space/<id> 读 space.published,那才是真的。
+        // 同理:根相对路径,别用 U.PREFIX 拼,免得存进去的链接只在 app/ 这层好使
+        scene.links = {
+          studio: "/server/host.html?space=" + encodeURIComponent(data.spaceId),
+          // 宾客页走 /server/join.html:这里建出来的是【本机后端】空间,云端桶里没有它,
+          // /web/join.html 默认读云端 OSS,点进去必 403。server/join.html 读的是
+          // 本机后端的 /api/space/<id>,和这个空间同一个来源。
+          join: "/server/join.html?space=" + encodeURIComponent(data.spaceId),
+          // 走进空间:walk.html 认 ?space=,自己去后端拿节点。
+          // 刚建出来还没有全景,这时它给的是"这个空间还没有全景节点"的诚实错误页(不是白屏),
+          // 而场景页那张卡的开关就是这个字段,不写它就永远是灰的,传了全景也点不亮。
+          walk: "/viewer/walk.html?space=" + encodeURIComponent(data.spaceId)
+        };
+        finishScene(scene);
+      })
+      .catch(function (err) {
+        console.error("[create] 后端建空间失败, 退回本地模式", err);
+        U.toast("后端连不上,先用本地模式继续");
+        createLocal();
+      });
+  }
+
+  form.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var name = fName.value.trim();
+    if (!name) { fName.focus(); U.toast("先给空间起个名字吧"); return; }
+    submitBtn.disabled = true;
+    submitBtn.textContent = "连接中…";
+    U.probeBackend(function (ok) {
+      if (ok) createBackend(); else createLocal();
+    });
+  });
+})();
+</script>
+</body>
+</html>

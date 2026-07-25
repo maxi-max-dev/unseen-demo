@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>UNSEEN · 六幕演示</title>
-<meta name="description" content="把散在每个人手机里的照片，放回它被拍下的那个方位。六幕演示动线。">
+<meta name="description" content="把散在每个人手机里的照片，按朝向排回同一个空间。六幕演示动线。">
 <style>
 /* ═══════════════════════════════════════════════════════════════════
    UNSEEN 皮肤 · 参数出处见仓库根目录 DESIGN-UNSEEN.md
@@ -174,20 +174,44 @@ code{ overflow-wrap:anywhere; }
 
 /* ═════ 第②幕 · 归位动画 ═════ */
 .stage2{ position:relative; display:grid; gap:12px; }
-/* 手机上一屏要同时看得见：罗盘（照片飞到哪）+ 手机（照片从哪飞出来）+ 读数（凭什么这么判）
+/* 手机上一屏要同时看得见：落位牌（照片飞到哪）+ 手机（照片从哪飞出来）+ 读数（凭什么这么判）
    任何一个掉到屏幕外，这一幕就废了一半 */
 .stage2 .duo{ display:grid; grid-template-columns:minmax(0,46fr) minmax(0,54fr); gap:10px; align-items:start; }
 /* iPhone SE 这一档（320px）两列各自只剩一百多像素，读数挤成面条，直接改成上下排 */
 @media (max-width:340px){ .stage2 .duo{ grid-template-columns:1fr; } }
-.compass-wrap{ position:relative; display:grid; place-items:center; }
-.compass{ width:min(53vw,244px); height:auto; overflow:visible; }
-.compass-cap{ position:absolute; text-align:center; pointer-events:none; }
-.compass-cap .big{ font-size:26px; font-weight:700; color:var(--ink);
-                   font-variant-numeric:tabular-nums; line-height:1.1; }
-.compass-cap .sub{ font-size:11.5px; color:var(--ink-3); }
-.tick{ transition:opacity .3s; }
-.tick.new{ animation:pop .6s cubic-bezier(.2,1.5,.4,1) both; }
+
+/* ── 落位牌 ─────────────────────────────────────────────────────────
+   这块位置原来是一只方位罗盘（2026-07-25 Max 拍板删掉）。
+   罗盘不只是装饰，它还是飞行动画的落点，所以删了之后这里不能空着：
+   换成一张「落位牌」，左边是照片真正落进去的槽，右边是方位读数。
+   罗盘上那些只有画出来才成立的信息（一圈刻度＝已经放好几张、粗弧＝自动入选比例、
+   金弧＝通缉方位区间、0° 定向标签）全部改由文字承载，见 .plate-foot 与 #bearingLegend。 */
+.plate{ width:100%; max-width:400px; margin:0 auto; padding:12px 14px;
+        background:var(--card); border:1px solid var(--line); border-radius:18px;
+        box-shadow:var(--shadow);
+        display:grid; grid-template-columns:auto minmax(0,1fr); gap:4px 12px; align-items:center; }
+.plate-slot{ width:104px; height:78px; border-radius:12px; overflow:hidden;
+        border:1.5px dashed rgba(255,140,175,.5); background:#FFF7EE;
+        display:grid; place-items:center; text-align:center; padding:4px;
+        font-size:10.5px; color:var(--ink-3); }
+.plate-slot.filled{ border:1.5px solid var(--line); padding:0; }
+.plate-slot img{ width:100%; height:100%; object-fit:cover; }
+.plate-read .big{ font-size:30px; font-weight:700; color:var(--ink);
+                  font-variant-numeric:tabular-nums; line-height:1.1; }
+.plate-read .sub{ font-size:11.5px; color:var(--ink-3); }
+.plate-foot{ grid-column:1 / -1; text-align:center; margin-top:2px; }
+.plate-foot b{ color:var(--ink); font-variant-numeric:tabular-nums; }
+/* 落位那一拍要「弹」一下：原来弹的是主角那根刻度扎进罗盘，现在弹的是度数和张数，
+   拍子还在同一处，没有多出也没有少掉一个动作。 */
+.pop{ animation:pop .6s cubic-bezier(.2,1.5,.4,1) both; }
+b.pop{ display:inline-block; }
 @keyframes pop{ 0%{ transform:scale(.2); opacity:0; } 100%{ transform:scale(1); opacity:1; } }
+/* 窄屏（320/360）：槽和大字一起收，右栏才放得下「正前方 · 小明 交的」这一行 */
+@media (max-width:400px){
+  .plate{ padding:11px 12px; gap:4px 10px; }
+  .plate-slot{ width:88px; height:66px; }
+  .plate-read .big{ font-size:26px; }
+}
 
 .phone{
   width:100%; max-width:210px; margin:0 auto; border-radius:24px; padding:8px;
@@ -379,7 +403,9 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   .frame-wrap{ aspect-ratio:16/10; max-height:62vh; }
   .eye .thumb img{ height:96px; }
   .subtitle p{ font-size:15px; }
-  .compass{ width:296px; }
+  .plate{ max-width:460px; padding:14px 16px; }
+  .plate-slot{ width:124px; height:92px; }
+  .plate-read .big{ font-size:34px; }
   .panwall{ height:320px; }
 }
 @media (prefers-reduced-motion:reduce){
@@ -452,45 +478,19 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     </div>
 
     <div class="stage2">
-      <div class="compass-wrap">
-        <svg class="compass" id="compass" viewBox="0 0 260 260" aria-label="方位罗盘">
-          <defs>
-            <linearGradient id="ringGrad" x1="24" y1="24" x2="236" y2="236"
-                            gradientUnits="userSpaceOnUse">
-              <stop offset="0" stop-color="#FF7FA8"/>
-              <stop offset=".56" stop-color="#FF5C8A"/>
-              <stop offset="1" stop-color="#FFC981"/>
-            </linearGradient>
-            <line id="minorTick" x1="130" y1="21" x2="130" y2="29"
-                  stroke="#9A7C86" stroke-width="1.25" stroke-linecap="round"/>
-            <line id="majorTick" x1="130" y1="17" x2="130" y2="31"
-                  stroke="#5C3B48" stroke-width="2.25" stroke-linecap="round"/>
-            <filter id="tickGlow" x="-70%" y="-70%" width="240%" height="240%">
-              <feGaussianBlur stdDeviation="2.6" result="b"/>
-              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
-            </filter>
-          </defs>
-          <circle cx="130" cy="130" r="116" fill="#fff" stroke="var(--line)"/>
-          <circle cx="130" cy="130" r="102" fill="none" stroke="var(--line)"/>
-          <circle cx="130" cy="130" r="82" fill="#FFF7EE" stroke="var(--line)"/>
-          <g id="grad"></g>
-          <g id="taskArcs"></g>
-          <circle id="ringArc" cx="130" cy="130" r="102" fill="none" stroke="url(#ringGrad)"
-                  stroke-width="7" stroke-linecap="round" stroke-dasharray="0 999"
-                  transform="rotate(-90 130 130)"/>
-          <g id="ticks"></g>
-          <!-- 只留 0° 定向。90/180/270 那三个标签在 390px 下会被外圈压住，
-               四根加粗刻度已经把四个方位交代清楚了，不必硬塞字 -->
-          <text x="130" y="11" text-anchor="middle" font-size="8.5" fill="#9A7C86">0° 正前方</text>
-        </svg>
-        <div class="compass-cap" id="compassCap">
+      <!-- 落位牌：照片飞回来之后就停在左边这个槽里，右边是它的方位读数。
+           这里原来是一只方位罗盘，删掉之后每一条信息的新去处见 CSS 里 .plate 那段注释。 -->
+      <div class="plate" id="plate">
+        <div class="plate-slot" id="landSlot"><span>照片落在这里</span></div>
+        <div class="plate-read">
           <div class="big" id="capBig">—</div>
           <div class="sub" id="capSub">等一张照片</div>
           <div id="capPill" style="margin-top:5px;min-height:20px"></div>
         </div>
+        <p class="plate-foot tiny" id="plateFoot" style="margin:0"></p>
       </div>
 
-      <p class="tiny" id="compassLegend" style="text-align:center;margin:0"></p>
+      <p class="tiny" id="bearingLegend" style="text-align:center;margin:0"></p>
 
       <div class="duo">
         <div class="phone" id="phone">
@@ -655,7 +655,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   /* ════════ 台词包（§5，替 Max 写的字不用破折号）════════ */
   var LINES = [
     "婚礼那天，她错过了大厅里最好笑的五分钟。一百部手机在场，那五分钟其实被拍下来了，但它们死在了各自的手机里。",
-    "扫码，传一张，看着它回到它被拍下的地方。",
+    "扫码，传一张，看着它回到它当时朝着的方向。",
     "云相册回答：有哪些照片。我们回答：当时那里发生了什么，谁还没拍到。",
     "你错过的那几分钟，有人替你留住了。走到他的位置，补看一遍。",
     "机器已自动处理 " + D.stats.total + " 张，需要你看的只有 " + D.stats.review + " 张。没拍到的角落，挂上悬赏。",
@@ -777,59 +777,24 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     }, { passive:true });
   })();
 
-  /* ════════ 第②幕：罗盘 + 归位动画 ════════ */
-  var CX = 130, CY = 130;
-  function pol(yaw, r){
-    var rad = (yaw - 90) * Math.PI / 180;
-    return { x: CX + Math.cos(rad) * r, y: CY + Math.sin(rad) * r };
-  }
+  /* ════════ 第②幕：归位动画 ════════
+     这一幕的主视觉原来是一只方位罗盘，2026-07-25 Max 拍板删掉。
+     罗盘身上有四条信息是「画出来才成立」的，删之前逐条接到了文字上，一条都没丢：
+       ① 中央读数（几度／方位词／谁交的／判定）→ 落位牌右栏，原样保留
+       ② 一圈刻度，每张已放好的照片一根        → 落位牌底下那行「已经放好 N 张」，落位时 6 变 7
+       ③ 粗弧＝自动入选比例，金弧＝通缉方位区间 → #bearingLegend 直接把数字写出来
+       ④ 「0° 正前方」定向标签                 → #bearingLegend 第一句
+     罗盘同时还是飞行动画的落点，所以那块位置换成了真的落位槽 #landSlot，照片就落进它里面。 */
   var hero = D.hero;
 
-  var R_IN = 84, R_OUT = 100, R_TASK = 93, R_LAND = 100, RING_R = 102;
-
-  // 外圈刻度盘：每 15° 一根，正东南西北那四根加粗。纯装饰，但它让「这是个方位仪」一眼成立
-  (function graduations(){
-    var g = [];
-    for (var d = 0; d < 360; d += 15) {
-      g.push('<use href="#' + (d % 90 === 0 ? "majorTick" : "minorTick") +
-             '" transform="rotate(' + d + ' 130 130)"/>');
-    }
-    $("grad").innerHTML = g.join("");
-  })();
-
-  // 已经在空间里的照片先铺上去（主角那张留到动画里才落位）
-  function drawTicks(includeHero){
-    var svgNS = "http://www.w3.org/2000/svg", g = $("ticks");
-    g.innerHTML = "";
-    D.photos.filter(function(p){ return p.state === "auto_ok" || p.state === "approved"; })
-      .forEach(function(p){
-        if (!includeHero && p.id === hero.photo.id) return;
-        var isHero = p.id === hero.photo.id;
-        var a = pol(p.yaw, R_IN), b = pol(p.yaw, R_OUT);
-        var ln = document.createElementNS(svgNS, "line");
-        ln.setAttribute("x1", a.x.toFixed(1)); ln.setAttribute("y1", a.y.toFixed(1));
-        ln.setAttribute("x2", b.x.toFixed(1)); ln.setAttribute("y2", b.y.toFixed(1));
-        ln.setAttribute("stroke", isHero ? "#FF5C8A" : "#C9A9B2");
-        ln.setAttribute("stroke-width", isHero ? 4 : 2.2);
-        ln.setAttribute("stroke-linecap", "round");
-        ln.setAttribute("opacity", isHero ? 1 : .7);
-        ln.setAttribute("class", "tick" + (isHero ? " new" : ""));
-        if (isHero) ln.setAttribute("filter", "url(#tickGlow)");
-        g.appendChild(ln);
-      });
+  // 已经放好的照片（主角那张也在里面）。这原来是罗盘上那一圈刻度，现在只剩数字。
+  var placed = D.photos.filter(function(p){ return p.state === "auto_ok" || p.state === "approved"; });
+  var placedOthers = placed.filter(function(p){ return p.id !== hero.photo.id; }).length;
+  function setPlaced(includeHero){
+    var n = includeHero ? placedOthers + 1 : placedOthers;
+    $("plateFoot").innerHTML = '空间里已经放好 <b' + (includeHero ? ' class="pop"' : '') + '>' + n +
+      '</b> 张，每一张都停在它被拍下的那个方位上。';
   }
-  // 任务方位区间画成弧：让「这张照片正好落在通缉的那一段里」看得见
-  (function drawTaskArc(){
-    var t = hero.task, r = t.yawRange;
-    if (!r) return;
-    var a = r[0], b = r[1], span = ((b - a) + 360) % 360;
-    var p0 = pol(a, R_TASK), p1 = pol(a + span, R_TASK);
-    $("taskArcs").innerHTML =
-      '<path d="M' + p0.x.toFixed(1) + ' ' + p0.y.toFixed(1) +
-      ' A' + R_TASK + ' ' + R_TASK + ' 0 ' + (span > 180 ? 1 : 0) + ' 1 ' +
-      p1.x.toFixed(1) + ' ' + p1.y.toFixed(1) +
-      '" fill="none" stroke="#FFC981" stroke-width="11" opacity=".45" stroke-linecap="round"/>';
-  })();
 
   $("phNick").textContent = "· " + hero.photo.contributor;
   $("phWanted").innerHTML =
@@ -854,24 +819,36 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   '<div class="tiny" style="margin-top:4px">门槛 匹配度 ≥ ' + D.stats.confMin +
   ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。<br>数字来自 <code>s4/space.json</code>，没有一个是手打的。</div>';
 
-  // 罗盘上那两段弧不许只是好看：说清各自是什么，否则看着像随手画的进度条
-  $("compassLegend").innerHTML =
-    '<span style="color:var(--pink-hot)">粗弧</span> ' + D.stats.auto + '/' + D.stats.total +
-    ' 自动入选　<span style="color:var(--gold-deep)">金段</span> 通缉方位 ' +
-    (hero.task.yawRange ? hero.task.yawRange[0] + "°–" + hero.task.yawRange[1] + "°" : "");
+  // 这行原来是给罗盘上那两段弧做注解（粗弧＝自动入选比例，金弧＝通缉方位区间），
+  // 外加罗盘顶上那个「0° 正前方」定向标签。弧和标签都没了，信息改成直接写清楚：
+  // 角度怎么读、入选多少张、通缉的是哪一段、这一张落没落在那一段里。
+  var TRG = hero.task.yawRange, inRange = false;
+  if (TRG) {
+    // 通缉区间可能跨 0°（例如 300°–59°），所以按「从起点顺时针走多远」算，别直接比大小
+    var trSpan = ((TRG[1] - TRG[0]) % 360 + 360) % 360;
+    var trOff = ((hero.photo.yaw - TRG[0]) % 360 + 360) % 360;
+    inRange = trOff <= trSpan;
+  }
+  $("bearingLegend").innerHTML =
+    '0° 是正前方，顺时针数　自动入选 ' + D.stats.auto + ' / 共 ' + D.stats.total + ' 张' +
+    (TRG ? '　通缉方位 ' + TRG[0] + '°–' + TRG[1] + '°' +
+           (inRange ? '，这一张 ' + hero.photo.yaw.toFixed(1) + '° 正落在里面' : '') : '');
 
   // 世代号：反复快速进出第②幕时，上一轮残留的 setTimeout 链会和新一轮交叉执行，
-  // 把读数刷成「罗盘还没结果、读数卡已经揭晓」的自相矛盾态（第 4 轮对抗验收员实测）。
+  // 把读数刷成「落位牌还没出结果、读数卡已经揭晓」的自相矛盾态（第 4 轮对抗验收员实测）。
   // 只判「当前是不是第②幕」不够 —— 还得判「这个计时器是不是这一次进入产生的」。
   var flyGen = 0;
   function playFly(){
     var gen = ++flyGen;
     var alive = function(){ return gen === flyGen && cur === 2; };
-    drawTicks(false);
+    setPlaced(false);
     $("capBig").textContent = "—";
+    $("capBig").classList.remove("pop");
     $("capSub").textContent = "等一张照片";
     $("capPill").innerHTML = "";
-    $("ringArc").setAttribute("stroke-dasharray", "0 999");
+    var lz = $("landSlot");
+    lz.classList.remove("filled");
+    lz.innerHTML = "<span>照片落在这里</span>";
     [].forEach.call($("readout").querySelectorAll(".line"), function(l){ l.classList.remove("in"); });
     var slot = $("phSlot");
     slot.innerHTML = '<span>扫码进来，选一张交上去</span>';
@@ -896,13 +873,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       // src 在初始化时就挂好了（见下面的预热）。在这里才赋值的话，
       // 第一帧要等图片解码，实测会多出一个约 90ms 的卡顿，正好卡在起飞那一下。
       var from = slot.getBoundingClientRect();
-      var svg = $("compass").getBoundingClientRect();
-      var scale = svg.width / 260;
-      var land = pol(hero.photo.yaw, R_LAND);
-      var tx = svg.left + land.x * scale, ty = svg.top + land.y * scale;
+      // 落点：原来是罗盘圆环上 hero.yaw 那一点，现在是落位槽的正中心 —— 照片真的落进槽里。
+      var land = lz.getBoundingClientRect();
+      var tx = land.left + land.width / 2, ty = land.top + land.height / 2;
 
       flyer.style.transition = "none";
-      flyer.style.width = Math.min(from.width, 130) + "px";
+      var fw = Math.min(from.width, 130);
+      flyer.style.width = fw + "px";
+      var fh = flyer.offsetHeight || 76;   // 高度由 #flyer img 的 72px 加两条 2px 白边定死
+      // 落地尺寸跟着槽走：原来是缩成罗盘上的一个点（写死 .42），现在要正好落进槽里
+      var endScale = Math.max(.3, Math.min(1, land.width / fw));
       var startX = from.left + from.width / 2 - 48;
       // 起飞点钳进视口：桌面窄高视口(1280×800)下手机槽偏低，
       // 卡片(约 76px 高)起飞那一瞬底边会探出视口下沿约 14px(第 9 轮实测)。
@@ -917,10 +897,13 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
       requestAnimationFrame(function(){
         if (!alive()) return;
-        flyer.style.transform = "translate(" + (tx - 48) + "px," + (ty - 36) + "px) rotate(" +
-                                (hero.photo.yaw > 180 ? -12 : 12) + "deg) scale(.42)";
+        // transform-origin 是中心，所以 translate 到「槽心减去自身一半」，缩放后正好落在槽心
+        flyer.style.transform = "translate(" + (tx - fw / 2) + "px," + (ty - fh / 2) + "px) rotate(" +
+                                (hero.photo.yaw > 180 ? -12 : 12) + "deg) scale(" + endScale.toFixed(3) + ")";
         var beam = $("beam");
-        var cx = svg.left + CX * scale, cy = svg.top + CY * scale;
+        // 光束原来是从罗盘圆心射向落点的一根辐条。罗盘没了，改成连起飞点和落点，
+        // 也就是把这张照片飞过的那条线亮出来。长度与角度的算法没变。
+        var cx = from.left + from.width / 2, cy = from.top + from.height / 2;
         var dx = tx - cx, dy = ty - cy;
         beam.style.left = cx + "px"; beam.style.top = cy + "px";
         beam.style.width = Math.sqrt(dx * dx + dy * dy) + "px";
@@ -937,12 +920,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
         burst.style.left = (tx - 8) + "px"; burst.style.top = (ty - 8) + "px";
         burst.classList.remove("go"); void burst.offsetWidth; burst.classList.add("go");
 
-        drawTicks(true);
+        setPlaced(true);
+        // 飞行卡片熄灭的同一拍，照片出现在槽里：接住它，别让它凭空消失
+        lz.innerHTML = hero.photo.img
+          ? '<img src="' + esc(hero.photo.img) + '" alt="已经落位的照片">'
+          : "<span>已落位</span>";
+        lz.classList.add("filled");
         $("capBig").textContent = hero.photo.yaw.toFixed(1) + "°";
+        $("capBig").classList.add("pop");
         $("capSub").textContent = hero.photo.bearing + " · " + hero.photo.contributor + " 交的";
         $("capPill").innerHTML = '<span class="pill ok">● 自动入选</span>';
-        var C = 2 * Math.PI * RING_R;
-        $("ringArc").setAttribute("stroke-dasharray", (C * D.stats.auto / D.stats.total).toFixed(0) + " 999");
 
         READ.forEach(function(_, i){
           setTimeout(function(){
@@ -965,7 +952,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     }
   })();
   $("replay2").addEventListener("click", playFly);
-  drawTicks(false);
+  setPlaced(false);
 
   /* ════════ 第③幕：走进空间（点了才加载 3D，别在手机上白等）════════ */
   // 写死 ?scene=ballroom 而不是 ?demo=1：demo 走的是场景清单第一项，
