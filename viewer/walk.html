@@ -281,7 +281,10 @@ body.pov-on .mobile-hint { display: none !important; }
 </div>
 
 <div class="hud-badge"><span class="dot"></span>深度由影石研究院 DAP 模型计算</div>
-<div id="licLine" style="position:fixed;right:14px;bottom:12px;z-index:5;font-size:10px;color:rgba(255,255,255,.45);text-shadow:0 1px 2px rgba(0,0,0,.5);pointer-events:none">DAP © Insta360 Research · CC BY-NC 4.0</div>
+<!-- 署名条。max-width 和 text-align 是必须的:切到真实场景时 JS 会把这行换成很长的
+     一句(全景作者 + Poly Haven + DAP),没有宽度上限时它在手机上会从右边一路顶出屏幕左缘,
+     字被切掉还压在返回按钮上。CC BY-NC 要求署名看得见,所以顺手把对比度也提上来。 -->
+<div id="licLine" style="position:fixed;right:14px;bottom:12px;z-index:5;max-width:min(72vw,520px);text-align:right;line-height:1.35;font-size:10px;color:rgba(255,255,255,.62);text-shadow:0 1px 3px rgba(0,0,0,.75);pointer-events:none">DAP © Insta360 Research · CC BY-NC 4.0</div>
 
 <a class="back-link" id="backLink" href="index.html"><span class="chev">‹</span>返回</a>
 

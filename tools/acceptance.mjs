@@ -65,8 +65,16 @@ class Tab {
     return new Promise((res) => { this.waiters.set(id, res); this.ws.send(JSON.stringify({ id, method, params })); });
   }
   // 真手机宽必须走这个,--window-size 压不到 500 以下,量到的 390 是假的
-  metrics(w, h) { return this.send("Emulation.setDeviceMetricsOverride",
-    { width: w, height: h, deviceScaleFactor: 2, mobile: w < 500 }); }
+  // ⚠️2026-07-25 补:光给宽度不够。setDeviceMetricsOverride 不会让 ontouchstart 和
+  // maxTouchPoints 变真,而 walk.html 这类页面靠 isTouchDevice() 决定给摇杆还是给
+  // WASD 提示卡,于是 390 宽截图里手机用户看到的是"WASD 移动 · ESC 退出",
+  // 那是量具造出来的假象不是产品 bug。手机宽必须同时开触摸模拟。
+  async metrics(w, h) {
+    await this.send("Emulation.setDeviceMetricsOverride",
+      { width: w, height: h, deviceScaleFactor: 2, mobile: w < 500 });
+    return this.send("Emulation.setTouchEmulationEnabled",
+      { enabled: w < 500, maxTouchPoints: w < 500 ? 5 : 0 });
+  }
   async go(url, settle = 1500) {
     this.events = [];
     await this.send("Page.navigate", { url });
