@@ -91,7 +91,7 @@
   <div class="cta">
     <a class="u-btn" id="goDemo" href="../viewer/walk.html?demo=1">自己进去试一下 →</a>
     <div class="alt">
-      <a class="u-btn sec" id="goSpace" href="../viewer/walk.html?space=s4">换真实空间试</a>
+      <a class="u-btn sec" id="goSpace" href="../viewer/walk.html?space=s4">换 s4 示例空间试</a>
       <a class="u-btn sec" href="#truth">先看它哪里还不行</a>
     </div>
     <p class="hint">进去以后点空间里的相框就进视角。手机拖动环视，桌面点一下锁定鼠标。</p>
@@ -146,7 +146,7 @@
       <img class="shot" src="../assets/walkdemo/pov-flaw-30deg.jpg"
            alt="真实空间里的反例：小明的照片占了大半个屏幕，标签却写这个方向没有人拍到"
            loading="lazy" style="margin-top:12px">
-      <p class="cap">真实空间 s4，站在小明那张照片的视角里转到方位 30 度</p>
+      <p class="cap">示例空间 s4，进入小明那张照片当时朝着的方向，再转到方位 30 度</p>
       <div class="ev">
         <b>实测</b>：小明这张的角度是 15.1 度，转到 30 度时它还占着大半个屏幕，白框的三条边都在画面里，标签已经变成「这个方向没有人拍到」。同一个毛病在演示空间是转到 62 度触发。现场随手转一下就会撞上，<b>这条不修不建议拿去答评委的「精度多少」那一刀</b>。
       </div>
@@ -216,18 +216,24 @@
   }
   document.getElementById("backLink").href = backTarget("../index.html");
 
-  // 进 walk 页时把"回到本页"接上;本页自己带了 back 就一路传下去,别断链。
-  var relay = "web/pov.html";
+  // 进 walk 页时把云端数据基址和"回到本页"一起接上，避免公网又落回 Vercel 同源 /api。
+  var pageQuery = new URLSearchParams(location.search);
+  var spaceBase = (pageQuery.get("b") ||
+    "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com").replace(/\/+$/, "");
+  var relayParts = ["b=" + encodeURIComponent(spaceBase)];
   try{
-    var b = new URLSearchParams(location.search).get("back");
-    if(b && !/^(https?:)?\/\//.test(b)) relay += "?back=" + encodeURIComponent(b);
+    var pageBack = pageQuery.get("back");
+    if(pageBack && !/^(https?:)?\/\//.test(pageBack)) {
+      relayParts.push("back=" + encodeURIComponent(pageBack));
+    }
   }catch(e){}
+  var relay = "web/pov.html?" + relayParts.join("&");
   var q = "&back=" + encodeURIComponent(relay);
 
   var demos = document.querySelectorAll("#goDemo,[data-go-demo]");
   for(var i=0;i<demos.length;i++) demos[i].href = "../viewer/walk.html?demo=1" + q;
   var sp = document.getElementById("goSpace");
-  if(sp) sp.href = "../viewer/walk.html?space=s4" + q;
+  if(sp) sp.href = "../viewer/walk.html?space=s4&b=" + encodeURIComponent(spaceBase) + q;
 })();
 </script>
 </body>

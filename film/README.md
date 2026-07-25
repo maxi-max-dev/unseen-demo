@@ -1,7 +1,7 @@
 # 一键成片 · memory-film
 
-把散在各人手机里的照片,按它们**在全景里的方位角**排成一条片子:
-镜头在空间里平移飞到那个方位 → 照片在那儿浮现 → 再飞向下一张 → 走进下一个空间。
+把散在各人手机里的照片,按它们**当时朝着的方向**排成一条片子:
+镜头转向那个方向 → 照片在那儿浮现 → 再转向下一张 → 走进下一个空间。
 
 不是幻灯片。幻灯片谁都能做,这条片子的顺序、转角、停留时长,全部由每张照片的
 yaw / pitch 算出来 —— 只有我们有这个数据。
@@ -17,8 +17,9 @@ cd /Users/max/code/spatial-memory
 .venv/bin/python film/build_bg.py          # 1. 背景飞行视频 + 镜头时间表(约 40 秒)
 .venv/bin/python film/make_bgm.py          # 2. 背景音乐(约 5 秒)
 .venv/bin/python film/gen_composition.py   # 3. 生成 film/index.html(瞬间)
-cd film && npx --yes hyperframes@0.7.70 check     # 4. 体检,必须 Check passed 才往下走
-npx --yes hyperframes@0.7.70 render --output out/memory-film.mp4   # 5. 渲染(约 55 秒)
+cd film && npm run check                 # 4. 体检,必须 Check passed 才往下走
+npm run render                           # 5. 渲染高质量母版(约 55 秒)
+npm run web                              # 6. 压成网页版本并把 moov 前置
 ```
 
 只改字幕/版面就跑 3 → 5(约 1 分钟)。改镜头节奏要从 1 开始重来。
@@ -111,7 +112,7 @@ flythrough → shots.json → 合成)已经跑通验过。
 | | 真的 | 摆拍的 |
 | --- | --- | --- |
 | 每张照片的 **yaw / pitch** | ✅ 逐像素回解出来的(`film.solve_crop_pose`,残差 0.019–0.161),可复核:`python -m server.film --solve-walk` | |
-| 镜头飞到那个方位 | ✅ 同一个投影函数渲的,和 `tools/slice.py` 对拍 bit-exact | |
+| 镜头转到那个方向 | ✅ 同一个投影函数渲的,和 `tools/slice.py` 对拍 bit-exact | |
 | 画面里的空间 | Poly Haven **CC0** 真实室内全景(`assets/walkdemo/`,来源见同目录 `SOURCE.txt`) | 不是婚礼现场 |
 | 章节名 / 时刻 / caption | | ❌ demo 剧本,来自 `tour.js` |
 

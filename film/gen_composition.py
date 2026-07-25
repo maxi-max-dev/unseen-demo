@@ -57,7 +57,7 @@ COMP_ID = "memoryfilm"
 COUPLE = "新郎 与 新娘"          # 例:"陈屿 与 林见月"
 FILM_DATE = "二〇二六年 · 那一天"
 TITLE_MAIN = "重温那一天"
-TITLE_SUB = "空间记忆 · 把每张照片放回它被拍下的方位"
+TITLE_SUB = "空间记忆 · 按照片当时朝着的方向重走一遍"
 
 # ---- 版面参数 ---------------------------------------------------------------
 TITLE_S = 4.0        # 开场卡时长(压在第一个定场镜头上,不额外占片长)
@@ -339,8 +339,9 @@ def build():
     # ---- 6 片尾卡 --------------------------------------------------------
     end_st = round(bg_s - END_LEAD, 3)
     end_dur = round(total_s - end_st, 3)
-    stat = (f'{doc["summary"]["nodeCount"]} 个空间 · {doc["summary"]["photoCount"]} 张照片'
-            f' · 每一张都回到了它被拍下的方位')
+    stat = (f'{doc["summary"]["nodeCount"]} 个示例空间 · '
+            f'{doc["summary"]["photoCount"]} 张占位照片'
+            f' · 按当时朝着的方向自动排序')
     body.append(
         f'<div id="endcard" class="clip" data-start="{end_st}" data-duration="{end_dur}" '
         f'data-track-index="6">'

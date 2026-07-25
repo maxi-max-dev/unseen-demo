@@ -461,6 +461,12 @@ body.pov-on .mobile-hint { display: none !important; }
   function showError(msg, sub, backHref) {
     $("cardLoading").classList.remove("on");
     $("cardLock").classList.remove("on");
+    $("hudTitle").textContent = msg || "加载失败";
+    $("sceneChips").style.display = "none";
+    $("hudDepthWarn").classList.add("hide");
+    var badge = document.querySelector(".hud-badge");
+    if (badge) badge.style.display = "none";
+    $("licLine").style.display = "none";
     $("errMsg").textContent = msg;
     $("errSub").textContent = sub || "";
     $("errBack").href = backHref || "index.html";
@@ -558,7 +564,7 @@ body.pov-on .mobile-hint { display: none !important; }
       var key = Math.round(((p.yaw || 0) % 360) / 8);
       var k = bucket[key] = (bucket[key] === undefined ? 0 : bucket[key] + 1);
       return {
-        src: p.src, yaw: p.yaw, contributor: p.contributor,
+        src: p.src, yaw: p.yaw, contributor: publicContributor(p.contributor),
         pitch: (p.pitch || 0) + LADDER[Math.min(k, LADDER.length - 1)],
         // povPitch = 没被错开过的原始俯仰。POV 模式要"回到他朝着的方向"，
         // 拿避让用的假 pitch 去转相机会平白仰头 27 度，所以另存一份真值。
@@ -567,15 +573,90 @@ body.pov-on .mobile-hint { display: none !important; }
     });
   }
 
+  // 公开演示空间经历过多轮攻击验收。这里只遮住验收账号的显示名，
+  // 不改照片、任务、积分或空间数据，真实宾客名字仍原样展示。
+  function publicContributor(name) {
+    var n = String(name || "").trim();
+    if (!n || /测试|复验|并发|延迟|泛音/.test(n) || n === "你大爷" || n === "阿伟测试") {
+      return "匿名宾客";
+    }
+    return n;
+  }
+
+  function remoteSpaceBase(raw) {
+    if (!raw) return "";
+    try {
+      var u = new URL(raw);
+      if (u.protocol !== "https:" && u.protocol !== "http:") return "";
+      return String(raw).replace(/\/+$/, "");
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function spaceAssetUrl(path, prefix) {
+    if (!path) return "";
+    if (/^(https?:|data:|blob:)/i.test(path)) return path;
+    return prefix + String(path).replace(/^\/+/, "");
+  }
+
+  function fetchWithTimeout(url, opts, timeoutMs) {
+    return new Promise(function (resolve, reject) {
+      var done = false;
+      var ctrl = window.AbortController ? new AbortController() : null;
+      var timer = setTimeout(function () {
+        if (done) return;
+        done = true;
+        if (ctrl) ctrl.abort();
+        reject(new Error("请求超时"));
+      }, timeoutMs);
+      var init = Object.assign({}, opts || {});
+      if (ctrl) init.signal = ctrl.signal;
+      fetch(url, init).then(function (value) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        resolve(value);
+      }, function (err) {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        reject(err);
+      });
+    });
+  }
+
   function bootSpace(sid, nodeId) {
-    var backHref = backTarget("../server/join.html?space=" + encodeURIComponent(sid));
-    fetch("/api/space/" + encodeURIComponent(sid) + "?role=guest", { cache: "no-store" })
+    // 公网宾客页会把 OSS 基址放在 b 参数里。以前这里完全忽略 b，仍去请求
+    // Vercel 同源的 /api，公网因此必然 404。带 b 时直读已发布的裸 space.json；
+    // 不带 b 时保留原本的本机 API，两个入口互不冒充。
+    var cloudBase = remoteSpaceBase(qs("b"));
+    var cloudMode = !!cloudBase;
+    var localBack = "../server/join.html?space=" + encodeURIComponent(sid);
+    var cloudBack = "../web/join.html?s=" + encodeURIComponent(sid) +
+      "&b=" + encodeURIComponent(cloudBase);
+    var backHref = backTarget(cloudMode ? cloudBack : localBack);
+    var prefix = cloudMode
+      ? cloudBase + "/spaces/" + encodeURIComponent(sid) + "/"
+      : "/spaces/" + encodeURIComponent(sid) + "/";
+    var dataUrl = cloudMode
+      ? prefix + "space.json?t=" + Date.now()
+      : "/api/space/" + encodeURIComponent(sid) + "?role=guest";
+
+    fetchWithTimeout(dataUrl, { cache: "no-store" }, 15000)
       .then(function (r) {
         if (!r.ok) throw new Error("http " + r.status);
         return r.json();
       }).then(function (data) {
-        if (!data || !data.ok) throw new Error((data && data.error) || "接口没返回 ok");
-        var space = data.space || {};
+        var space;
+        if (cloudMode) {
+          // OSS 发布的是裸 space；兼容未来若包成 {space: ...} 的格式。
+          space = data && data.space ? data.space : data;
+          if (!space || !space.id) throw new Error("云端空间数据格式不完整");
+        } else {
+          if (!data || !data.ok) throw new Error((data && data.error) || "接口没返回 ok");
+          space = data.space || {};
+        }
         var nodes = space.nodes || [];
         if (!nodes.length) throw new Error("这个空间还没有全景节点");
         var node = null;
@@ -587,7 +668,6 @@ body.pov-on .mobile-hint { display: none !important; }
         }
         node = node || nodes[0];
 
-        var prefix = "/spaces/" + encodeURIComponent(sid) + "/";
         // 照片按节点归属过滤；nodeId 为空的(心愿任务交上来的照片可能没绑节点)算进第一个节点，
         // 免得它们哪个空间都进不去，白交了。
         var mine = (space.photos || []).filter(function (p) {
@@ -596,9 +676,9 @@ body.pov-on .mobile-hint { display: none !important; }
         var title = space.title || "我们的空间";
         if (node.name) title = node.name + (node.time ? " · " + node.time : "");
         startWalk({
-          panoUrl: prefix + node.panorama,
-          depthPngUrl: prefix + node.depth,
-          depthJsonUrl: prefix + node.depthJson,
+          panoUrl: spaceAssetUrl(node.panorama, prefix),
+          depthPngUrl: spaceAssetUrl(node.depth, prefix),
+          depthJsonUrl: spaceAssetUrl(node.depthJson, prefix),
           title: title,
           backHref: backHref,
           // 宾客交上来的照片只有 yaw 没有 pitch(CLIP 只判方位角), 全是 0 ——
@@ -606,14 +686,16 @@ body.pov-on .mobile-hint { display: none !important; }
           photosAtEyeLevel: true,
           photos: fanOutPitch(mine).map(function (p) {
             return {
-              src: prefix + p.src, yaw: p.yaw, pitch: p.pitch, povPitch: p.povPitch,
+              src: spaceAssetUrl(p.src, prefix), yaw: p.yaw, pitch: p.pitch, povPitch: p.povPitch,
               contributor: p.contributor,   // POV 条上的「你正站在 X 的视角里」用它
               caption: (p.contributor ? p.contributor + " 交的" : "宾客交的")
             };
           })
         });
       }).catch(function (e) {
-        showError("空间加载失败", String((e && e.message) || e), backHref);
+        var detail = String((e && e.message) || e);
+        if (detail === "请求超时") detail = "网太慢，15 秒内没读到空间数据";
+        showError("空间加载失败", detail, backHref);
       });
   }
 
@@ -717,14 +799,28 @@ body.pov-on .mobile-hint { display: none !important; }
     var hasDepth = false;
     var panoFailed = false;
 
+    var sceneBuilt = false;
     function tryBuildScene() {
       if (!panoTex) return; // 全景还没到
       if (panoFailed) return;
+      if (sceneBuilt) return;
       // 深度是否就绪：要么明确 hasDepth=true(纹理+meta 都到)，要么已经确认失败过
+      sceneBuilt = true;
       buildSphere();
     }
 
+    var panoTimer = setTimeout(function () {
+      if (panoTex || panoFailed) return;
+      panoFailed = true;
+      showError("全景图加载超时", "网太慢，12 秒内没读到全景图", opts.backHref);
+    }, 12000);
+
     loader.load(opts.panoUrl, function (tex) {
+      if (panoFailed) {
+        if (tex && tex.dispose) tex.dispose();
+        return;
+      }
+      clearTimeout(panoTimer);
       panoTex = tex;
       panoTex.minFilter = THREE.LinearFilter;
       panoTex.magFilter = THREE.LinearFilter;
@@ -733,6 +829,8 @@ body.pov-on .mobile-hint { display: none !important; }
       panoTex.wrapT = THREE.ClampToEdgeWrapping;
       depthStageMaybeReady();
     }, undefined, function () {
+      clearTimeout(panoTimer);
+      if (panoFailed) return;
       panoFailed = true;
       showError("全景图加载失败", opts.panoUrl, opts.backHref);
     });
@@ -741,6 +839,16 @@ body.pov-on .mobile-hint { display: none !important; }
     function depthStageMaybeReady() {
       if (panoTex && depthDone) tryBuildScene();
     }
+    function finishDepth() {
+      if (depthDone) return false;
+      depthDone = true;
+      clearTimeout(depthTimer);
+      depthStageMaybeReady();
+      return true;
+    }
+    // 深度是增强项，不该让整页无限转圈。弱网下 8 秒还没拿齐就先进入普通全景；
+    // 全景本身仍按原逻辑加载，失败会明确报错。
+    var depthTimer = setTimeout(finishDepth, 8000);
 
     // 深度 JSON + PNG 必须都成功才算「有深度」，任一失败都静默降级为平球体。
     // ⚠️ tools/depth.py 生成的 JSON 里 min/max 不是米——是 DAP 模型 sigmoid 头
@@ -755,9 +863,10 @@ body.pov-on .mobile-hint { display: none !important; }
     // （见下方 shader 与 sampleDepthMeters）。
     fetchJSON(opts.depthJsonUrl, function (meta) {
       if (!meta || typeof meta.min !== "number" || typeof meta.max !== "number") {
-        depthDone = true; depthStageMaybeReady(); return;
+        finishDepth(); return;
       }
       loader.load(opts.depthPngUrl, function (tex) {
+        if (depthDone) return;
         depthTex = tex;
         depthTex.minFilter = THREE.LinearFilter;
         depthTex.magFilter = THREE.LinearFilter;
@@ -766,12 +875,12 @@ body.pov-on .mobile-hint { display: none !important; }
         depthTex.wrapT = THREE.ClampToEdgeWrapping;
         hasDepth = true;
         buildDepthCPU(tex.image);
-        depthDone = true; depthStageMaybeReady();
+        finishDepth();
       }, undefined, function () {
-        depthDone = true; depthStageMaybeReady();
+        finishDepth();
       });
     }, function () {
-      depthDone = true; depthStageMaybeReady();
+      finishDepth();
     });
 
     function fetchJSON(url, ok, fail) {

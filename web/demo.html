@@ -73,7 +73,7 @@ button{ font:inherit; color:inherit; }
   background:rgba(255,250,248,.82); backdrop-filter:blur(14px);
   -webkit-backdrop-filter:blur(14px); border-bottom:1px solid var(--line);
 }
-.wordmark{ display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--ink); }
+.wordmark{ min-height:44px; display:flex; align-items:center; gap:9px; text-decoration:none; color:var(--ink); }
 .wordmark b{ font-size:14px; font-weight:500; letter-spacing:.3em; }
 .wordmark span{ font-size:11px; color:var(--ink-3); letter-spacing:.06em; }
 @media (max-width:430px){ .wordmark span{ display:none; } }
@@ -94,6 +94,17 @@ button{ font:inherit; color:inherit; }
   .demomode{ display:none; }
   .dots{ gap:5px; }
   .dots button{ width:19px; height:19px; font-size:10px; }
+}
+/* 六个 44px 按钮塞不进 390px 顶栏，缩成 19px 又不是真触控目标。
+   手机上改成只读进度，翻幕统一交给底部 44px 按钮和左右滑动。 */
+@media (max-width:430px){
+  .demomode{ display:none; }
+  .dots button{ display:none; }
+  .dots::after{
+    content:attr(data-current); min-width:44px; height:44px;
+    display:grid; place-items:center; color:var(--ink-3);
+    font-size:12px; font-variant-numeric:tabular-nums;
+  }
 }
 
 /* ── 幕 ────────────────────────────────────────────────────────── */
@@ -129,7 +140,7 @@ code{ overflow-wrap:anywhere; }
 .pill.mute{ background:var(--mute-bg); color:var(--mute-fg); }
 .btn{ display:inline-flex; align-items:center; justify-content:center; gap:8px;
       background:var(--grad); color:#fff; border:0; border-radius:14px;
-      padding:13px 22px; font-size:15px; font-weight:600; cursor:pointer;
+      min-height:44px; padding:13px 22px; font-size:15px; font-weight:600; cursor:pointer;
       box-shadow:0 8px 22px rgba(255,124,160,.34); text-decoration:none;
       transition:transform .18s, box-shadow .18s; }
 .btn:active{ transform:translateY(1px) scale(.99); }
@@ -149,7 +160,7 @@ code{ overflow-wrap:anywhere; }
              color:rgba(255,255,255,.94); }
 .nav{ display:flex; gap:8px; flex:none; }
 .nav button{
-  width:42px; height:42px; border-radius:50%; border:1px solid rgba(255,255,255,.22);
+  width:44px; height:44px; border-radius:50%; border:1px solid rgba(255,255,255,.22);
   background:rgba(255,255,255,.1); color:#fff; font-size:17px; cursor:pointer;
   display:grid; place-items:center; transition:.18s;
 }
@@ -457,11 +468,11 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     </div>
     <div style="text-align:center">
       <div class="eyebrow">错过的五分钟</div>
-      <h1>那五分钟<br>其实被拍下来了</h1>
+      <h1>那五分钟<br>也许被别人拍下来了</h1>
       <p class="lede" style="margin-left:auto;margin-right:auto">
         婚礼那天，她错过了大厅里最好笑的五分钟。<br>
-        一百部手机在场，那五分钟其实被拍下来了，<br>
-        但它们死在了各自的手机里。
+        许多人都举着手机，那五分钟也许留在了不同画面里，<br>
+        却还散在各自的手机里。
       </p>
     </div>
     <div class="row" style="justify-content:center;margin-top:6px">
@@ -474,7 +485,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   <section class="act" id="act2" aria-label="第二幕 宾客上传">
     <div>
       <div class="eyebrow">第二幕 · 宾客</div>
-      <h2>扫码，传一张，看着它回到原地</h2>
+      <h2>扫码，传一张，看着它回到当时朝着的方向</h2>
     </div>
 
     <div class="stage2">
@@ -483,7 +494,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       <div class="plate" id="plate">
         <div class="plate-slot" id="landSlot"><span>照片落在这里</span></div>
         <div class="plate-read">
-          <div class="big" id="capBig">—</div>
+          <div class="big" id="capBig">等待</div>
           <div class="sub" id="capSub">等一张照片</div>
           <div id="capPill" style="margin-top:5px;min-height:20px"></div>
         </div>
@@ -517,7 +528,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   <section class="act" id="act3" aria-label="第三幕 走进空间">
     <div>
       <div class="eyebrow">第三幕 · 空间</div>
-      <h2>照片挂在它被拍下的方位上</h2>
+      <h2>照片挂在它当时朝着的方向上</h2>
     </div>
     <div class="panwall" id="panwall">
       <div class="pw-sky" id="pwSky"></div>
@@ -537,16 +548,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     <p class="tiny" id="walkNote"></p>
   </section>
 
-  <!-- ═══════ ④ 多视角时刻 ═══════ -->
+  <!-- ═══════ ④ 多视角 ═══════ -->
   <section class="act" id="act4" aria-label="第四幕 多视角">
     <div>
-      <div class="eyebrow">第四幕 · 同一时刻</div>
-      <h2>走到他的位置，换一双眼睛</h2>
+      <div class="eyebrow">第四幕 · 三个方向</div>
+      <h2>回到他当时朝着的方向，换一双眼睛</h2>
     </div>
     <div class="strip" id="strip">
       <div class="pano" id="stripPano" role="img" aria-label="全景条"></div>
       <div class="marker"></div>
-      <div class="lbl" id="stripLbl">—</div>
+      <div class="lbl" id="stripLbl">方向未测</div>
     </div>
     <div class="bigview" id="bigview"></div>
     <div class="eyes" id="eyes"></div>
@@ -558,11 +569,11 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     <div>
       <div class="eyebrow">第五幕 · 新人后台</div>
       <div class="headline-stat">
-        <span class="n" id="statAuto">—</span>
+        <span class="n" id="statAuto">未测</span>
         <h2 style="margin:0">张机器自己放好了</h2>
       </div>
       <p class="lede" style="margin-top:4px">
-        需要你看一眼的只有 <b id="statReview">—</b> 张。脏活机器干，人只做机器拿不准的判断。
+        需要你看一眼的只有 <b id="statReview">未测</b> 张。脏活机器干，人只做机器拿不准的判断。
       </p>
     </div>
 
@@ -595,7 +606,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       <div class="eyebrow">第六幕 · 成片</div>
       <h2>一键把这一天剪成一段片子</h2>
     </div>
-    <video id="film" controls playsinline preload="none"
+    <video id="film" controls playsinline preload="metadata"
            poster="../film/out/poster.jpg"
            src="../film/out/memory-film-web.mp4"></video>
     <p class="tiny" id="filmNote"></p>
@@ -618,7 +629,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
 <footer class="subtitle" id="subtitle">
   <div class="progress" id="progress" style="width:16.6%"></div>
-  <p id="subtitleText">—</p>
+  <p id="subtitleText">加载中</p>
   <div class="nav">
     <button id="prev" aria-label="上一幕">‹</button>
     <button id="next" class="next" aria-label="下一幕">›</button>
@@ -638,14 +649,16 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   var $ = function(id){ return document.getElementById(id); };
   var esc = function(s){ return String(s == null ? "" : s)
         .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); };
+  var cleanReason = function(s){
+    return String(s == null ? "" : s).replace(/\s*[—–]+\s*/g, "，");
+  };
 
   // demo-data.js 没加载出来的话，整页只会是一堆空壳。宁可当场说清楚，
   // 也不要让人对着半张脸的演示页猜是不是网卡了。
   if (!D) {
     document.getElementById("stage").innerHTML =
       '<section class="act on"><div class="card"><b>演示数据没加载出来</b>' +
-      '<p class="tiny">缺 web/demo-data.js。在仓库根目录跑一次：' +
-      '<code>python3 tools/build_demo_data.py</code></p></div></section>';
+      '<p class="tiny">发布包缺少 web/demo-data.js，请恢复同一版本的演示快照。</p></div></section>';
     return;
   }
 
@@ -654,11 +667,11 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
   /* ════════ 台词包（§5，替 Max 写的字不用破折号）════════ */
   var LINES = [
-    "婚礼那天，她错过了大厅里最好笑的五分钟。一百部手机在场，那五分钟其实被拍下来了，但它们死在了各自的手机里。",
+    "婚礼那天，她错过了大厅里最好笑的五分钟。许多人都举着手机，那五分钟也许留在了不同画面里，却还散在各自的手机里。",
     "扫码，传一张，看着它回到它当时朝着的方向。",
     "云相册回答：有哪些照片。我们回答：当时那里发生了什么，谁还没拍到。",
-    "你错过的那几分钟，有人替你留住了。走到他的位置，补看一遍。",
-    "机器已自动处理 " + D.stats.total + " 张，需要你看的只有 " + D.stats.review + " 张。没拍到的角落，挂上悬赏。",
+    "你错过的那几分钟，有人替你留住了。回到他当时朝着的方向，补看一遍。",
+    D.stats.total + " 张照片进来，机器自动放好 " + D.stats.auto + " 张，另有 " + D.stats.review + " 张需要人看。没拍到的角落，挂上悬赏。",
     "一个人的记忆，一台相机就够了。一群人的记忆，需要一个共同的空间。婚礼，毕业，还有今天这个会场。"
   ];
   var N = 6;
@@ -715,6 +728,8 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     [].forEach.call($("dots").children, function(b, i){
       b.setAttribute("aria-current", i === n - 1 ? "true" : "false");
     });
+    $("dots").setAttribute("data-current", n + " / " + N);
+    $("dots").setAttribute("aria-label", "当前第 " + n + " 幕，共 " + N + " 幕");
     $("subtitleText").textContent = LINES[n - 1];
     $("progress").style.width = (n / N * 100).toFixed(1) + "%";
     $("prev").disabled = n === 1;
@@ -793,7 +808,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   function setPlaced(includeHero){
     var n = includeHero ? placedOthers + 1 : placedOthers;
     $("plateFoot").innerHTML = '空间里已经放好 <b' + (includeHero ? ' class="pop"' : '') + '>' + n +
-      '</b> 张，每一张都停在它被拍下的那个方位上。';
+      '</b> 张，每一张都停在它当时朝着的方向上。';
   }
 
   $("phNick").textContent = "· " + hero.photo.contributor;
@@ -804,8 +819,8 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 
   var READ = [
     ["方位", hero.photo.yaw.toFixed(1) + "° " + hero.photo.bearing],
-    ["匹配度", hero.photo.confidence != null ? hero.photo.confidence.toFixed(4) : "—"],
-    ["辨识度", hero.photo.margin != null ? hero.photo.margin.toFixed(4) : "—"],
+    ["匹配度", hero.photo.confidence != null ? hero.photo.confidence.toFixed(4) : "未测"],
+    ["辨识度", hero.photo.margin != null ? hero.photo.margin.toFixed(4) : "未测"],
     ["判定", "两项都过线，自动入选"]
   ];
   $("readout").innerHTML = READ.map(function(r, i){
@@ -817,7 +832,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   // 这里只写短名：右栏在 390px 下只有一百七十来像素，
   // 整条 server/spaces/s4/space.json 会被迫断在词中间，很难看。完整出处在第⑤幕底下写着。
   '<div class="tiny" style="margin-top:4px">门槛 匹配度 ≥ ' + D.stats.confMin +
-  ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。<br>数字来自 <code>s4/space.json</code>，没有一个是手打的。</div>';
+  ' 且 辨识度 ≥ ' + D.stats.marginMin + '，两项都过才自动入选。<br>数字来自已锁定的 s4 演示快照，页面运行时不连接数据库。</div>';
 
   // 这行原来是给罗盘上那两段弧做注解（粗弧＝自动入选比例，金弧＝通缉方位区间），
   // 外加罗盘顶上那个「0° 正前方」定向标签。弧和标签都没了，信息改成直接写清楚：
@@ -831,7 +846,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   }
   $("bearingLegend").innerHTML =
     '0° 是正前方，顺时针数　自动入选 ' + D.stats.auto + ' / 共 ' + D.stats.total + ' 张' +
-    (TRG ? '　通缉方位 ' + TRG[0] + '°–' + TRG[1] + '°' +
+    (TRG ? '　通缉方位 ' + TRG[0] + '° 至 ' + TRG[1] + '°' +
            (inRange ? '，这一张 ' + hero.photo.yaw.toFixed(1) + '° 正落在里面' : '') : '');
 
   // 世代号：反复快速进出第②幕时，上一轮残留的 setTimeout 链会和新一轮交叉执行，
@@ -842,7 +857,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     var gen = ++flyGen;
     var alive = function(){ return gen === flyGen && cur === 2; };
     setPlaced(false);
-    $("capBig").textContent = "—";
+    $("capBig").textContent = "等待";
     $("capBig").classList.remove("pop");
     $("capSub").textContent = "等一张照片";
     $("capPill").innerHTML = "";
@@ -1103,7 +1118,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     requestAnimationFrame(step);
   }
 
-  $("walkNote").innerHTML = "上面这一条是 2D 方位墙，钉在上面的每一张照片都停在它被拍下的方位。" +
+  $("walkNote").innerHTML = "上面这一条是 2D 方位墙，钉在上面的每一张照片都停在它当时朝着的方向。" +
     "「3D 漫游」按钮打开的是仓库里的全景漫游页 <code>viewer/walk.html</code>，走的是同一个宴会厅。" +
     (IS_FILE ? "<b>当前是本地直接打开（file://），3D 漫游要用 WebGL 贴全景纹理，" +
                "浏览器按跨域拦掉，请用「在新窗口打开」或走 http 访问。</b>" : "");
@@ -1144,9 +1159,9 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     var p = trio[i];
     $("bigview").innerHTML =
       (p.img ? '<img src="' + esc(p.img) + '" alt="' + esc(p.contributor) + '的视角">' : "") +
-      '<div class="meta"><span class="pill ok">机位 ' + (i + 1) + ' / ' + trio.length + '</span>' +
-      '<b>' + esc(p.contributor) + '</b> 站在 <b>' + p.yaw.toFixed(1) + '°</b> ' + esc(p.bearing) +
-      '<span class="pill mute">匹配度 ' + (p.confidence != null ? p.confidence.toFixed(2) : "—") + '</span></div>';
+      '<div class="meta"><span class="pill ok">方向 ' + (i + 1) + ' / ' + trio.length + '</span>' +
+      '<b>' + esc(p.contributor) + '</b> 朝向 <b>' + p.yaw.toFixed(1) + '°</b> ' + esc(p.bearing) +
+      '<span class="pill mute">匹配度 ' + (p.confidence != null ? p.confidence.toFixed(2) : "未测") + '</span></div>';
     syncStrip();
   }
   $("eyes").addEventListener("click", function(e){
@@ -1156,7 +1171,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
   setEye(0);
   $("act4Note").textContent =
     "这三张来自 " + trio.length + " 个不同的人，方位是机器算出来的，不是人填的。" +
-    "当前为占位素材，真实全景与照片到位后原样替换。";
+    "当前数据没有拍摄时间字段，所以这里只演示三个方向，不声称来自同一时刻。素材仍为占位素材。";
   window.addEventListener("resize", function(){
     if (cur === 3) pwLayout();
     if (cur === 4) syncStrip();
@@ -1212,25 +1227,23 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
     return '<div class="review-item">' +
       (p.img ? '<img src="' + esc(p.img) + '" alt="">' : "") +
       '<div class="txt"><b>' + esc(p.contributor) + ' 交的 · ' + p.yaw.toFixed(1) + '°</b>' +
-      esc(p.reason) + '</div></div>';
+      esc(cleanReason(p.reason)) + '</div></div>';
   }).join("") || '<p class="tiny">这个空间当前没有待审照片。</p>';
 
   var C = D.calibration;
-  $("calib").innerHTML = "这些数字全部来自 <code>" + esc(D.generatedFrom) +
-    "</code>，没有一个是手打的（导出脚本 <code>tools/build_demo_data.py</code>）。<br>" +
-    "另有一组阈值标定实测：" + C.total + " 张标定集判对 " + C.correct + " 张，" +
-    "混进来的 " + C.foreignTotal + " 张外来照片拦下 " + C.foreignBlocked + " 张。" +
+  $("calib").innerHTML =
+    "本页使用 <code>tools/build_demo_data.py</code> 导出的固定演示快照，运行时不连接数据库。" +
+    "快照里的 " + S.total + " 张照片为自动入选 " + S.auto + " 张、待人工判断 " + S.review +
+    " 张，后续验收数据不会混进演示。<br>" +
+    "历史阈值标定观察：" + C.total + " 张标定集判对 " + C.correct + " 张，" +
+    C.foreignTotal + " 张外来照片零自动收下。这是标定集结果，不外推成通用准确率。" +
     "门槛 匹配度 ≥ " + C.confMin + " 且 辨识度 ≥ " + C.marginMin + "。";
 
   /* ════════ 第⑥幕 ════════ */
-  // 「11/12、偏差 0 到 2 度」这组数不是这一页算出来的，是上一轮一个独立验收员
-  // 写暴力搜索量的，原始日志不在仓库里。第 2 轮验收员照着页面去找出处没找到 ——
-  // 那就不能像本页其它数字一样平铺直叙地写，必须把来源摆在明面上。
   $("filmNote").innerHTML =
-    "79 秒（实测 79.4 秒），镜头路线是按每张照片的方位自动排的。<br>" +
-    "<span style='color:var(--ink-3)'>另据上一轮独立验收员的记录：他自己写了一套暴力搜索，" +
-    "把全景逐度重切去和片中照片做相关，12 张里 11 张落在相关峰值上（偏差 0 到 2 度）。" +
-    "那次的原始日志没留在仓库里，这条只算旁证，不当本页的实测数字用。</span>";
+    "这是预制成片示例，使用 4 个示例空间和 12 张占位照片，与本页 11 张 s4 快照不是同一组数据。" +
+    "全景与裁切图来自 Poly Haven CC0，婚礼章节和画面说明是演示剧本。" +
+    "镜头路线按照片当时朝着的方向自动排序。成片时长实测 79.445 秒。";
 
   /* ════════ 断网 / 有后端 的招牌 ════════ */
   function refreshBadge(){

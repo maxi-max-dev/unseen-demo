@@ -408,7 +408,7 @@
 <div id="welcome" class="off">
   <div style="max-width:400px;margin:0 auto;width:100%">
     <div class="kicker">U N S E E N <span>· 看见没被看见的</span></div>
-    <h1 class="names" id="wNames">— <span class="heart">♥</span> —</h1>
+    <h1 class="names" id="wNames">正在读取邀请</h1>
     <div class="subdate" id="wDate">&nbsp;</div>
 
     <div class="invite-line">他们请你交一张照片</div>
@@ -438,7 +438,7 @@
   <div class="head-in">
     <div class="head-row">
       <div class="head-names" id="hNames">UNSEEN</div>
-      <div class="head-me" id="hMe" style="visibility:hidden"><span>你好,</span><b id="hNick">—</b></div>
+      <div class="head-me" id="hMe" style="visibility:hidden"><span>你好,</span><b id="hNick">匿名宾客</b></div>
     </div>
     <div class="tabs">
       <button class="tab on" data-view="tasks" id="tabTasks">任务墙<span class="dot" id="tabCount">0</span></button>
@@ -564,6 +564,17 @@
   function avatar(name) {
     var h = 0; for (var i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) % 997;
     return { color: AV[h % AV.length], ch: name.slice(0, 1) };
+  }
+
+  // 演示空间经历过并发和延迟攻击验收，测试署名不能泄到公开邀请页。
+  // 只改展示名，不改贡献、积分、任务状态或任何后端记录。
+  var TEST_NAMES = {
+    "泛音测": 1, "泛音测试": 1, "延迟测试": 1, "你大爷": 1, "阿伟测试": 1
+  };
+  function publicName(name) {
+    var n = String(name || "").trim();
+    if (!n || TEST_NAMES[n] || n.indexOf("并发") === 0) return "匿名宾客";
+    return n;
   }
 
   // space.json 里的图片路径是相对空间目录的,拼成完整 OSS 地址。
@@ -978,7 +989,7 @@
       $("wPeople").textContent = people;
       $("wPhotos").textContent = photos;
       $("wFaces").innerHTML = (sp.contributors || []).slice(0, 4).map(function (c) {
-        var a = avatar(c.name || "?");
+        var a = avatar(publicName(c.name));
         return '<i style="background:' + a.color + '">' + esc(a.ch) + "</i>";
       }).join("");
     }
@@ -987,7 +998,7 @@
   // ================================================================ 渲染:任务墙
   function taskCard(t) {
     var done = t.status !== "open";
-    var who = (t.filledBy || []).join("、");
+    var who = (t.filledBy || []).map(publicName).join("、");
     var foot = done
       ? '<div class="claimed">✅ 已被 ' + esc(who || "宾客") + " 认领</div>"
       // 这里故意不挂 u-btn:theme.css 的 .u-btn 带 padding:15px 22px + width:100%,
@@ -1010,7 +1021,7 @@
         '<span class="badge wish">💌 心愿任务 · 新人亲手写的</span>' +
         '<h3 class="card-title"><span class="wish-quote">“</span>' + esc(t.title || "") + "</h3>" +
         '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
-        '<div class="wish-from">— ' + esc((state.space && state.space.couple) || "新人") + " 写的</div>" +
+        '<div class="wish-from">来自 ' + esc((state.space && state.space.couple) || "新人") + "</div>" +
         '<div class="card-foot">' + bounty + foot + "</div>" +
       "</div></div>";
   }
@@ -1422,7 +1433,7 @@
     var head, sub, st = photoState(p);   // 云版 photos[] 不带 state, 见 photoState()
     if (st === "auto_ok" || st === "approved") {
       head = "你这张放在了 <b>" + esc(dirWord(p.yaw)) + "</b> · 已进入空间 ✅";
-      sub = "匹配度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "—") +
+      sub = "匹配度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "未测") +
             " · " + Math.round(p.yaw || 0) + "°";
     } else if (st === "needs_review") {
       head = "机器拿不准,已交给新人确认 ⏳";
@@ -1582,8 +1593,11 @@
   function walkUrl() {
     // walk.html 和这一页一起躺在 GitHub Pages 上,基址一路带过去
     var u = Q.get("walk") || "../viewer/walk.html";
+    var back = "web/join.html?s=" + encodeURIComponent(SID) +
+      "&b=" + encodeURIComponent(BASE);
     return u + (u.indexOf("?") >= 0 ? "&" : "?") +
-      "space=" + encodeURIComponent(SID) + "&b=" + encodeURIComponent(BASE);
+      "space=" + encodeURIComponent(SID) + "&b=" + encodeURIComponent(BASE) +
+      "&back=" + encodeURIComponent(back);
   }
 
   function setView(v) {

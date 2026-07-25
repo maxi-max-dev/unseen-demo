@@ -3,8 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "npx --yes hyperframes@0.7.70 check",
-    "render": "npx --yes hyperframes@0.7.70 render --output out/memory-film.mp4",
-    "preview": "npx --yes hyperframes@0.7.70 preview"
+    "check": "npx --yes hyperframes@0.7.71 check",
+    "render": "npx --yes hyperframes@0.7.71 render --output out/memory-film.mp4",
+    "web": "ffmpeg -hide_banner -loglevel error -y -i out/memory-film.mp4 -vf scale=960:-2 -c:v libx264 -preset medium -b:v 470k -pix_fmt yuv420p -c:a aac -b:a 96k -movflags +faststart out/memory-film-web.mp4",
+    "preview": "npx --yes hyperframes@0.7.71 preview"
   }
 }
