@@ -293,7 +293,7 @@ def verify_session(session_id, base_url="http://127.0.0.1:8777", max_attempts=2,
 
 
 def verify_target(work_dir, page_url, label="", max_attempts=2, inject_fault_kind=None,
-                  model=None, conf_min=CONF_MIN, on_stage=None):
+                  model=None, conf_min=CONF_MIN, on_stage=None, write_report=True):
     """自检环的通用入口: 对【任意目录 + 任意页面 URL】跑三闸一裁决, 写 <work_dir>/report.json。
 
     work_dir 里必须有一份 manifest.json(结构闸读它, 里面的资源路径相对 work_dir),
@@ -389,8 +389,9 @@ def verify_target(work_dir, page_url, label="", max_attempts=2, inject_fault_kin
     report["reason"] = reason or "自检环没有得出结论。"
     report["elapsedS"] = round(time.time() - t0, 1)
 
-    with open(os.path.join(session_dir, "report.json"), "w", encoding="utf-8") as f:
-        json.dump(report, f, ensure_ascii=False, indent=2)
+    if write_report:
+        with open(os.path.join(session_dir, "report.json"), "w", encoding="utf-8") as f:
+            json.dump(report, f, ensure_ascii=False, indent=2)
     _notify(on_stage, "done", len(report["attempts"]))
     return report
 

@@ -20,8 +20,8 @@ oss.post_policy 签出来的策略【直接 POST 进 OSS】, 谁都不用暴露�
    两个进程各占一份模型内存(每份约 1GB), 这是预期行为, 不是 bug。
 
 【宾客页必须按这个约定拼 key】(做 join 页的工兵看这里):
-    spaces/<sid>/inbox/<时间戳毫秒>_<随机短id>__<encodeURIComponent(昵称)>__<taskId或none>.jpg
-  例: spaces/s4/inbox/1784900000123_a7f3__%E5%B0%8F%E6%98%8E__t2.jpg
+    spaces/<sid>/inbox-v2/gN/<时间戳毫秒>_<随机短id>__<base64url昵称>__<taskId或free>.jpg
+  例: spaces/s4/inbox-v2/g1/1784900000123_a7f3__5bCP5piO__t2.jpg
   · 三段用【双下划线】分隔, 昵称必须 url 编码(中文/空格/表情都安全)
   · 没接任务就写 none; 昵称为空就留空(工人会记成"匿名宾客")
   · 解析失败一律降级成匿名投稿, 绝不丢照片
@@ -54,10 +54,12 @@ def log(msg):
 
 
 # ================================================================ 收件箱 / 台账
-def inbox_prefix(sid):
+def inbox_prefix(sid, current=None):
     """宾客直传的落点。⚠️ 必须和 server/publish.py 的 inbox_prefix 一模一样 ——
     发布器把这个前缀连同直传策略写进公开版 space.json, 宾客照它传, 工人照它收。"""
-    return f"spaces/{sid}/inbox/"
+    if current is None:
+        current = space.load_space(sid)
+    return space._inbox_prefix(sid, current)
 
 
 def state_path(sid):
@@ -98,6 +100,57 @@ def save_state(sid, st):
         f.flush()
         os.fsync(f.fileno())
     os.replace(tmp, path)
+
+
+def sweep_retired_inboxes(sid, conf, current=None):
+    """旧场景的上传策略在过期前仍可能被离线手机使用，工人每轮都把旧代清空。"""
+    current = current or space.load_space(sid)
+    records = space._normal_retired_inboxes(sid, current)
+    if not records:
+        return {"deleted": 0, "warnings": []}
+    current_prefix = inbox_prefix(sid, current)
+    legacy_root = f"spaces/{sid}/inbox/"
+    deleted = 0
+    warnings = []
+    clearable = set()
+    for record in records:
+        retired_prefix = record["prefix"]
+        if retired_prefix == current_prefix:
+            continue
+        try:
+            objects = oss.list_keys(conf, retired_prefix)
+        except Exception as e:
+            warnings.append(f"{retired_prefix}: {type(e).__name__}")
+            continue
+        clean = True
+        for item in objects:
+            key = str(item.get("key") or "")
+            suffix = key[len(retired_prefix):] if key.startswith(retired_prefix) else ""
+            if not suffix or ".." in suffix.split("/"):
+                clean = False
+                continue
+            if retired_prefix == legacy_root and "/" in suffix:
+                continue
+            try:
+                oss.delete(conf, key)
+                deleted += 1
+            except Exception as e:
+                if "HTTP 404" not in str(e):
+                    clean = False
+                    warnings.append(f"{key}: {type(e).__name__}")
+        if clean and time.time() >= float(record["expiresAt"]):
+            clearable.add(retired_prefix)
+    if clearable:
+        with space.space_txn(sid) as latest:
+            left = [
+                record for record in space._normal_retired_inboxes(sid, latest)
+                if record["prefix"] not in clearable
+            ]
+            if left:
+                latest["_retiredInboxPrefixes"] = left
+            else:
+                latest.pop("_retiredInboxPrefixes", None)
+    return {"deleted": deleted, "warnings": warnings}
 
 
 def _decode_nick(raw):
@@ -175,7 +228,12 @@ def republish(sid, conf=None):
         log(f"⚠️ 暂时发布不了(server/publish.py 还没就绪: {e}) —— 照片已算好落盘, 补跑发布即可")
         return None
     try:
-        r = publish.publish_space(sid, conf=conf)
+        r = None
+        for _attempt in range(3):
+            r = publish.publish_space(sid, conf=conf)
+            if not r.get("stale"):
+                break
+            log("发布期间空间有新变化,正在改用最新版本重试")
         log(f"已重新发布 → 新传 {r['uploaded']} 个文件, 跳过 {r['skipped']} 个, 耗时 {r['elapsedS']}s")
         return r
     except Exception as e:
@@ -187,14 +245,26 @@ def republish(sid, conf=None):
 def poll_once(sid, conf=None, log_empty=True, do_publish=True):
     """收一轮。返回 {ok, listed, new, processed, failed, results, published}。
 
-    幂等靠台账: 同一个 key 处理过就永远不再处理, 重启工人不会重算、不会重复加分。
+    space.json 里的 photo.inboxKey 是入库幂等真值,台账只是快速索引。即使进程在
+    照片提交后、台账落盘前退出,下一轮也会认出同一个 key,不会重复加分。
     """
     conf = conf or oss.load_conf()
     st = load_state(sid)
     done = st["keys"]
 
     try:
-        listed = oss.list_keys(conf, inbox_prefix(sid))
+        current_space = space.load_space(sid)
+    except FileNotFoundError as e:
+        log(f"⚠️ {e} —— 先在后台建好空间再开工人")
+        return {"ok": False, "error": str(e), "listed": 0, "new": 0,
+                "processed": 0, "failed": 0, "results": [], "published": None}
+
+    retired = sweep_retired_inboxes(sid, conf, current_space)
+    if retired["warnings"] and log_empty:
+        log(f"⚠️ 旧收件箱还有 {len(retired['warnings'])} 项待清理")
+
+    try:
+        listed = oss.list_keys(conf, inbox_prefix(sid, current_space))
     except Exception as e:
         log(f"⚠️ 列云端收件箱失败(下一轮再试): {e}")
         return {"ok": False, "error": str(e), "listed": 0, "new": 0,
@@ -208,54 +278,57 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
     if not fresh:
         if log_empty:
             log(f"没有新照片(云端收件箱 {len(listed)} 个对象, 台账已记 {len(done)} 个)")
+        published = None
+        if do_publish:
+            try:
+                with space.space_txn(sid, write=False) as current:
+                    can_sync = (
+                        bool(current.get("publishDirty"))
+                        and space._cloud_publish_authorized(current)
+                    )
+                if can_sync:
+                    published = republish(sid, conf)
+            except FileNotFoundError:
+                pass
         return {"ok": True, "listed": len(listed), "new": 0,
-                "processed": 0, "failed": 0, "results": [], "published": None}
+                "processed": 0, "failed": 0, "results": [], "published": published}
 
     # 主办方暂停收集时, 新对象留在收件箱里等恢复, 既不处理也不记失败。
     # 公开直传策略在过期前仍可能被旧页面持有, 所以工人也必须守这道闸。
-    try:
-        current_space = space.load_space(sid)
-        collection = space._normal_collection(current_space.get("collection"))
-        if collection["status"] != "open":
-            if log_empty:
-                log(f"收集已暂停, 云端还有 {len(fresh)} 张照片等待恢复后处理")
-            return {"ok": True, "listed": len(listed), "new": len(fresh),
-                    "processed": 0, "failed": 0, "paused": True,
-                    "results": [], "published": None}
-    except FileNotFoundError as e:
-        log(f"⚠️ {e} —— 先在后台建好空间再开工人")
-        return {"ok": False, "error": str(e), "listed": len(listed), "new": len(fresh),
-                "processed": 0, "failed": 0, "results": [], "published": None}
+    collection = space._normal_collection(current_space.get("collection"))
+    if collection["status"] != "open":
+        if log_empty:
+            log(f"收集已暂停, 云端还有 {len(fresh)} 张照片等待恢复后处理")
+        return {"ok": True, "listed": len(listed), "new": len(fresh),
+                "processed": 0, "failed": 0, "paused": True,
+                "results": [], "published": None}
 
     # 已知任务 id, 用来挡掉宾客页传来的野 taskId(带个不存在的任务会让积分/任务状态错乱)
     known_tasks = {t["id"] for t in current_space.get("tasks", [])}
 
-    results, failed = [], 0
+    results, failed, deferred = [], 0, 0
     for item in fresh:
         key = item["key"]
         contributor, task_id = parse_key(key)
         if task_id and task_id not in known_tasks:
             task_id = None                      # 野 taskId 直接丢掉, 让自动判定去接
         try:
-            raw = oss.get_bytes(conf, key)
+            try:
+                raw = oss.get_bytes(conf, key)
+            except Exception as e:
+                # 列表成功不代表随后的 GET 不会遇到瞬时超时或 OSS 5xx。原件仍在,
+                # 这类错误绝不能写进永久 failed 台账。
+                deferred += 1
+                log(f"⏸️ {os.path.basename(key)} 下载暂时失败,下一轮重试: {type(e).__name__}")
+                continue
             out = space.upload_photos(
                 sid, [(os.path.basename(key), oss.guess_type(key), raw)],
-                contributor, task_id=task_id,
+                contributor, task_id=task_id, inbox_key=key,
             )
             r = out[0]
-            # 回读一眼 margin: upload_photos 的返回里没带, 但日志和台账想说人话就得有它。
-            # 顺手把【这张照片是从哪个 inbox key 来的】写回去 ——
-            # ⚠️ 这一笔是宾客页认领自己那张照片的唯一线索: 工人把 inbox/<...短id...>.jpg
-            #    改名成了 photos/pX.jpg, 短 id 就没了; 宾客页(web/join.html 的 findMine)
-            #    正是靠 photo.inboxKey 里那段短 id 才能说出"你这张放在了右后方"。
-            #    不写这一笔, 待审的照片在宾客那边就永远是"机器还在算"。
-            with space.space_txn(sid) as sp:
-                rec = next((p for p in sp["photos"] if p["id"] == r["photoId"]), None)
-                if rec is not None:
-                    rec["inboxKey"] = key
-                    margin = rec.get("margin", 0.0)
-                else:
-                    margin = 0.0
+            # inboxKey 已和 photo 在同一笔 space_txn 里提交。这里不再补第二笔,
+            # 避免两笔之间断电造成重复入库或删除时漏掉云端原件。
+            margin = r.get("margin", 0.0)
 
             done[key] = {"photoId": r["photoId"], "state": r["state"],
                          "contributor": contributor, "taskId": r.get("taskFilled") or task_id,
@@ -264,6 +337,25 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
                             "nodeId": r["nodeId"], "yaw": r["yaw"], "direction": r["direction"],
                             "confidence": r["confidence"], "margin": margin,
                             "contributor": contributor, "taskFilled": r.get("taskFilled")})
+        except RuntimeError as e:
+            # 主办方可能正好删了最后一个场景或在 CLIP 计算期间删了命中的场景。
+            # 这不是坏图,OSS 原件还在。不要写进 done 台账,留到重新建场景并开放
+            # 收集后再处理,否则一次场景调整会把宾客照片永久吞掉。
+            msg = str(e)
+            if ("还没有全景节点" in msg or "全景场景刚刚被移除" in msg
+                    or "已经暂停收集照片" in msg):
+                deferred += 1
+                log(f"⏸️ {os.path.basename(key)} 等待新场景,下一轮重试")
+                continue
+            if "已经随原场景移除" in msg:
+                done[key] = {"removed": True, "contributor": contributor, "at": time.time()}
+                log(f"已跳过随旧场景移除的投稿 {os.path.basename(key)}")
+                save_state(sid, st)
+                continue
+            failed += 1
+            done[key] = {"failed": True, "error": msg[:300],
+                         "contributor": contributor, "at": time.time()}
+            log(f"⚠️ {os.path.basename(key)} 处理失败,记账跳过: {e}")
         except Exception as e:
             # 下载坏了/解码失败/定位炸了: 记一笔 failed 就翻篇, 别让一张烂图卡住整条队列。
             # (upload_photos 是先占 id 建空文件再落盘的, 所以炸掉的那张会在 photos/ 留一个
@@ -286,14 +378,25 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
             else:
                 s = f"{r['photoId']} 待审({_why(r['confidence'], r['margin'])})"
             bits.append(s)
-        tail = f", {failed} 张失败" if failed else ""
+        tail = (f", {failed} 张失败" if failed else "") + (
+            f", {deferred} 张等待重试" if deferred else "")
         log(f"收到 {len(fresh)} 张{tail} → " + " / ".join(bits))
+    elif deferred:
+        log(f"收到 {len(fresh)} 张,其中 {deferred} 张等待新场景后重试")
     else:
         log(f"收到 {len(fresh)} 张, 全部处理失败")
 
-    published = republish(sid, conf) if (do_publish and results) else None
+    published = None
+    if do_publish and results:
+        with space.space_txn(sid, write=False) as current:
+            auto_publish = space._cloud_publish_authorized(current)
+        if auto_publish:
+            published = republish(sid, conf)
+        else:
+            log("照片已归位,展览仍是主办方草稿,等主办方发布后再同步公网")
     return {"ok": True, "listed": len(listed), "new": len(fresh), "processed": len(results),
-            "failed": failed, "results": results, "published": published}
+            "failed": failed, "deferred": deferred,
+            "results": results, "published": published}
 
 
 def run_forever(sid, interval=5, conf=None):
@@ -329,7 +432,14 @@ def purge_inbox(sid, conf=None):
     去重靠台账不靠删文件。只有活动收尾、Max 明确要清的时候才走这条路。
     """
     conf = conf or oss.load_conf()
-    keys = oss.list_keys(conf, inbox_prefix(sid))
+    keys = []
+    seen = set()
+    for prefix in (f"spaces/{sid}/inbox/", f"spaces/{sid}/inbox-v2/"):
+        for item in oss.list_keys(conf, prefix):
+            key = str(item.get("key") or "")
+            if key and key not in seen:
+                seen.add(key)
+                keys.append(item)
     n = 0
     for it in keys:
         try:

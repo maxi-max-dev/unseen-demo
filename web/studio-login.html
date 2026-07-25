@@ -363,7 +363,8 @@
   function validSession(){
     try {
       var raw = JSON.parse(sessionStorage.getItem(AUTH_KEY) || "null");
-      return !!(raw && raw.grantedAt && Date.now() - raw.grantedAt < AUTH_TTL);
+      return !!(raw && raw.pin === "1111" && raw.grantedAt &&
+        Date.now() - raw.grantedAt < AUTH_TTL);
     } catch (e) {
       return false;
     }
@@ -433,10 +434,33 @@
       fail();
       return;
     }
-    sessionStorage.setItem(AUTH_KEY, JSON.stringify({ grantedAt:Date.now() }));
     setMessage("口令正确，正在进入 Studio。", "good");
     submit.disabled = true;
-    setTimeout(function(){ location.replace(safeNext()); }, 220);
+    var enteredPin = pin;
+    var loginRequest = fetch("/api/host/login", {
+      method:"POST",
+      credentials:"same-origin",
+      headers:{ "Content-Type":"application/json" },
+      body:JSON.stringify({ pin:enteredPin })
+    }).then(function(response){
+      if (response.status === 403) {
+        var error = new Error("主办方口令无效");
+        error.authFailed = true;
+        throw error;
+      }
+    });
+    function finishLogin(){
+      sessionStorage.setItem(AUTH_KEY, JSON.stringify({
+        grantedAt:Date.now(), pin:enteredPin
+      }));
+      location.replace(safeNext());
+    }
+    loginRequest.then(finishLogin).catch(function(error){
+      // 纯静态云端演示没有 /api/host/login，仍保留前端轻量门禁。真正接了
+      // 本后端的地址会拿到 HttpOnly cookie，图片请求和 API 共用同一层鉴权。
+      if (error && error.authFailed) fail();
+      else finishLogin();
+    });
   }
 
   document.querySelectorAll("[data-key]").forEach(function(button){

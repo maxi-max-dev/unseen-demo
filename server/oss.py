@@ -160,20 +160,46 @@ def delete(conf, key):
 
 
 def list_keys(conf, prefix="", max_keys=1000):
-    """列目录。返回 [{key, size, lastModified}]。用 V2 接口更好但 V1 够用, 少写点解析。"""
-    import re
-    q = {"prefix": prefix, "max-keys": str(max_keys)}
-    _s, _h, body = _request(conf, "GET", "", query=q)
-    xml = body.decode("utf-8", "ignore")
-    out = []
-    for m in re.finditer(r"<Contents>(.*?)</Contents>", xml, re.S):
-        block = m.group(1)
+    """列完整前缀。V1 每页最多 1000 个对象，按 NextMarker 一直翻到末页。"""
+    import xml.etree.ElementTree as ET
 
-        def pick(tag):
-            mm = re.search(rf"<{tag}>(.*?)</{tag}>", block, re.S)
-            return mm.group(1) if mm else ""
-        out.append({"key": pick("Key"), "size": int(pick("Size") or 0),
-                    "lastModified": pick("LastModified")})
+    out = []
+    marker = ""
+    seen_markers = set()
+    while True:
+        q = {"prefix": prefix, "max-keys": str(max_keys)}
+        if marker:
+            q["marker"] = marker
+        _s, _h, body = _request(conf, "GET", "", query=q)
+        root = ET.fromstring(body)
+
+        def local_name(element):
+            return element.tag.rsplit("}", 1)[-1]
+
+        def child_text(parent, name):
+            for child in parent:
+                if local_name(child) == name:
+                    return child.text or ""
+            return ""
+
+        page = []
+        for element in root:
+            if local_name(element) != "Contents":
+                continue
+            page.append({
+                "key": child_text(element, "Key"),
+                "size": int(child_text(element, "Size") or 0),
+                "lastModified": child_text(element, "LastModified"),
+            })
+        out.extend(page)
+        truncated = child_text(root, "IsTruncated").strip().lower() == "true"
+        if not truncated:
+            break
+        next_marker = child_text(root, "NextMarker") or (page[-1]["key"] if page else "")
+        if not next_marker or next_marker in seen_markers:
+            raise OSSError("OSS 列目录分页标记无效")
+        seen_markers.add(next_marker)
+        marker = next_marker
     return out
 
 
@@ -194,6 +220,7 @@ def post_policy(conf, key_prefix, expire_s=48 * 3600, max_size=12 * 1024 * 1024)
         "conditions": [
             ["content-length-range", 0, max_size],
             ["starts-with", "$key", key_prefix],
+            {"x-oss-object-acl": "private"},
         ],
     }
     raw = base64.b64encode(json.dumps(policy).encode()).decode()

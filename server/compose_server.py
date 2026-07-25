@@ -17,7 +17,11 @@ server/compose_server.py -- "上传即合成"本地服务。
 不改动 tools/ 下任何现有脚本,只 import 复用函数。
 """
 import json
+import hmac
+import ipaddress
 import os
+import posixpath
+import re
 import shutil
 import subprocess
 import sys
@@ -27,9 +31,10 @@ from contextlib import asynccontextmanager
 
 import numpy as np
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
+from starlette.concurrency import run_in_threadpool
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SESSIONS_DIR = os.path.join(REPO_ROOT, "server", "sessions")
@@ -53,6 +58,9 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 # 自检环回头要用无头浏览器访问本服务自己的页面, 所以要知道自己的地址
 SELF_URL = os.environ.get("PSM_SELF_URL", "http://127.0.0.1:8777")
+HOST_PIN = os.environ.get("UNSEEN_HOST_PIN", "1111")
+HOST_COOKIE_NAME = "unseen_host_demo"
+HOST_COOKIE_TTL_S = 8 * 60 * 60
 
 _session_lock = threading.Lock()
 _clip_state = {}  # 启动时加载一次,别每次请求重加载
@@ -81,6 +89,151 @@ app = FastAPI(lifespan=lifespan)
 # 闭环产品的全部 /api/... 接口。必须在下面的 app.mount("/") 之前 include ——
 # 挂载点是按注册顺序匹配的, 根挂载一旦排在前面就会把所有路径都吃掉。
 app.include_router(space_mod.router)
+
+
+def _is_loopback_client(request):
+    host = (request.client.host if request.client else "").split("%", 1)[0]
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return host == "localhost"
+
+
+def _host_request_allowed(request):
+    if _is_loopback_client(request):
+        return True
+    supplied = request.headers.get("x-unseen-host-pin", "")
+    if supplied and hmac.compare_digest(supplied, HOST_PIN):
+        return True
+    raw_cookie = request.cookies.get(HOST_COOKIE_NAME, "")
+    try:
+        raw_time, signature = raw_cookie.split(".", 1)
+        issued_at = int(raw_time)
+    except (ValueError, TypeError):
+        return False
+    if issued_at > int(time.time()) + 60 or time.time() - issued_at > HOST_COOKIE_TTL_S:
+        return False
+    expected = hmac.new(
+        HOST_PIN.encode("utf-8"),
+        f"unseen-host:{issued_at}".encode("utf-8"),
+        "sha256",
+    ).hexdigest()
+    return hmac.compare_digest(signature, expected)
+
+
+def _public_api_request(request):
+    path = request.url.path
+    if request.method == "POST" and path in ("/api/host/login", "/api/host/logout"):
+        return True
+    if request.method == "POST" and re.fullmatch(r"/api/space/s\d+/upload", path):
+        return True
+    return bool(
+        request.method == "GET"
+        and re.fullmatch(r"/api/space/s\d+", path)
+        and request.query_params.get("role") == "guest"
+    )
+
+
+@app.post("/api/host/login")
+async def api_host_login(request: Request):
+    try:
+        payload = await request.json()
+    except Exception:
+        payload = {}
+    supplied = str(payload.get("pin") or "") if isinstance(payload, dict) else ""
+    if not hmac.compare_digest(supplied, HOST_PIN):
+        return JSONResponse({"ok": False, "error": "主办方口令无效"}, status_code=403)
+    issued_at = int(time.time())
+    signature = hmac.new(
+        HOST_PIN.encode("utf-8"),
+        f"unseen-host:{issued_at}".encode("utf-8"),
+        "sha256",
+    ).hexdigest()
+    response = JSONResponse({"ok": True})
+    response.set_cookie(
+        HOST_COOKIE_NAME,
+        f"{issued_at}.{signature}",
+        max_age=HOST_COOKIE_TTL_S,
+        httponly=True,
+        secure=request.url.scheme == "https",
+        samesite="strict",
+        path="/",
+    )
+    return response
+
+
+@app.post("/api/host/logout")
+def api_host_logout():
+    response = JSONResponse({"ok": True})
+    response.delete_cookie(HOST_COOKIE_NAME, path="/")
+    return response
+
+
+def _guest_asset_allowed(sid, rel):
+    """非本机访客只能读取 guest API 已经会引用的公开素材。"""
+    if not re.fullmatch(r"s\d+", sid or ""):
+        return False
+    rel = str(rel or "").replace("\\", "/").lstrip("/")
+    if not rel or any(part in ("", ".", "..") for part in rel.split("/")):
+        return False
+    try:
+        with space_mod.space_txn(sid, write=False) as space:
+            allowed = set()
+            for node in space.get("nodes") or []:
+                for field in ("panorama", "depth", "depthJson"):
+                    value = str(node.get(field) or "").lstrip("/")
+                    if value:
+                        allowed.add(value)
+            for photo in space.get("photos") or []:
+                if photo.get("state") not in space_mod.SELECTED_STATES:
+                    continue
+                for field in ("src", "thumb"):
+                    value = str(photo.get(field) or "").lstrip("/")
+                    if value:
+                        allowed.add(value)
+            exhibition = space_mod._normal_exhibition(space.get("exhibition"))
+            task_visibility = exhibition["taskVisibility"]
+            if task_visibility != "hidden":
+                for task in space.get("tasks") or []:
+                    visible = (
+                        task_visibility == "all"
+                        or task.get("status") == "filled"
+                        or bool(task.get("filledBy"))
+                    )
+                    value = str(task.get("briefImage") or "").lstrip("/")
+                    if visible and value:
+                        allowed.add(value)
+            return rel in allowed
+    except (FileNotFoundError, ValueError):
+        return False
+
+
+@app.middleware("http")
+async def protect_space_assets(request: Request, call_next):
+    """堵住根静态挂载的旁路，并给局域网宾客套上和 guest API 相同的素材白名单。"""
+    # 根 StaticFiles 会先 normpath，再去磁盘找文件。鉴权如果只看原始 URL，
+    # `/server//spaces`、`/server/./spaces`、`/server/x/../spaces` 就能在这里
+    # 漏过去，随后被静态服务归一到本机真值目录。鉴权必须使用同等级归一结果。
+    raw_path = str(request.scope.get("path") or request.url.path or "/")
+    path = posixpath.normpath("/" + raw_path.replace("\\", "/").lstrip("/"))
+    if path == "/server/spaces" or path.startswith("/server/spaces/"):
+        return Response(status_code=404)
+    host_allowed = _host_request_allowed(request)
+    request.state.unseen_host_allowed = host_allowed
+    if path.startswith("/api/") and not host_allowed and not _public_api_request(request):
+        return JSONResponse(
+            {"ok": False, "error": "主办方口令无效"},
+            status_code=403,
+        )
+    if path.startswith("/spaces/") and not host_allowed:
+        parts = path[len("/spaces/"):].split("/", 1)
+        allowed = (
+            len(parts) == 2
+            and await run_in_threadpool(_guest_asset_allowed, parts[0], parts[1])
+        )
+        if not allowed:
+            return Response(status_code=404)
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------- 工具函数

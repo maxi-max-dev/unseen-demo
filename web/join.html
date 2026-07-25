@@ -642,6 +642,64 @@
     };
   }
 
+  function uploadContextError(message) {
+    var e = new Error(message);
+    e.uploadContext = true;
+    return e;
+  }
+
+  function validateLiveTask(sp, task) {
+    var nodes = (sp && sp.nodes) || [];
+    if (!nodes.length) throw uploadContextError("主办方正在更换场景,请稍后重新选择");
+    if (!task || !task.id) return task;
+    var live = ((sp && sp.tasks) || []).filter(function (t) {
+      return t.id === task.id;
+    })[0];
+    // filled 只代表悬赏已经有人补上，后续同方向照片仍然照收，只是不重复发奖。
+    // 真正失效的是任务不存在或已 closed。
+    if (!live || (live.status !== "open" && live.status !== "filled")) {
+      throw uploadContextError("这项任务已经更新,请回到任务墙重新选择");
+    }
+    if (live.type === "gap" && !live.nodeId) {
+      throw uploadContextError("这项任务所属的场景已经更新,请重新选择");
+    }
+    if (live.nodeId && !nodes.some(function (node) { return node.id === live.nodeId; })) {
+      throw uploadContextError("这项任务所属的场景已经移除,请重新选择");
+    }
+    return live;
+  }
+
+  // 每次真正 POST 前都重新拉 no-store 的公开快照。旧标签页不能拿缓存里的旧
+  // policy 假装上传成功，也不能把已删除任务悄悄改投到另一个场景。
+  function freshUploadContext(task) {
+    if (MOCK) {
+      return Promise.resolve({
+        space: state.space,
+        task: task,
+        policy: policyOf(state.space)
+      });
+    }
+    return loadSpace().then(function (sp) {
+      if (!sp || sp.id !== SID) throw uploadContextError("空间数据已经更新,请重新进入");
+      var liveTask = validateLiveTask(sp, task);
+      var pol = policyOf(sp);
+      if (!pol) {
+        throw uploadContextError(collectionOpen(sp)
+          ? "这个空间还没开上传通道,请联系主办方"
+          : "主办方已经结束照片收集");
+      }
+      if (pol.expiresAt && pol.expiresAt * 1000 < Date.now()) {
+        throw uploadContextError("上传通道已经过期,请联系主办方重新发布");
+      }
+      state.space = sp;
+      renderTasks();
+      return { space: sp, task: liveTask, policy: pol };
+    }).catch(function (err) {
+      if (err && err.uploadContext) throw err;
+      throw uploadContextError("上传前没拿到最新场景,请检查网络再试");
+    });
+  }
+
   // 昵称 -> base64url(UTF-8),不带 = 补位。
   // 为什么不用 encodeURIComponent:那样 key 里会留下真正的 % 字符,
   // 之后任何人想把这个 key 拼回 URL 都得再编码一次(%E5 -> %25E5),漏一次图就 404。
@@ -676,9 +734,8 @@
       fd.append("OSSAccessKeyId", pol.accessKeyId);
       fd.append("policy", pol.policy);
       fd.append("Signature", pol.signature);
-      // 桶是私有的,只有带这个头传上去的文件才可以被公开读到 ——
-      // 别人列不了目录,只有我们自己传的这些能被看见。
-      fd.append("x-oss-object-acl", "public-read");
+      // 收件箱原图保持私有。工人用服务端凭据读取，识图后只有入选的派生图才公开。
+      fd.append("x-oss-object-acl", "private");
       fd.append("file", blob, "photo.jpg");   // file 必须是最后一个字段,这是 OSS 的硬要求
 
       var xhr = new XMLHttpRequest();
@@ -1189,6 +1246,7 @@
     if (s === "needs_review") return { cls: "wait", txt: "等新人确认" };
     if (s === "rejected") return { cls: "no", txt: "没被选上" };
     if (s === "quarantined") return { cls: "no", txt: "放错地方了" };
+    if (s === "scene_updated") return { cls: "no", txt: "场景已更新" };
     if (s === "uploaded") return { cls: "wait", txt: "机器算着呢" };
     return { cls: "wait", txt: "处理中" };
   }
@@ -1265,93 +1323,85 @@
 
   // ---------------------------------------------------------------- 上传主流程
   function doUpload() {
-    var task = state.task, files = state.files.slice();
+    var chosenTask = state.task, files = state.files.slice();
     if (!files.length) return;
 
-    var pol = policyOf(state.space);
-    if (!MOCK && !pol) {
-      closeSheet();
-      toast(collectionOpen(state.space)
-        ? "这个空间还没开上传通道,找新人问一下"
-        : "主办方已经结束照片收集");
-      return;
-    }
-    if (!MOCK && pol.expiresAt && pol.expiresAt * 1000 < Date.now()) {
-      closeSheet();
-      toast("上传通道过期了,让新人重新发一次二维码");
-      return;
-    }
-
     sheetProgress(files.length);
-    var total = files.length, sentUnits = 0;
-    function bump(frac) {
-      // 压缩算 30%、上传算 70%,进度条不会先冲到头再干等
-      var el = $("barFill");
-      if (el) el.style.width = Math.min(99, Math.round((sentUnits + frac) / total * 100)) + "%";
-    }
+    var checking = $("progTxt");
+    if (checking) checking.textContent = "先确认场景和任务还是最新的";
 
-    var recs = [];
-    // 一张一张来:现场是移动网络,并发三条只会互相抢带宽,还看不出谁传到哪了
-    var chain = Promise.resolve();
-    files.forEach(function (file, i) {
-      chain = chain.then(function () {
-        var el = $("progTxt");
-        if (el) el.textContent = "第 " + (i + 1) + "/" + total + " 张:压缩中";
-        return Promise.all([compressImage(file), shrink(file)]).then(function (r) {
-          var out = r[0], thumb = r[1];
-          sentUnits += 0.3; bump(0);
-          var el2 = $("progTxt");
-          if (el2) el2.textContent = "第 " + (i + 1) + "/" + total + " 张:上传中(" +
-            Math.round(out.blob.size / 1024) + "KB)";
+    freshUploadContext(chosenTask).then(function (ctx) {
+      var task = ctx.task, pol = ctx.policy;
+      var total = files.length, sentUnits = 0;
+      function bump(frac) {
+        // 压缩算 30%、上传算 70%,进度条不会先冲到头再干等
+        var el = $("barFill");
+        if (el) el.style.width = Math.min(99, Math.round((sentUnits + frac) / total * 100)) + "%";
+      }
 
-          var shortId = uid();
-          var key = buildKey(MOCK ? "spaces/mock/inbox/" : pol.keyPrefix, shortId, state.nick, task.id);
-          var rec = {
-            id: shortId, sid: SID, shortId: shortId, key: key, blob: out.blob,
-            nick: state.nick, taskId: task.id || "", taskTitle: task.title || "",
-            thumb: thumb, at: Date.now()
-          };
+      var recs = [];
+      // 一张一张来:现场是移动网络,并发三条只会互相抢带宽,还看不出谁传到哪了
+      var chain = Promise.resolve();
+      files.forEach(function (file, i) {
+        chain = chain.then(function () {
+          var el = $("progTxt");
+          if (el) el.textContent = "第 " + (i + 1) + "/" + total + " 张:压缩中";
+          return Promise.all([compressImage(file), shrink(file)]).then(function (r) {
+            var out = r[0], thumb = r[1];
+            sentUnits += 0.3; bump(0);
+            var el2 = $("progTxt");
+            if (el2) el2.textContent = "第 " + (i + 1) + "/" + total + " 张:上传中(" +
+              Math.round(out.blob.size / 1024) + "KB)";
 
-          var sender = MOCK ? mockPost(function (p) { bump(0.7 * p); })
-                            : postWithRetry(pol, key, out.blob, function (p) { bump(0.7 * p); });
-          return sender.then(function (status) {
-            sentUnits += 0.7; bump(0);
-            rec.status = status;
-            recs.push(rec);
-            // 传成功就从"待重传"里划掉(重传路径会用到)
-            return dbDel(shortId);
-          }).catch(function (err) {
-            sentUnits += 0.7; bump(0);
-            // 传不上去的存进 IndexedDB,恢复网络自动接着传
-            rec.error = err.message || "传不上去";
-            return dbPut(rec).then(function () { recs.push(rec); });
+            var shortId = uid();
+            var key = buildKey(MOCK ? "spaces/mock/inbox/" : pol.keyPrefix, shortId, state.nick, task.id);
+            var rec = {
+              id: shortId, sid: SID, shortId: shortId, key: key, blob: out.blob,
+              nick: state.nick, taskId: task.id || "", taskTitle: task.title || "",
+              thumb: thumb, at: Date.now()
+            };
+
+            var sender = MOCK ? mockPost(function (p) { bump(0.7 * p); })
+                              : postWithRetry(pol, key, out.blob, function (p) { bump(0.7 * p); });
+            return sender.then(function (status) {
+              sentUnits += 0.7; bump(0);
+              rec.status = status;
+              recs.push(rec);
+              // 传成功就从"待重传"里划掉(重传路径会用到)
+              return dbDel(shortId);
+            }).catch(function (err) {
+              sentUnits += 0.7; bump(0);
+              // 传不上去的存进 IndexedDB,恢复网络自动接着传
+              rec.error = err.message || "传不上去";
+              return dbPut(rec).then(function () { recs.push(rec); });
+            });
           });
         });
       });
-    });
 
-    chain.then(function () {
-      var okRecs = recs.filter(function (r) { return !r.error; });
-      var bad = recs.length - okRecs.length;
+      return chain.then(function () {
+        var okRecs = recs.filter(function (r) { return !r.error; });
+        var bad = recs.length - okRecs.length;
 
-      // 记进本地小账本(状态先是 uploaded,轮询到结果再改)
-      var mine = loadMine();
-      okRecs.forEach(function (r) {
-        mine.push({
-          shortId: r.shortId, key: r.key, photoId: null, yaw: null,
-          state: "uploaded", reason: "机器正在算方位",
-          thumb: r.thumb, taskTitle: r.taskTitle, at: r.at
+        // 记进本地小账本(状态先是 uploaded,轮询到结果再改)
+        var mine = loadMine();
+        okRecs.forEach(function (r) {
+          mine.push({
+            shortId: r.shortId, key: r.key, photoId: null, yaw: null,
+            state: "uploaded", reason: "机器正在算方位",
+            thumb: r.thumb, taskTitle: r.taskTitle, at: r.at
+          });
         });
-      });
-      saveMine(mine);
-      refreshRedo();
+        saveMine(mine);
+        refreshRedo();
 
-      if (!okRecs.length) {
-        closeSheet();
-        toast("这几张都没传上去,网好一点会自动重传");
-        return;
-      }
-      sheetWaiting(okRecs, task, bad);
+        if (!okRecs.length) {
+          closeSheet();
+          toast("这几张都没传上去,网好一点会自动重传");
+          return;
+        }
+        sheetWaiting(okRecs, task, bad);
+      });
     }).catch(function (e) {
       closeSheet();
       toast("传失败了:" + (e.message || e));
@@ -1449,6 +1499,31 @@
           var p = fresh.shift();
           if (p) { claimed[p.id] = 1; resolveOne(sid, p); }
         });
+        // 极小概率下，主办方会在本页刷新 policy 之后、OSS POST 完成之前删场景。
+        // OSS 仍可能回 2xx，但新公开快照已经切了收件箱代际。这里把尚未出结果
+        // 的旧代回执明确判成失效，不能等到超时后还说“照片没丢”。
+        var currentPol = policyOf(sp);
+        var currentPrefix = currentPol && currentPol.keyPrefix;
+        Object.keys(left).forEach(function (sid) {
+          var rec = left[sid], taskInvalid = false;
+          if (task && task.id) {
+            try { validateLiveTask(sp, task); } catch (e) { taskInvalid = true; }
+          }
+          if (!currentPrefix || rec.key.indexOf(currentPrefix) !== 0 || taskInvalid) {
+            var el = rowEl(sid);
+            if (el) {
+              el.classList.remove("pending");
+              el.querySelector(".res-t").textContent = "场景或任务刚刚更新了";
+              el.querySelector(".res-s").textContent = "这张没有进入新场景,请回到任务墙重新选择";
+            }
+            patchMine(sid, {
+              state: "scene_updated",
+              reason: "场景或任务已经更新,请重新选择"
+            });
+            rec.sceneUpdated = true;
+            delete left[sid];
+          }
+        });
         renderTasks();
         if (!Object.keys(left).length) { stopPoll(); finishSum(recs, task); return; }
         if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); }
@@ -1504,14 +1579,14 @@
     el.querySelector(".res-s").textContent = sub;
   }
 
-  // 两分钟还没算完:如实说,别装作成功了
+  // 两分钟还没算完:如实说,别装作已经进空间了
   function timeoutRows(left) {
     Object.keys(left).forEach(function (sid) {
       var el = rowEl(sid);
       if (!el) return;
       el.classList.remove("pending");
       el.querySelector(".res-t").textContent = "机器还在算,待会儿再看一眼";
-      el.querySelector(".res-s").textContent = "照片没丢,已经在机房里了 · 「我的贡献」里能看到";
+      el.querySelector(".res-s").textContent = "云端已收到上传请求,处理结果还没返回";
     });
     var w = $("waitBar"); if (w) w.style.display = "none";
     var s = $("resSum");
@@ -1527,8 +1602,9 @@
   //    现在只说两种能被验证的事:① 每张照片的真实去向 ② 贡献榜上此刻真实记着多少分。
   //    第二项直接读 space.json 里的 contributors,这一页自己一个数都不算;榜上查无此人就明说还没上榜。
   function sumHtml(recs, task) {
-    var into = 0, wait = 0, out = 0, filled = false, missYaw = null;
+    var into = 0, wait = 0, out = 0, changed = 0, filled = false, missYaw = null;
     recs.forEach(function (r) {
+      if (r.sceneUpdated) { changed++; return; }
       var p = r.resolved, st = photoState(p);   // 云版 photos[] 不带 state, 见 photoState()
       if (st === "auto_ok" || st === "approved") {
         into++;
@@ -1541,6 +1617,7 @@
     if (into) parts.push(into + " 张已经进空间");
     if (wait) parts.push(wait + " 张等新人确认");
     if (out) parts.push(out + " 张没被收进空间");
+    if (changed) parts.push(changed + " 张需要按新场景重新选择");
     var html = parts.join(" · ") || "都收到了";
     if (filled) html += "<br>这个任务被你补上了 🎉";
     // 照片进了空间、却没被记在这个任务头上 = 后端校验过方位对不上,把 taskId 清掉了
@@ -1596,22 +1673,31 @@
   // 不挡的话每个事件都会把同一张再传一遍 —— 自验时实测传出了两份。
   var retrying = false;
   function retryPending(silent) {
-    var pol = policyOf(state.space);
-    if (!pol) {
-      if (!silent) toast(collectionOpen(state.space) ? "上传通道还没开,等一下" : "照片收集已结束");
-      return Promise.resolve();
-    }
     if (retrying) { if (!silent) toast("正在补传,别急"); return Promise.resolve(); }
     retrying = true;
-    return dbAll().then(function (all) {
+    return freshUploadContext({ id:"", type:"free" }).then(function (ctx) {
+      var pol = ctx.policy, sp = ctx.space;
+      return dbAll().then(function (all) {
       if (!all.length) { if (!silent) toast("没有要重传的"); return; }
       if (!silent) toast("重新传 " + all.length + " 张…");
-      var chain = Promise.resolve(), ok = 0;
+      var chain = Promise.resolve(), ok = 0, expiredScene = 0, expiredTask = 0;
       all.forEach(function (rec) {
         chain = chain.then(function () {
-          // 策略换过一轮的话前缀可能变了,按新前缀把文件名接回去
-          var key = rec.key.indexOf(pol.keyPrefix) === 0
-            ? rec.key : pol.keyPrefix + rec.key.split("/").pop();
+          // 前缀变化代表主办方已经撤下旧场景并换了收件箱代际。旧场景的离线
+          // 照片不能偷偷改投到新场景，本地原图保留，等宾客重新选择。
+          if (rec.key.indexOf(pol.keyPrefix) !== 0) {
+            expiredScene++;
+            return;
+          }
+          if (rec.taskId) {
+            try {
+              validateLiveTask(sp, { id:rec.taskId });
+            } catch (e) {
+              expiredTask++;
+              return;
+            }
+          }
+          var key = rec.key;
           return postWithRetry(pol, key, rec.blob, null).then(function () {
             ok++;
             var mine = loadMine();
@@ -1627,10 +1713,15 @@
       });
       return chain.then(function () {
         refreshRedo();
-        if (ok) toast("补传成功 " + ok + " 张,机器正在算");
+        if (expiredScene || expiredTask) {
+          toast("场景或任务已经更新," + (expiredScene + expiredTask) + " 张照片仍保存在手机里,请重新选择");
+        } else if (ok) toast("补传成功 " + ok + " 张,机器正在算");
         else if (!silent) toast("网还是不行,等会儿自动再试");
         if (state.view === "mine") renderMine();
       });
+      });
+    }).catch(function (e) {
+      if (!silent) toast(e.message || "补传前没拿到最新场景");
     }).then(function () { retrying = false; }, function () { retrying = false; });
   }
 

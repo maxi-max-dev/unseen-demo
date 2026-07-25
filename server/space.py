@@ -35,6 +35,7 @@ import ipaddress
 import json
 import math
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -42,6 +43,7 @@ import sys
 import threading
 import time
 import traceback
+import fcntl
 from urllib.parse import quote
 
 import numpy as np
@@ -121,6 +123,7 @@ BASE_POINTS = 10         # 每张入选照片的基础积分
 GAP_BOUNTY = 50          # 系统自动发的空间任务悬赏
 WISH_BOUNTY = 100        # 新人心愿任务默认悬赏
 THUMB_LONG_EDGE = 480    # 缩略图长边
+INBOX_POLICY_TTL_S = 48 * 3600
 
 SELECTED_STATES = ("auto_ok", "approved")           # "已入选" = 真的出现在空间里
 PHOTO_STATES = ("auto_ok", "needs_review", "approved", "rejected", "quarantined")
@@ -133,9 +136,22 @@ DIRECTION_WORDS = ["正前方", "右前方", "右侧", "右后方", "正后方",
 
 router = APIRouter(prefix="/api")
 
+
+def _request_is_trusted_host(request):
+    if bool(getattr(request.state, "unseen_host_allowed", False)):
+        return True
+    try:
+        client_host = request.client.host if request.client else ""
+        return ipaddress.ip_address(client_host).is_loopback
+    except ValueError:
+        return False
+
+
 # space.json 读写全局锁。重活(CLIP 编码 / DAP 深度)一律放在锁外面跑,
 # 锁里只做"读 json -> 改几个字段 -> 写回", 毫秒级, 不会把并发上传卡死。
 _LOCK = threading.RLock()
+_TXN_LOCAL = threading.local()
+_TXN_LOCK_PATH = os.path.join(SPACES_DIR, ".space-txn.lock")
 
 _clip_state = {}    # {"model": SentenceTransformer}, 由 set_clip_model 注入或懒加载
 _model_lock = threading.Lock()    # 懒加载 CLIP 的锁, 见 get_clip_model
@@ -205,6 +221,31 @@ def _next_id(prefix, *pools):
     return f"{prefix}{biggest + 1}"
 
 
+def _remember_id_high_water(space, prefix, *pools):
+    """把已经用过的业务编号写进空间真值,删除文件后也绝不回退复用。"""
+    raw = space.get("_idHighWater")
+    high = dict(raw) if isinstance(raw, dict) else {}
+    try:
+        biggest = int(high.get(prefix) or 0)
+    except (TypeError, ValueError):
+        biggest = 0
+    for pool in pools:
+        for value in pool:
+            value = str(value)
+            if value.startswith(prefix) and value[len(prefix):].isdigit():
+                biggest = max(biggest, int(value[len(prefix):]))
+    high[prefix] = biggest
+    space["_idHighWater"] = high
+    return biggest
+
+
+def _next_space_id(space, prefix, *pools):
+    biggest = _remember_id_high_water(space, prefix, *pools)
+    nid = f"{prefix}{biggest + 1}"
+    space["_idHighWater"][prefix] = biggest + 1
+    return nid
+
+
 def _listdir(path):
     return os.listdir(path) if os.path.isdir(path) else []
 
@@ -246,9 +287,31 @@ class space_txn:
 
     def __enter__(self):
         _LOCK.acquire()
+        outermost = getattr(_TXN_LOCAL, "depth", 0) == 0
+        self._outermost = outermost
         try:
+            if outermost:
+                os.makedirs(SPACES_DIR, exist_ok=True)
+                handle = open(_TXN_LOCK_PATH, "a+", encoding="utf-8")
+                try:
+                    fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+                except Exception:
+                    handle.close()
+                    raise
+                _TXN_LOCAL.handle = handle
+            _TXN_LOCAL.depth = getattr(_TXN_LOCAL, "depth", 0) + 1
             self.space = load_space(self.sid)
         except Exception:
+            depth = max(0, getattr(_TXN_LOCAL, "depth", 0) - 1)
+            _TXN_LOCAL.depth = depth
+            if outermost:
+                handle = getattr(_TXN_LOCAL, "handle", None)
+                if handle is not None:
+                    try:
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    finally:
+                        handle.close()
+                _TXN_LOCAL.handle = None
             _LOCK.release()
             raise
         return self.space
@@ -258,6 +321,16 @@ class space_txn:
             if exc_type is None and self.write:
                 save_space(self.sid, self.space)
         finally:
+            depth = max(0, getattr(_TXN_LOCAL, "depth", 1) - 1)
+            _TXN_LOCAL.depth = depth
+            if self._outermost:
+                handle = getattr(_TXN_LOCAL, "handle", None)
+                if handle is not None:
+                    try:
+                        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+                    finally:
+                        handle.close()
+                _TXN_LOCAL.handle = None
             _LOCK.release()
         return False
 
@@ -341,6 +414,137 @@ def _normal_exhibition(raw):
     return out
 
 
+def _cloud_publish_authorized(space):
+    """这份本机真值是否仍获准覆盖公网快照。
+
+    照片入库、审核和收集开关可以在一次明确发布后继续增量同步；场景拓扑和
+    展览配置是主办方草稿，必须再次点“发布展览”才恢复授权。老空间没有内部
+    标记时按既有 published + exhibition.status 契约兼容。
+    """
+    exhibition = _normal_exhibition(space.get("exhibition"))
+    return bool(
+        space.get("published")
+        and exhibition["status"] == "published"
+        and not space.get("_cloudPublishBlocked")
+    )
+
+
+def _mark_publish_dirty(space, require_publish=False):
+    """标记公开快照已经落后,并递增并发发布使用的内容版本。
+
+    publishDirty 只够给页面显示,不能判断一次慢速云发布期间有没有又发生改动。
+    publishRevision 是单调版本号,发布器用它避免旧快照最后完成时把新改动误标成已同步。
+    """
+    space["publishDirty"] = True
+    if require_publish:
+        space["_cloudPublishBlocked"] = True
+    try:
+        revision = int(space.get("publishRevision") or 0)
+    except (TypeError, ValueError):
+        revision = 0
+    space["publishRevision"] = revision + 1
+
+
+def _has_valid_cloud_delete_outbox(sid, space):
+    """本机 marker 丢失时,用严格限定的删除队列识别一次未写回的云发布。"""
+    prefix = f"spaces/{sid}/"
+    allowed = tuple(
+        prefix + rel
+        for rel in ("nodes/", "photos/", "thumbs/", "tasks/", "inbox/", "inbox-v2/")
+    )
+    for raw_key in (space.get("_pendingCloudDeletes") or []):
+        key = str(raw_key)
+        suffix = key[len(prefix):] if key.startswith(prefix) else ""
+        if key.startswith(allowed) and ".." not in suffix.split("/"):
+            return True
+    if _normal_retired_inboxes(sid, space):
+        return True
+    return False
+
+
+def _valid_inbox_prefix(sid, value):
+    root = f"spaces/{sid}/inbox/"
+    private_root = f"spaces/{sid}/inbox-v2/"
+    value = str(value or "")
+    return bool(
+        value == root
+        or re.fullmatch(re.escape(root) + r"g\d+/", value)
+        or re.fullmatch(re.escape(private_root) + r"g\d+/", value)
+    )
+
+
+def _normal_retired_inboxes(sid, space, now=None):
+    now = float(now if now is not None else time.time())
+    merged = {}
+    for raw in (space.get("_retiredInboxPrefixes") or []):
+        if isinstance(raw, dict):
+            prefix = str(raw.get("prefix") or "")
+            try:
+                expires_at = float(raw.get("expiresAt") or 0)
+            except (TypeError, ValueError):
+                expires_at = 0
+        else:
+            prefix = str(raw or "")
+            expires_at = 0
+        if not _valid_inbox_prefix(sid, prefix):
+            continue
+        if expires_at <= 0:
+            expires_at = now + INBOX_POLICY_TTL_S
+        merged[prefix] = max(merged.get(prefix, 0), expires_at)
+    return [
+        {"prefix": prefix, "expiresAt": expires_at}
+        for prefix, expires_at in sorted(merged.items())
+    ]
+
+
+def _inbox_generation(space):
+    try:
+        generation = int(space.get("inboxGeneration") or 0)
+    except (TypeError, ValueError):
+        generation = 0
+    return max(0, generation)
+
+
+def _inbox_prefix(sid, space):
+    generation = _inbox_generation(space)
+    root = f"spaces/{sid}/inbox/"
+    try:
+        prefix_version = int(space.get("inboxPrefixVersion") or 0)
+    except (TypeError, ValueError):
+        prefix_version = 0
+    if prefix_version >= 2:
+        return f"spaces/{sid}/inbox-v2/g{max(1, generation)}/"
+    return f"{root}g{generation}/" if generation else root
+
+
+def _ensure_private_inbox_prefix(sid, space, now=None):
+    """把旧策略覆盖的 inbox/ 迁出到独立 inbox-v2/ 前缀。"""
+    try:
+        prefix_version = int(space.get("inboxPrefixVersion") or 0)
+    except (TypeError, ValueError):
+        prefix_version = 0
+    if prefix_version >= 2:
+        return False
+    now = float(now if now is not None else time.time())
+    old_prefix = _inbox_prefix(sid, space)
+    retired = {
+        item["prefix"]: item["expiresAt"]
+        for item in _normal_retired_inboxes(sid, space, now=now)
+    }
+    retired[old_prefix] = max(
+        retired.get(old_prefix, 0),
+        now + INBOX_POLICY_TTL_S,
+    )
+    space["_retiredInboxPrefixes"] = [
+        {"prefix": prefix, "expiresAt": expires_at}
+        for prefix, expires_at in sorted(retired.items())
+    ]
+    space["inboxGeneration"] = max(1, _inbox_generation(space))
+    space["inboxPrefixVersion"] = 2
+    _mark_publish_dirty(space)
+    return True
+
+
 def set_collection_status(sid, status):
     if status not in ("open", "closed"):
         raise ValueError("收集状态只能是 open 或 closed")
@@ -349,6 +553,7 @@ def set_collection_status(sid, status):
         collection["status"] = status
         collection["updatedAt"] = time.time()
         space["collection"] = collection
+        _mark_publish_dirty(space)
         return copy.deepcopy(collection)
 
 
@@ -395,6 +600,7 @@ def set_exhibition(sid, payload):
             "updatedAt": time.time(),
         }
         space["exhibition"] = exhibition
+        _mark_publish_dirty(space, require_publish=True)
         return copy.deepcopy(exhibition)
 
 
@@ -418,6 +624,12 @@ def create_space(title, couple, date=None, place=None, cover=None, private=None)
             "couple": (couple or "").strip(),
             "createdAt": now,
             "published": False,
+            "publishDirty": False,
+            "publishRevision": 0,
+            "_cloudPublishBlocked": True,
+            "inboxGeneration": 1,
+            "inboxPrefixVersion": 2,
+            "_idHighWater": {"n": 0, "p": 0, "t": 0},
             "collection": _default_collection(now),
             "exhibition": _default_exhibition(now),
             "nodes": [],
@@ -510,6 +722,17 @@ def save_panorama(raw_bytes, filename, content_type, dest_dir):
     else:
         Image.open(raw_path).convert("RGB").save(pano_path, quality=92)
     os.remove(raw_path)
+
+    # 空间查看器按等距柱状全景解释图片。普通照片也硬塞进来时接口以前会照样
+    # 返回成功,直到观众走进 3D 才看到一整屏拉花。360 全景的标准画幅是 2:1,
+    # 给编码和抽帧留 2.5% 容差,其余直接在建节点阶段说人话拦下。
+    with Image.open(pano_path) as pano:
+        width, height = pano.size
+    ratio = (float(width) / float(height)) if height else 0.0
+    if not height or abs(ratio - 2.0) > 0.05:
+        raise ValueError(
+            f"全景图需要是 2 比 1 的 360 图片,这张是 {width}×{height}"
+        )
     return pano_path
 
 
@@ -808,8 +1031,8 @@ def sync_gap_tasks(sid, space, node_id, half_width_deg=20.0, min_gap_deg=40.0, m
         if any(_ranges_overlap(rng, t.get("yawRange")) for t in open_gaps):
             continue
 
-        tid = _next_id(
-            "t",
+        tid = _next_space_id(
+            space, "t",
             [t["id"] for t in space.get("tasks", [])],
             [os.path.splitext(f)[0] for f in _listdir(os.path.join(space_dir(sid), "tasks"))],
         )
@@ -1346,6 +1569,9 @@ def _release_task_fill(space, photo):
     for p in space.get("photos", []):
         if p is photo or p.get("taskId") != tid or p.get("state") not in SELECTED_STATES:
             continue
+        accepted, _reason = _task_accepts_photo(task, p)
+        if not accepted:
+            continue
         name = p.get("contributor") or "匿名宾客"
         if name not in still:
             still.append(name)
@@ -1435,8 +1661,10 @@ def recompute_contributors(space):
 def create_wish_task(sid, title, brief, bounty=None):
     """新人自己写的心愿任务: 没有 yaw / yawRange / 通缉令图, 纯情感驱动。"""
     with space_txn(sid) as space:
-        tid = _next_id("t", [t["id"] for t in space.get("tasks", [])],
-                       [os.path.splitext(f)[0] for f in _listdir(os.path.join(space_dir(sid), "tasks"))])
+        tid = _next_space_id(
+            space, "t", [t["id"] for t in space.get("tasks", [])],
+            [os.path.splitext(f)[0] for f in _listdir(os.path.join(space_dir(sid), "tasks"))],
+        )
         task = {
             "id": tid,
             "nodeId": space["nodes"][0]["id"] if space.get("nodes") else None,
@@ -1453,6 +1681,7 @@ def create_wish_task(sid, title, brief, bounty=None):
             "createdAt": time.time(),
         }
         space["tasks"].append(task)
+        _mark_publish_dirty(space)
         return task
 
 
@@ -1462,55 +1691,476 @@ def add_node(sid, pano_bytes, filename, content_type, name, node_time):
 
     返回 (nodeId, 新生成的 gap 任务列表, 各阶段耗时 dict)。
     """
-    # 1) 先在锁里把 node 记录占好(顺带占住目录, 保证 id 不会被并发请求撞掉)
+    # 1) 只持久化编号高水位,不把半成品节点放进业务真值。全景落盘和 DAP 可能要
+    # 十几秒,这期间上传工人、Viewer 和发布器都不该看到一个还没有 pano 的节点。
     with space_txn(sid) as space:
         nodes_root = os.path.join(space_dir(sid), "nodes")
         os.makedirs(nodes_root, exist_ok=True)
-        nid = _next_id("n", [n["id"] for n in space.get("nodes", [])], _listdir(nodes_root))
+        nid = _next_space_id(
+            space, "n", [n["id"] for n in space.get("nodes", [])], _listdir(nodes_root),
+        )
         node_dir = os.path.join(nodes_root, nid)
         os.makedirs(node_dir, exist_ok=True)
-        space["nodes"].append({
-            "id": nid,
-            "name": (name or "").strip() or f"节点 {nid}",
-            "time": (node_time or "").strip(),
-            "panorama": f"nodes/{nid}/pano.jpg",
-            "depth": None,
-            "depthJson": None,
-        })
+    candidate = {
+        "id": nid,
+        "name": (name or "").strip() or f"节点 {nid}",
+        "time": (node_time or "").strip(),
+        "panorama": f"nodes/{nid}/pano.jpg",
+        "depth": None,
+        "depthJson": None,
+    }
 
     timings = {}
     node_dir = os.path.join(space_dir(sid), "nodes", nid)
 
-    # 2) 重活放锁外面: 存全景 + 跑 DAP(几十秒), 别把别的宾客的上传卡死
-    t0 = time.time()
-    pano_path = save_panorama(pano_bytes, filename, content_type, node_dir)
-    timings["pano_s"] = round(time.time() - t0, 2)
-
-    depth_ok = True
     try:
-        depth_s, _log = run_depth(pano_path, node_dir, f"{sid}_{nid}")
-        timings["depth_s"] = round(depth_s, 2)
-    except Exception as e:
-        depth_ok = False
-        timings["depth_s"] = None
-        timings["depth_error"] = str(e)[:300]
-        print(f"== [space {sid}/{nid}] DAP 深度失败(先不阻断建节点): {e} ==", flush=True)
-
-    # 3) 回锁里补深度字段 + 算覆盖盲区发任务
-    with space_txn(sid) as space:
-        node = next(n for n in space["nodes"] if n["id"] == nid)
-        if depth_ok:
-            node["depth"] = f"nodes/{nid}/depth.png"
-            node["depthJson"] = f"nodes/{nid}/depth.json"
+        # 2) 重活放锁外面: 存全景 + 跑 DAP(几十秒), 别把别的宾客的上传卡死
         t0 = time.time()
-        created = sync_gap_tasks(sid, space, nid)
-        timings["gap_s"] = round(time.time() - t0, 2)
-        created = copy.deepcopy(created)
+        pano_path = save_panorama(pano_bytes, filename, content_type, node_dir)
+        timings["pano_s"] = round(time.time() - t0, 2)
+
+        depth_ok = True
+        try:
+            depth_s, _log = run_depth(pano_path, node_dir, f"{sid}_{nid}")
+            timings["depth_s"] = round(depth_s, 2)
+        except Exception as e:
+            depth_ok = False
+            timings["depth_s"] = None
+            timings["depth_error"] = str(e)[:300]
+            print(f"== [space {sid}/{nid}] DAP 深度失败(先不阻断建节点): {e} ==", flush=True)
+
+        # 3) 回锁里补深度字段 + 算覆盖盲区发任务
+        with space_txn(sid) as space:
+            if depth_ok:
+                candidate["depth"] = f"nodes/{nid}/depth.png"
+                candidate["depthJson"] = f"nodes/{nid}/depth.json"
+            if any(n.get("id") == nid for n in space.get("nodes", [])):
+                raise RuntimeError("节点编号发生冲突,请重新上传这张全景")
+            space.setdefault("nodes", []).append(copy.deepcopy(candidate))
+            t0 = time.time()
+            created = sync_gap_tasks(sid, space, nid)
+            timings["gap_s"] = round(time.time() - t0, 2)
+            created = copy.deepcopy(created)
+            _mark_publish_dirty(space, require_publish=True)
+    except Exception:
+        # 节点编号和目录是在重活之前占下来的。坏图片、错误画幅或切任务失败时
+        # 必须把这次占位完整撤回,不能留下 Studio 看得见却打不开的幽灵场景。
+        rollback_photos = []
+        rollback_tasks = []
+        rollback_committed = False
+        try:
+            with space_txn(sid) as space:
+                rollback_changed = any(
+                    n.get("id") == nid for n in space.get("nodes", [])
+                )
+                rollback_photos = [
+                    p for p in space.get("photos", []) if p.get("nodeId") == nid
+                ]
+                rollback_changed = rollback_changed or bool(rollback_photos)
+                space["nodes"] = [n for n in space.get("nodes", []) if n.get("id") != nid]
+                space["photos"] = [
+                    p for p in space.get("photos", []) if p.get("nodeId") != nid
+                ]
+                fallback_node = (
+                    space["nodes"][0].get("id") if space.get("nodes") else None
+                )
+                rollback_tasks = [
+                    t for t in space.get("tasks", [])
+                    if t.get("nodeId") == nid and t.get("type") == "gap"
+                ]
+                rollback_changed = rollback_changed or bool(rollback_tasks)
+                rollback_task_ids = {t.get("id") for t in rollback_tasks}
+                space["tasks"] = [
+                    t for t in space.get("tasks", [])
+                    if not (t.get("nodeId") == nid and t.get("type") == "gap")
+                ]
+                pending = set(space.get("_pendingCloudDeletes") or [])
+                cloud_prefix = f"spaces/{sid}/"
+                for rel in (
+                    f"nodes/{nid}/pano.jpg",
+                    f"nodes/{nid}/depth.png",
+                    f"nodes/{nid}/depth.json",
+                ):
+                    pending.add(cloud_prefix + rel)
+                for photo in rollback_photos:
+                    inbox_key = str(photo.get("inboxKey") or "")
+                    if inbox_key.startswith(cloud_prefix + "inbox/"):
+                        pending.add(inbox_key)
+                    for rel, allowed in ((photo.get("src"), "photos/"),
+                                         (photo.get("thumb"), "thumbs/")):
+                        rel = str(rel or "").lstrip("/")
+                        if rel.startswith(allowed) and ".." not in rel.split("/"):
+                            pending.add(cloud_prefix + rel)
+                for task in rollback_tasks:
+                    rel = str(task.get("briefImage") or "").lstrip("/")
+                    if rel.startswith("tasks/") and ".." not in rel.split("/"):
+                        pending.add(cloud_prefix + rel)
+                if pending:
+                    space["_pendingCloudDeletes"] = sorted(pending)
+                pending_local = set(space.get("_pendingLocalDeletes") or [])
+                pending_local.add(f"node:{nid}")
+                for photo in rollback_photos:
+                    pid = str(photo.get("id") or "")
+                    if pid:
+                        pending_local.add(f"file:photos/{pid}.jpg")
+                        pending_local.add(f"file:thumbs/{pid}.jpg")
+                for task in rollback_tasks:
+                    tid = str(task.get("id") or "")
+                    if tid:
+                        pending_local.add(f"file:tasks/{tid}.jpg")
+                space["_pendingLocalDeletes"] = sorted(pending_local)
+                for photo in space.get("photos", []):
+                    if photo.get("taskId") in rollback_task_ids:
+                        rollback_changed = True
+                        photo["taskId"] = None
+                        photo.pop("taskMismatch", None)
+                        photo.pop("taskNote", None)
+                for task in space.get("tasks", []):
+                    if task.get("type") == "wish" and task.get("nodeId") == nid:
+                        rollback_changed = True
+                        task["nodeId"] = fallback_node
+                for photo in rollback_photos:
+                    task_id = photo.get("taskId")
+                    if task_id and _find_task(space, task_id) is not None:
+                        _release_task_fill(space, {"taskId": task_id})
+                if rollback_photos:
+                    recompute_contributors(space)
+                if (not space.get("nodes")
+                        and (rollback_photos or space.get("published") or space.get("ossSpaceJson"))):
+                    collection = _normal_collection(space.get("collection"))
+                    if collection["status"] == "open":
+                        rollback_changed = True
+                        collection["status"] = "closed"
+                        collection["updatedAt"] = time.time()
+                        space["collection"] = collection
+                if rollback_changed:
+                    _mark_publish_dirty(space, require_publish=True)
+            rollback_committed = True
+        except Exception as rollback_error:
+            # 回滚真值没提交时绝不能删文件,否则 space.json 仍引用它们。
+            print(
+                f"== [space {sid}/{nid}] 节点回滚没能提交,保留文件等待人工处理:"
+                f" {type(rollback_error).__name__}: {rollback_error} ==",
+                flush=True,
+            )
+        finally:
+            _crop_cache.pop((sid, nid), None)
+            if rollback_committed:
+                try:
+                    _sweep_pending_local_deletes(sid)
+                except Exception:
+                    # 业务回滚不能被清理重试覆盖。队列已经持久化,下次启动会继续。
+                    pass
+        raise
 
     return nid, created, timings
 
 
-def upload_photos(sid, files, contributor, task_id=None, node_id=None):
+def _sweep_pending_local_deletes(sid):
+    """重试业务删除留下的本地文件清理,成功项从持久队列出队。
+
+    删除节点时必须先提交 space.json,再碰大文件。若进程恰好在两步之间退出,
+    这份队列会在下次启动继续清,已移除的画面不会靠旧直链一直留在 /spaces 下。
+    """
+    with space_txn(sid, write=False) as space:
+        pending = list(space.get("_pendingLocalDeletes") or [])
+    if not pending:
+        return []
+
+    root = space_dir(sid)
+    succeeded = set()
+    warnings = []
+    for raw_entry in pending:
+        entry = str(raw_entry)
+        try:
+            if entry.startswith("node:"):
+                node_id = entry[5:]
+                if not (node_id.startswith("n") and node_id[1:].isdigit()):
+                    raise ValueError("非法节点清理项")
+                target = os.path.join(root, "nodes", node_id)
+                if os.path.isdir(target):
+                    shutil.rmtree(target)
+                os.makedirs(target, exist_ok=True)
+                with open(os.path.join(target, ".deleted"), "w", encoding="utf-8") as f:
+                    f.write(str(time.time()))
+            elif entry.startswith("file:"):
+                rel = entry[5:]
+                parts = rel.split("/")
+                valid = False
+                if (len(parts) == 2 and parts[1].endswith(".jpg")
+                        and parts[0] in ("photos", "thumbs", "tasks")):
+                    stem = os.path.splitext(parts[1])[0]
+                    valid = (
+                        (parts[0] in ("photos", "thumbs")
+                         and stem.startswith("p") and stem[1:].isdigit())
+                        or (parts[0] == "tasks"
+                            and stem.startswith("t") and stem[1:].isdigit())
+                    )
+                if not valid or ".." in parts:
+                    raise ValueError("非法文件清理项")
+                if len(parts) == 2 and parts[0] in ("photos", "tasks"):
+                    tombstone_dir = os.path.join(root, parts[0])
+                    os.makedirs(tombstone_dir, exist_ok=True)
+                    with open(os.path.join(tombstone_dir, os.path.splitext(parts[1])[0] + ".deleted"),
+                              "w", encoding="utf-8") as f:
+                        f.write(str(time.time()))
+                target = os.path.join(root, *parts)
+                if os.path.exists(target):
+                    os.remove(target)
+            else:
+                raise ValueError("未知清理项")
+            succeeded.add(entry)
+        except Exception as e:
+            warnings.append(f"{entry}: {type(e).__name__}")
+
+    if succeeded:
+        with space_txn(sid) as space:
+            left = [
+                item for item in (space.get("_pendingLocalDeletes") or [])
+                if str(item) not in succeeded
+            ]
+            if left:
+                space["_pendingLocalDeletes"] = left
+            else:
+                space.pop("_pendingLocalDeletes", None)
+    return warnings
+
+
+def delete_node(sid, node_id):
+    """删除一个真实全景节点及其从属照片、缺口任务和本地文件。
+
+    心愿任务属于整个空间,即使创建时顺手绑了第一个节点也不能跟着场景一起删。
+    它们会改绑到剩余的第一个节点,没有剩余节点时改成空。节点目录保留一个墓碑,
+    让下次新增使用更大的编号,避免常驻 worker 的旧 CLIP 缓存撞上复用的 nodeId。
+    """
+    with space_txn(sid) as space:
+        node = next((n for n in space.get("nodes", []) if n.get("id") == node_id), None)
+        if node is None:
+            raise ValueError("找不到这个场景,它可能已经被移除了")
+        _remember_id_high_water(space, "n", [n.get("id") for n in space.get("nodes", [])])
+        _remember_id_high_water(space, "p", [p.get("id") for p in space.get("photos", [])])
+        _remember_id_high_water(space, "t", [t.get("id") for t in space.get("tasks", [])])
+
+        remaining_nodes = [
+            n for n in space.get("nodes", []) if n.get("id") != node_id
+        ]
+        removing_last_node = not remaining_nodes
+        # 最后一个节点撤下时,legacy 数据里 nodeId 为空或指向旧节点的照片也必须一起
+        # 清掉。否则空撤展暂时藏住它们,以后加新节点再发布时旧照片会重新冒出来。
+        removed_photos = [
+            p for p in space.get("photos", [])
+            if removing_last_node or p.get("nodeId") == node_id
+        ]
+        removed_tasks = [
+            t for t in space.get("tasks", [])
+            if t.get("type") == "gap"
+            and (removing_last_node or t.get("nodeId") == node_id)
+        ]
+        removed_task_ids = {t.get("id") for t in removed_tasks if t.get("id")}
+
+        space["nodes"] = remaining_nodes
+        space["photos"] = [
+            p for p in space.get("photos", [])
+            if not (removing_last_node or p.get("nodeId") == node_id)
+        ]
+        space["tasks"] = [
+            t for t in space.get("tasks", [])
+            if not (
+                t.get("type") == "gap"
+                and (removing_last_node or t.get("nodeId") == node_id)
+            )
+        ]
+
+        fallback_node = (
+            space["nodes"][0].get("id") if space.get("nodes") else None
+        )
+        for task in space.get("tasks", []):
+            if task.get("type") == "wish" and task.get("nodeId") == node_id:
+                task["nodeId"] = fallback_node
+        for photo in space.get("photos", []):
+            if photo.get("taskId") in removed_task_ids:
+                photo["taskId"] = None
+                photo.pop("taskMismatch", None)
+                photo.pop("taskNote", None)
+
+        pending_cloud_deletes = set(space.get("_pendingCloudDeletes") or [])
+        cloud_prefix = f"spaces/{sid}/"
+        # 删除任意场景都必须换收件箱代际。否则旧标签页里选中的已删除任务，
+        # 可能被 worker 降级成自由投稿，再误配到另一个仍存在的房间。
+        now = time.time()
+        retired = {
+            item["prefix"]: item["expiresAt"]
+            for item in _normal_retired_inboxes(sid, space, now=now)
+        }
+        retiring_prefix = _inbox_prefix(sid, space)
+        retired[retiring_prefix] = max(
+            retired.get(retiring_prefix, 0),
+            now + INBOX_POLICY_TTL_S,
+        )
+        space["_retiredInboxPrefixes"] = [
+            {"prefix": prefix, "expiresAt": expires_at}
+            for prefix, expires_at in sorted(retired.items())
+        ]
+        space["inboxGeneration"] = max(1, _inbox_generation(space) + 1)
+        space["inboxPrefixVersion"] = 2
+        for rel, allowed in (
+            (node.get("panorama"), f"nodes/{node_id}/"),
+            (node.get("depth"), f"nodes/{node_id}/"),
+            (node.get("depthJson"), f"nodes/{node_id}/"),
+        ):
+            rel = str(rel or "").lstrip("/")
+            if rel.startswith(allowed) and ".." not in rel.split("/"):
+                pending_cloud_deletes.add(cloud_prefix + rel)
+        for photo in removed_photos:
+            inbox_key = str(photo.get("inboxKey") or "")
+            if inbox_key.startswith((
+                cloud_prefix + "inbox/",
+                cloud_prefix + "inbox-v2/",
+            )):
+                suffix = inbox_key[len(cloud_prefix):]
+                if ".." not in suffix.split("/"):
+                    pending_cloud_deletes.add(inbox_key)
+            for rel, allowed in ((photo.get("src"), "photos/"),
+                                 (photo.get("thumb"), "thumbs/")):
+                rel = str(rel or "").lstrip("/")
+                if rel.startswith(allowed) and ".." not in rel.split("/"):
+                    pending_cloud_deletes.add(cloud_prefix + rel)
+        for task in removed_tasks:
+            rel = str(task.get("briefImage") or "").lstrip("/")
+            if rel.startswith("tasks/") and ".." not in rel.split("/"):
+                pending_cloud_deletes.add(cloud_prefix + rel)
+        if pending_cloud_deletes:
+            space["_pendingCloudDeletes"] = sorted(pending_cloud_deletes)
+
+        pending_local_deletes = set(space.get("_pendingLocalDeletes") or [])
+        pending_local_deletes.add(f"node:{node_id}")
+        for photo in removed_photos:
+            pid = str(photo.get("id") or "")
+            if pid:
+                pending_local_deletes.add(f"file:photos/{pid}.jpg")
+                pending_local_deletes.add(f"file:thumbs/{pid}.jpg")
+        for task in removed_tasks:
+            tid = str(task.get("id") or "")
+            if tid:
+                pending_local_deletes.add(f"file:tasks/{tid}.jpg")
+        space["_pendingLocalDeletes"] = sorted(pending_local_deletes)
+
+        # 被删照片可能曾拿过一条仍被保留的心愿或跨节点任务悬赏。先用剩余
+        # 入选照片重建这些任务的获奖人和状态,再算榜单,不能留下“0 张照片 + 100 分”。
+        affected_task_ids = {
+            p.get("taskId") for p in removed_photos if p.get("taskId")
+        }
+        for task_id in affected_task_ids:
+            if _find_task(space, task_id) is not None:
+                _release_task_fill(space, {"taskId": task_id})
+        for remaining_node in space.get("nodes", []):
+            sync_gap_tasks(sid, space, remaining_node.get("id"))
+
+        # 最后一个场景移除后没有合法的识图目标。暂停收集可让已经进 OSS 的照片
+        # 留在队列里,等主办方重新加场景并主动开放后再处理,而不是永久记成失败。
+        collection_closed = False
+        if not space.get("nodes"):
+            collection = _normal_collection(space.get("collection"))
+            if collection["status"] == "open":
+                collection["status"] = "closed"
+                collection["updatedAt"] = time.time()
+                space["collection"] = collection
+                collection_closed = True
+
+        recompute_contributors(space)
+        _mark_publish_dirty(space, require_publish=True)
+        result = {
+            "nodeId": node_id,
+            "nodeName": node.get("name") or node_id,
+            "deletedPhotos": len(removed_photos),
+            "deletedTasks": len(removed_tasks),
+            "remainingNodes": len(space.get("nodes", [])),
+            "mustRepublish": bool(space.get("published") or space.get("ossSpaceJson")),
+            "collectionClosed": collection_closed,
+        }
+
+    # 业务删除已经提交。文件清理失败时队列保留,下次服务启动会继续重试。
+    try:
+        cleanup_errors = _sweep_pending_local_deletes(sid)
+    except Exception as cleanup_error:
+        cleanup_errors = [f"本地旧文件待重试: {type(cleanup_error).__name__}"]
+    _crop_cache.pop((sid, node_id), None)
+    if cleanup_errors:
+        result["cleanupWarnings"] = cleanup_errors
+    return result
+
+
+def _normal_inbox_key(sid, inbox_key):
+    if not inbox_key:
+        return None
+    key = str(inbox_key)
+    legacy_prefix = f"spaces/{sid}/inbox/"
+    private_prefix = f"spaces/{sid}/inbox-v2/"
+    if key.startswith(private_prefix):
+        suffix = key[len(private_prefix):]
+        private = True
+    elif key.startswith(legacy_prefix):
+        suffix = key[len(legacy_prefix):]
+        private = False
+    else:
+        suffix = ""
+        private = False
+    parts = suffix.split("/") if suffix else []
+    filename = ""
+    if not private and len(parts) == 1:
+        filename = parts[0]
+    elif len(parts) == 2 and re.fullmatch(r"g\d+", parts[0] or ""):
+        filename = parts[1]
+    else:
+        raise ValueError("投稿来源标识不合法")
+    if (not filename or len(key) > 1024 or filename in (".", "..")
+            or "\x00" in key):
+        raise ValueError("投稿来源标识不合法")
+    current = load_space(sid)
+    if not _inbox_key_is_current(sid, current, key):
+        raise RuntimeError("这份投稿已经随原场景移除")
+    return key
+
+
+def _inbox_key_is_current(sid, space, inbox_key):
+    if not inbox_key:
+        return True
+    prefix = _inbox_prefix(sid, space)
+    if not str(inbox_key).startswith(prefix):
+        return False
+    filename = str(inbox_key)[len(prefix):]
+    return bool(filename and "/" not in filename and filename not in (".", ".."))
+
+
+def _existing_upload_result(sid, space, photo):
+    """worker 崩溃恢复时把已经入库的同一张投稿还原成上传回执。"""
+    return {
+        "photoId": photo.get("id"),
+        "nodeId": photo.get("nodeId"),
+        "yaw": photo.get("yaw"),
+        "direction": yaw_to_direction(photo.get("yaw") or 0),
+        "confidence": photo.get("confidence", 0.0),
+        "margin": photo.get("margin", 0.0),
+        "state": photo.get("state"),
+        "reason": photo.get("reason"),
+        "taskFilled": (
+            photo.get("taskRewarded")
+            if photo.get("bountyPaid")
+            and _task_is_located(_find_task(space, photo.get("taskRewarded")) or {})
+            else None
+        ),
+        "taskRewarded": photo.get("taskRewarded"),
+        "bountyPaid": bool(photo.get("bountyPaid")),
+        "taskMismatch": photo.get("taskMismatch"),
+        "taskNote": photo.get("taskNote"),
+        "thumb": f"/spaces/{sid}/thumbs/{photo.get('id')}.jpg",
+        "duplicateInbox": True,
+    }
+
+
+def upload_photos(
+    sid, files, contributor, task_id=None, node_id=None, inbox_key=None,
+):
     """宾客上传。files = [(filename, content_type, bytes), ...]。
 
     流程: 占 id -> 存原图+缩略图 -> CLIP 定位 -> 置信度分流 -> 任务完成判定 -> 重算积分
@@ -1521,6 +2171,9 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
     contributor = (contributor or "").strip() or "匿名宾客"
     if not files:
         return []
+    inbox_key = _normal_inbox_key(sid, inbox_key)
+    if inbox_key and len(files) != 1:
+        raise ValueError("一份云端投稿一次只能处理一张照片")
 
     d = space_dir(sid)
     photos_dir = os.path.join(d, "photos")
@@ -1529,23 +2182,35 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
     os.makedirs(thumbs_dir, exist_ok=True)
 
     # 1) 锁里只做两件快事: 拿节点快照 + 把 photo id 占住(建 0 字节占位文件防并发撞号)
-    with space_txn(sid, write=False) as space:
+    with space_txn(sid) as space:
+        if inbox_key:
+            if not _inbox_key_is_current(sid, space, inbox_key):
+                raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
+            existing = next(
+                (p for p in space.get("photos", []) if p.get("inboxKey") == inbox_key),
+                None,
+            )
+            if existing is not None:
+                return [_existing_upload_result(sid, space, existing)]
+            if inbox_key in set(space.get("_pendingCloudDeletes") or []):
+                raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
         if _normal_collection(space.get("collection"))["status"] != "open":
             raise RuntimeError("这个空间已经暂停收集照片")
         if not space.get("nodes"):
             raise RuntimeError("这个空间还没有全景节点,请新人先传一张全景")
         pids = []
         for _ in files:
-            pid = _next_id("p", [p["id"] for p in space.get("photos", [])],
-                           [os.path.splitext(f)[0] for f in _listdir(photos_dir)], pids)
+            pid = _next_space_id(
+                space, "p", [p["id"] for p in space.get("photos", [])],
+                [os.path.splitext(f)[0] for f in _listdir(photos_dir)], pids,
+            )
             open(os.path.join(photos_dir, pid + ".jpg"), "ab").close()
             pids.append(pid)
         nodes_snapshot = copy.deepcopy(space["nodes"])
 
     # 2) 锁外面干重活: 落盘 + 缩略图 + CLIP 编码
     # ⚠️ 中途炸了必须把这一批占的位子全清干净: 占位文件 + 半张残图 + 缩略图。
-    # 不清的话磁盘上会留一个打不开的残骸, 还白白占掉一个照片编号
-    # (踩过: 一张坏图在 photos/ 里留了个 19 字节的 p2.jpg, p2 这个号从此报废)。
+    # 不清的话磁盘上会留一个打不开的残骸。编号高水位会保留,但坏文件本身不该留下。
     paths = []
     try:
         for pid, (fname, ctype, raw) in zip(pids, files):
@@ -1568,18 +2233,74 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
         placed = place_photos(
             sid, {"nodes": nodes_snapshot}, paths, node_id=match_node_id)
         clip_s = time.time() - t0
-    except Exception:
+    except Exception as heavy_error:
         # 这时候还没往 space["photos"] 里写任何一条记录, 所以把文件删掉 = 编号也一起放回去
         for pid in pids:
             for junk in (os.path.join(photos_dir, pid + ".jpg"),
                          os.path.join(thumbs_dir, pid + ".jpg")):
                 if os.path.exists(junk):
                     os.remove(junk)
+        # CLIP 读全景时主办方可能刚好删了它的目录。那是拓扑变化,不是坏投稿。
+        # 转成 worker 已认识的可重试错误,不能把宾客原件永久写进 failed 台账。
+        try:
+            with space_txn(sid, write=False) as latest:
+                live_ids = {n.get("id") for n in latest.get("nodes", [])}
+                snapshot_ids = {n.get("id") for n in nodes_snapshot}
+                topology_changed = bool(snapshot_ids - live_ids)
+                collection_closed = (
+                    _normal_collection(latest.get("collection"))["status"] != "open"
+                )
+        except Exception:
+            topology_changed = collection_closed = False
+        if topology_changed or collection_closed:
+            raise RuntimeError(
+                "全景场景刚刚被移除,照片没有丢,请重新选择场景再上传"
+            ) from heavy_error
         raise
 
     # 3) 回锁里落记录 + 分流 + 任务判定 + 积分
     out = []
     with space_txn(sid) as space:
+        if inbox_key:
+            if not _inbox_key_is_current(sid, space, inbox_key):
+                for pid in pids:
+                    for junk in (os.path.join(photos_dir, pid + ".jpg"),
+                                 os.path.join(thumbs_dir, pid + ".jpg")):
+                        if os.path.exists(junk):
+                            os.remove(junk)
+                raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
+            existing = next(
+                (p for p in space.get("photos", []) if p.get("inboxKey") == inbox_key),
+                None,
+            )
+            if existing is not None:
+                for pid in pids:
+                    for junk in (os.path.join(photos_dir, pid + ".jpg"),
+                                 os.path.join(thumbs_dir, pid + ".jpg")):
+                        if os.path.exists(junk):
+                            os.remove(junk)
+                return [_existing_upload_result(sid, space, existing)]
+            if inbox_key in set(space.get("_pendingCloudDeletes") or []):
+                for pid in pids:
+                    for junk in (os.path.join(photos_dir, pid + ".jpg"),
+                                 os.path.join(thumbs_dir, pid + ".jpg")):
+                        if os.path.exists(junk):
+                            os.remove(junk)
+                raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
+        # CLIP 在锁外跑的时候主办方可能正好移除了场景。提交前必须在同一把
+        # 事务锁里重验,否则照片会在 DELETE 完成后又写回一个已不存在的 nodeId。
+        live_node_ids = {n.get("id") for n in space.get("nodes", [])}
+        missing_node_ids = {
+            r.get("nodeId") for r in placed if r.get("nodeId") not in live_node_ids
+        }
+        if missing_node_ids:
+            for pid in pids:
+                for junk in (os.path.join(photos_dir, pid + ".jpg"),
+                             os.path.join(thumbs_dir, pid + ".jpg")):
+                    if os.path.exists(junk):
+                        os.remove(junk)
+            raise RuntimeError("全景场景刚刚被移除,照片没有丢,请重新选择场景再上传")
+
         touched_nodes = set()
         # 这一次上传里已经被填上的 task id。宾客页自己写着"可以一次选好几张",
         # 一次交 3 张给同一个任务是常态: 第 1 张把任务填上, 后面两张撞上的是
@@ -1631,8 +2352,12 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
                 "taskId": task_id or None,
                 "uploadedAt": time.time(),
             }
+            if inbox_key:
+                photo["inboxKey"] = inbox_key
             space["photos"].append(photo)
             rewarded = apply_task_fill(space, photo, batch_filled=batch_filled)
+            photo["taskRewarded"] = rewarded
+            photo["bountyPaid"] = bool(rewarded)
             if rewarded:
                 batch_filled.add(rewarded)
             rewarded_task = _find_task(space, rewarded) if rewarded else None
@@ -1647,6 +2372,7 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
                 "yaw": r["yaw"],
                 "direction": yaw_to_direction(r["yaw"]),
                 "confidence": conf,
+                "margin": margin,
                 "state": state,
                 "reason": reason,
                 "taskFilled": filled,
@@ -1669,6 +2395,7 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
         recompute_contributors(space)
         for nid in touched_nodes:
             sync_gap_tasks(sid, space, nid)
+        _mark_publish_dirty(space)
 
     print(f"== [space {sid}] {len(files)} 张照片, CLIP 定位耗时 {clip_s:.2f}s ==", flush=True)
     return out
@@ -1712,6 +2439,8 @@ def review_photos(sid, decisions):
         recompute_contributors(space)
         for nid in touched_nodes:
             sync_gap_tasks(sid, space, nid)
+        if updated:
+            _mark_publish_dirty(space)
     return updated
 
 
@@ -1744,7 +2473,25 @@ def get_space(sid, role="host"):
     data["collection"] = _normal_collection(data.get("collection"))
     data["exhibition"] = _normal_exhibition(data.get("exhibition"))
     data["hasCover"] = bool(data.get("cover"))
-    data["reportAvailable"] = os.path.exists(os.path.join(space_dir(sid), "report.json"))
+    report_revision = None
+    report_path = os.path.join(space_dir(sid), "report.json")
+    if os.path.exists(report_path):
+        try:
+            with open(report_path, encoding="utf-8") as report_file:
+                report_revision = int(
+                    (json.load(report_file) or {}).get("publishRevision")
+                )
+        except (OSError, TypeError, ValueError, json.JSONDecodeError):
+            report_revision = None
+    try:
+        current_revision = int(space.get("publishRevision") or 0)
+    except (TypeError, ValueError):
+        current_revision = 0
+    data["reportAvailable"] = (
+        not bool(space.get("publishDirty"))
+        and report_revision == current_revision
+    )
+    data["reportRevision"] = report_revision
     # 两种 role 都给 selectedCount(= 真的出现在空间里的照片数), 前端不用自己数、
     # 也不用拿 photos.length 猜(host 拿到的 photos 里还混着待审和被拒的)。
     data["selectedCount"] = sum(
@@ -1755,8 +2502,49 @@ def get_space(sid, role="host"):
     for task in data.get("tasks", []):
         if not _task_is_located(task):
             task["status"] = "open"
+    # 这是发布器的内部删除队列,只该留在本机真值里,不属于任何前端契约。
+    data.pop("_pendingCloudDeletes", None)
+    data.pop("_pendingLocalDeletes", None)
+    data.pop("_retiredInboxPrefixes", None)
+    data.pop("_cloudPublishBlocked", None)
+    data.pop("_publishedResourceKeys", None)
+    data.pop("_idHighWater", None)
     if role == "guest":
         data["photos"] = [p for p in data["photos"] if p.get("state") in SELECTED_STATES]
+        # 完整 inboxKey 编进了投稿昵称和任务,而且能拼出 OSS 原图直链。云公开版只
+        # 给随机短回执,本机 guest API 更不能把内部 key 原样交给所有宾客。
+        for photo in data["photos"]:
+            photo.pop("inboxKey", None)
+        exhibition = data["exhibition"]
+        task_visibility = exhibition["taskVisibility"]
+        if task_visibility == "hidden":
+            data["tasks"] = []
+        elif task_visibility == "completed":
+            data["tasks"] = [
+                task for task in data.get("tasks", [])
+                if task.get("status") == "filled" or bool(task.get("filledBy"))
+            ]
+        contributor_visibility = exhibition["contributorVisibility"]
+        if contributor_visibility == "anonymous":
+            for photo in data["photos"]:
+                if photo.get("contributor"):
+                    photo["contributor"] = "匿名宾客"
+            for task in data.get("tasks", []):
+                task["filledBy"] = ["匿名宾客"] if task.get("filledBy") else []
+            data["contributors"] = [
+                {
+                    "name": f"宾客 {i + 1:02d}",
+                    "photos": int(c.get("photos") or 0),
+                }
+                for i, c in enumerate(data.get("contributors") or [])
+            ]
+        elif contributor_visibility == "hidden":
+            for photo in data["photos"]:
+                photo.pop("contributor", None)
+            for task in data.get("tasks", []):
+                task["filledBy"] = []
+            data["contributors"] = []
+
     else:
         data["stats"] = space_stats(space)
     return data
@@ -1764,11 +2552,40 @@ def get_space(sid, role="host"):
 
 def publish_space(sid):
     with space_txn(sid) as space:
+        # 在本机发布事务里先完成一次性 inbox-v2 迁移，再启动机器验收。
+        # 如果留到异步云发布才迁移，revision 会在验收启动后再变化，本次报告
+        # 会按并发保护被判过期，后台就一直看不到刚发布这一版的验收结果。
+        _ensure_private_inbox_prefix(sid, space)
+        has_nodes = bool(space.get("nodes"))
+        is_cloud_takedown = (
+            not has_nodes
+            and (
+                bool(space.get("ossSpaceJson"))
+                or (
+                    bool(space.get("published"))
+                    and _has_valid_cloud_delete_outbox(sid, space)
+                )
+            )
+        )
+        if not has_nodes and not is_cloud_takedown:
+            raise ValueError("还没有全景场景,先上传一张 2 比 1 的 360 图片再发布")
+        if is_cloud_takedown:
+            # 已公开空间删掉最后一个节点时仍要允许发布一份空快照,否则公网会永久
+            # 留着已经删掉的场景。只有删除路径已经关闭收集时才允许走这条撤展分支。
+            collection = _normal_collection(space.get("collection"))
+            if collection["status"] != "closed":
+                raise ValueError("最后一个场景移除后要先暂停照片收集,再更新公开展览")
         space["published"] = True
         exhibition = _normal_exhibition(space.get("exhibition"))
         exhibition["status"] = "published"
         exhibition["updatedAt"] = time.time()
         space["exhibition"] = exhibition
+        _mark_publish_dirty(space)
+        space["_cloudPublishBlocked"] = False
+        # 第一次还没有公网快照时,这一步确实完成了本机发布。已经有公网快照时
+        # 则必须等后续云发布成功再清 dirty,否则上传失败会把旧公网内容假装成最新。
+        if not space.get("ossSpaceJson") and not is_cloud_takedown:
+            space["publishDirty"] = False
     return guest_url(sid)
 
 
@@ -1782,6 +2599,24 @@ def publish_space(sid):
 SELF_URL = os.environ.get("PSM_SELF_URL", "http://127.0.0.1:8777")
 
 _verify_state = {}   # sid -> "running" | "done" | "error: ...", 只给日志和排查用
+_verify_locks = {}
+_verify_locks_guard = threading.Lock()
+
+
+def _verify_lock(sid):
+    with _verify_locks_guard:
+        return _verify_locks.setdefault(sid, threading.Lock())
+
+
+def _cleanup_verify_artifacts(sid):
+    root = space_dir(sid)
+    for name in ("manifest.json", "report.json"):
+        path = os.path.join(root, name)
+        if os.path.exists(path):
+            os.remove(path)
+    shots = os.path.join(root, "shots")
+    if os.path.isdir(shots):
+        shutil.rmtree(shots)
 
 
 def set_self_url(url):
@@ -1807,11 +2642,17 @@ def build_verify_manifest(sid, node_id=None):
         node = None
         if node_id:
             node = next((n for n in nodes if n.get("id") == node_id), None)
+            if node is None:
+                raise ValueError("要验收的全景节点已经被移除")
         node = node or nodes[0]
+        first_node_id = nodes[0].get("id")
         photos = [
             p for p in space.get("photos") or []
-            if p.get("state") in SELECTED_STATES and (
-                not p.get("nodeId") or p.get("nodeId") == node["id"])
+            if p.get("state") in SELECTED_STATES
+            and (
+                p.get("nodeId") == node["id"]
+                or (not p.get("nodeId") and node["id"] == first_node_id)
+            )
         ]
         manifest = {
             "panorama": node.get("panorama"),
@@ -1845,13 +2686,117 @@ def run_publish_verify(sid, node_id=None, max_attempts=1):
     # 等于机器推翻新人的决定, 整个空间会被判不通过。
     from server.verify import verify_target   # 延迟 import: 让 selftest_space 不依赖整条自检环
 
-    nid, _path, n_photos = build_verify_manifest(sid, node_id)
-    page_url = "%s/viewer/walk.html?space=%s&node=%s" % (SELF_URL.rstrip("/"), sid, nid)
-    print(f"== [{sid}] 发布验收开跑: {page_url} ({n_photos} 张入选照片) ==", flush=True)
-    report = verify_target(
-        space_dir(sid), page_url, label=sid, max_attempts=max_attempts,
-        model=_clip_state.get("model"),
+    with space_txn(sid, write=False) as space:
+        try:
+            source_revision = int(space.get("publishRevision") or 0)
+        except (TypeError, ValueError):
+            source_revision = 0
+        verify_nodes = [
+            {"id": n.get("id"), "name": n.get("name") or n.get("id")}
+            for n in (space.get("nodes") or [])
+            if not node_id or n.get("id") == node_id
+        ]
+    if not verify_nodes:
+        raise ValueError("这个空间还没有可验收的全景节点")
+
+    started = time.time()
+    node_reports = []
+    try:
+        for node_meta in verify_nodes:
+            nid, _path, n_photos = build_verify_manifest(sid, node_meta["id"])
+            page_url = "%s/viewer/walk.html?space=%s&node=%s" % (
+                SELF_URL.rstrip("/"), sid, nid)
+            print(
+                f"== [{sid}/{nid}] 发布验收开跑: {page_url} ({n_photos} 张入选照片) ==",
+                flush=True,
+            )
+            node_report = verify_target(
+                space_dir(sid), page_url,
+                label=(sid if len(verify_nodes) == 1 else f"{sid}/{nid}"),
+                max_attempts=max_attempts,
+                model=_clip_state.get("model"),
+                write_report=False,
+            )
+
+            # verify_target 每个节点都用 a1_yaw*.png。逐节点跑完立刻改成带 nodeId
+            # 的名字,后一个节点不会覆盖前一个节点的证据。
+            for attempt in node_report.get("attempts") or []:
+                attempt["nodeId"] = nid
+                attempt["nodeName"] = node_meta["name"]
+                render = (attempt.get("gates") or {}).get("render") or {}
+                for shot in render.get("shots") or []:
+                    old_rel = str(shot.get("file") or "")
+                    old_abs = os.path.join(space_dir(sid), old_rel)
+                    if not old_rel.startswith("shots/") or not os.path.isfile(old_abs):
+                        continue
+                    new_rel = os.path.join(
+                        "shots", f"{nid}_{os.path.basename(old_rel)}")
+                    new_abs = os.path.join(space_dir(sid), new_rel)
+                    os.replace(old_abs, new_abs)
+                    shot["file"] = new_rel
+            node_reports.append({
+                "id": nid,
+                "name": node_meta["name"],
+                "verdict": node_report.get("verdict") or "reject",
+                "reason": node_report.get("reason") or "",
+                "elapsedS": node_report.get("elapsedS"),
+                "judge": node_report.get("judge") or {},
+                "attempts": node_report.get("attempts") or [],
+            })
+    except Exception:
+        _cleanup_verify_artifacts(sid)
+        raise
+    with space_txn(sid, write=False) as space:
+        current_revision = int(space.get("publishRevision") or 0)
+    if current_revision != source_revision:
+        _cleanup_verify_artifacts(sid)
+        raise RuntimeError("空间在机器验收期间发生了改动,旧报告已丢弃")
+
+    failed_nodes = [n for n in node_reports if n["verdict"] != "pass"]
+    attempts = []
+    for node_report in node_reports:
+        attempts.extend(node_report["attempts"])
+    for index, attempt in enumerate(attempts, 1):
+        attempt["n"] = index
+    degraded = any(bool((n.get("judge") or {}).get("degraded")) for n in node_reports)
+    judge = next(
+        (n.get("judge") for n in node_reports if n.get("judge")),
+        {"backend": "local", "model": None, "degraded": False},
     )
+    judge = dict(judge or {})
+    judge["degraded"] = degraded
+    if failed_nodes:
+        verdict = "reject"
+        reason = "；".join(
+            f"「{n['name']}」未通过:{n['reason']}" for n in failed_nodes)
+    else:
+        verdict = "pass"
+        reason = f"{len(node_reports)} 个全景场景已逐一通过结构、渲染和语义验收。"
+    report = {
+        "schema": "psm-verify/1",
+        "session": sid,
+        "publishRevision": source_revision,
+        "verdict": verdict,
+        "reason": reason,
+        "humanInLoop": False,
+        "elapsedS": round(time.time() - started, 1),
+        "judge": judge,
+        "attempts": attempts,
+        "nodes": [{
+            "id": n["id"],
+            "name": n["name"],
+            "verdict": n["verdict"],
+            "reason": n["reason"],
+            "elapsedS": n["elapsedS"],
+        } for n in node_reports],
+    }
+    report_path = os.path.join(space_dir(sid), "report.json")
+    tmp_report_path = report_path + ".tmp"
+    with open(tmp_report_path, "w", encoding="utf-8") as f:
+        json.dump(report, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_report_path, report_path)
     print(f"== [{sid}] 机器验收裁决: {report['verdict']} — {report['reason']} ==", flush=True)
     return report
 
@@ -1862,7 +2807,9 @@ def kick_publish_verify(sid, node_id=None):
     def run():
         _verify_state[sid] = "running"
         try:
-            run_publish_verify(sid)
+            with _verify_lock(sid):
+                _cleanup_verify_artifacts(sid)
+                run_publish_verify(sid, node_id=node_id)
             _verify_state[sid] = "done"
         except Exception as e:
             _verify_state[sid] = f"error: {type(e).__name__}: {e}"
@@ -2026,8 +2973,29 @@ def api_add_node(
         return {"ok": True, "nodeId": nid, "tasks": tasks, "timings": timings}
     except FileNotFoundError as e:
         return _fail_user(e, "找不到这个空间,链接可能已经过期了", "传全景")
+    except ValueError as e:
+        return _fail(str(e))
     except Exception as e:
         return _fail_user(e, "这张全景没能处理,换一张再试试", "传全景")
+
+
+@router.delete("/space/{sid}/node/{node_id}")
+def api_delete_node(sid: str, node_id: str, request: Request):
+    # 宾客页和 Studio 共用一个局域网服务,没有服务端登录会话。删除是不可逆的
+    # 主办动作,必须和启动 worker 一样只接受这台主办电脑的回环请求。
+    if not _request_is_trusted_host(request):
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "error": "主办方口令无效"},
+        )
+    try:
+        return {"ok": True, **delete_node(sid, node_id)}
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "删场景")
+    except ValueError as e:
+        return _fail(str(e))
+    except Exception as e:
+        return _fail_user(e, "这个场景没能移除,刷新后再试一次", "删场景")
 
 
 @router.post("/space/{sid}/upload")
@@ -2084,15 +3052,22 @@ def api_review(sid: str, payload: dict = Body(default={})):
 def api_publish(sid: str, payload: dict = Body(default={})):
     try:
         url = publish_space(sid)
-        # 旧报告先删掉, 否则前端一轮询就拿到上一次的结论, 会以为这次的已经验完了
-        old = os.path.join(space_dir(sid), "report.json")
-        if os.path.exists(old):
-            os.remove(old)
-        # 后台跑机器验收, 不挡这次返回。没有全景节点之类的情况在线程里如实报错, 不影响发布本身。
-        kick_publish_verify(sid)
+        with space_txn(sid, write=False) as space:
+            has_nodes = bool(space.get("nodes"))
+        # 清旧报告和新验收共用同一把锁,不能把另一轮刚生成的报告删掉。
+        if has_nodes:
+            kick_publish_verify(sid)
+        else:
+            # 空快照是明确撤下最后一个场景,没有画面可做渲染验收。
+            # 这条罕见路径同步等旧验收结束再清理,避免后台清理反过来删掉未来的新报告。
+            with _verify_lock(sid):
+                _cleanup_verify_artifacts(sid)
+            _verify_state[sid] = "none"
         return {
             "ok": True, "published": True, "viewUrl": url,
             "reportUrl": f"/server/report.html?src=/spaces/{sid}/report.json",
+            "verifySkipped": not has_nodes,
+            "verifyStarted": has_nodes,
         }
     except FileNotFoundError as e:
         return _fail_user(e, "找不到这个空间,链接可能已经过期了", "发布")
@@ -2124,27 +3099,96 @@ def _cloud_set(sid, **kw):
 
 
 def kick_publish_cloud(sid):
-    """后台线程把空间推到 OSS。已经在跑就不重复点火(重复点火会互相抢带宽)。"""
+    """后台线程把空间推到 OSS。
+
+    已经在跑时不另开线程，但会记一笔 rerunRequested。这样慢发布期间又进来一张
+    照片时，旧轮会跳过旧 manifest，当前线程紧接着发布最新 revision。
+    """
     from server import publish       # 延迟导入: 让没配 OSS 凭据的人也能用本机模式
 
-    st = _cloud_get(sid)
-    if st.get("running"):
-        return False
+    with _cloud_lock:
+        st = _cloud_state.setdefault(sid, {})
+        if st.get("running"):
+            st["rerunRequested"] = True
+            st["at"] = time.time()
+            return False
+        st.update({
+            "running": True,
+            "done": 0,
+            "total": 0,
+            "key": "",
+            "result": None,
+            "error": None,
+            "rerunRequested": False,
+            "at": time.time(),
+        })
 
     def run():
-        _cloud_set(sid, running=True, done=0, total=0, key="", result=None, error=None)
-        try:
-            def progress(done, total, key):
-                _cloud_set(sid, done=done, total=total, key=key)
-            r = publish.publish_space(sid, progress=progress)
-            # public 那一整份没必要塞进状态里(几十 KB, 前端也不看), 去掉。
-            r.pop("public", None)
-            _cloud_set(sid, running=False, result=r, error=None)
-            print(f"== [{sid}] 云发布完成: 上传 {r['uploaded']} 跳过 {r['skipped']} "
-                  f"耗时 {r['elapsedS']}s → {r['spaceJson']} ==", flush=True)
-        except Exception as e:
-            _cloud_set(sid, running=False, error=f"{type(e).__name__}: {e}")
-            print(f"== [{sid}] 云发布失败: {type(e).__name__}: {e} ==", flush=True)
+        attempts = 0
+        while attempts < 4:
+            attempts += 1
+            try:
+                def progress(done, total, key):
+                    _cloud_set(sid, done=done, total=total, key=key)
+
+                r = publish.publish_space(sid, progress=progress)
+                # public 那一整份没必要塞进状态里(几十 KB, 前端也不看), 去掉。
+                r.pop("public", None)
+                with _cloud_lock:
+                    state = _cloud_state.setdefault(sid, {})
+                    rerun = bool(state.get("rerunRequested")) or bool(r.get("stale"))
+                    if rerun and attempts < 4:
+                        state.update({
+                            "done": 0,
+                            "total": 0,
+                            "key": "",
+                            "result": None,
+                            "error": None,
+                            "rerunRequested": False,
+                            "at": time.time(),
+                        })
+                    else:
+                        state.update({
+                            "running": False,
+                            "result": r,
+                            "error": (
+                                "空间连续变化,最新版本仍待发布"
+                                if rerun else None
+                            ),
+                            "rerunRequested": False,
+                            "at": time.time(),
+                        })
+                if rerun and attempts < 4:
+                    print(f"== [{sid}] 云发布检测到新版本,改用最新内容重试 ==", flush=True)
+                    continue
+                print(f"== [{sid}] 云发布完成: 上传 {r['uploaded']} 跳过 {r['skipped']} "
+                      f"耗时 {r['elapsedS']}s → {r['spaceJson']} ==", flush=True)
+                return
+            except Exception as e:
+                with _cloud_lock:
+                    state = _cloud_state.setdefault(sid, {})
+                    rerun = bool(state.get("rerunRequested")) and attempts < 4
+                    if rerun:
+                        state.update({
+                            "done": 0,
+                            "total": 0,
+                            "key": "",
+                            "result": None,
+                            "error": None,
+                            "rerunRequested": False,
+                            "at": time.time(),
+                        })
+                    else:
+                        state.update({
+                            "running": False,
+                            "error": f"{type(e).__name__}: {e}",
+                            "rerunRequested": False,
+                            "at": time.time(),
+                        })
+                if rerun:
+                    continue
+                print(f"== [{sid}] 云发布失败: {type(e).__name__}: {e} ==", flush=True)
+                return
 
     threading.Thread(target=run, daemon=True, name=f"space-cloud-{sid}").start()
     return True
@@ -2229,17 +3273,10 @@ def api_worker_start(
     payload: dict = Body(default={}),
 ):
     """工人会占用一份 CLIP 内存,只允许从这台主办方电脑点火。"""
-    try:
-        client_host = request.client.host if request.client else ""
-        if not ipaddress.ip_address(client_host).is_loopback:
-            return JSONResponse(
-                status_code=403,
-                content={"ok": False, "error": "只能在主办方电脑上启动处理工人"},
-            )
-    except ValueError:
+    if not _request_is_trusted_host(request):
         return JSONResponse(
             status_code=403,
-            content={"ok": False, "error": "只能在主办方电脑上启动处理工人"},
+            content={"ok": False, "error": "主办方口令无效"},
         )
     try:
         started, pid = start_worker(sid)
@@ -2263,3 +3300,11 @@ def api_joinurl(sid: str):
 
 
 os.makedirs(SPACES_DIR, exist_ok=True)
+for _cleanup_sid in _listdir(SPACES_DIR):
+    if not os.path.exists(space_json_path(_cleanup_sid)):
+        continue
+    try:
+        _sweep_pending_local_deletes(_cleanup_sid)
+    except Exception:
+        # 启动不能因为一份孤儿文件的权限问题整体失败。队列保留,后续启动再试。
+        pass

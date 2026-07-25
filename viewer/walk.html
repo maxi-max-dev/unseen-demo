@@ -36,7 +36,11 @@ html, body {
   background: linear-gradient(#000a, transparent);
   color: #fff; pointer-events: none;
 }
-.hud-top h1 { font-size: 15px; font-weight: 600; letter-spacing: .08em; margin: 0; text-shadow: 0 1px 6px rgba(0,0,0,.45); }
+.hud-top h1 {
+  font-size: 15px; font-weight: 600; letter-spacing: .08em; margin: 0;
+  padding-right: 260px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  text-shadow: 0 1px 6px rgba(0,0,0,.45);
+}
 .hud-top .depth-warn {
   display: inline-flex; align-items: center; gap: 4px; margin-top: 7px;
   font-size: 10.5px; font-weight: 600; padding: 4px 12px; border-radius: 999px;
@@ -85,6 +89,11 @@ html, body {
   box-shadow: var(--u-glass-shadow);
 }
 .hud-badge .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--u-pink); flex: none; }
+@media (max-width: 600px) {
+  /* 手机顶部宽度不够同时摆长场景名和来源徽章。完整 DAP 署名在右下角仍然保留。 */
+  .hud-badge { display: none; }
+  .hud-top h1 { padding-right: 0; }
+}
 
 /* ---------------- 左下返回 ---------------- */
 .back-link {
@@ -507,7 +516,7 @@ body.pov-on .mobile-hint { display: none !important; }
     return "";
   }
 
-  // 场景切换 chip 排：只在 demo/scene 模式调用,node 模式永不调用(容器默认 display:none)
+  // Demo 素材的场景切换。
   function renderSceneChips(activeSlug) {
     var container = $("sceneChips");
     var html = "";
@@ -518,6 +527,33 @@ body.pov-on .mobile-hint { display: none !important; }
       html += '<a class="' + cls + '" href="?scene=' + encodeURIComponent(s.slug) + backQ + '">' + s.label + "</a>";
     }
     container.innerHTML = html;
+    container.classList.add("on");
+  }
+
+  // 真实空间有多个全景节点时也必须能在页面里切换。以前数据和识图都支持多节点,
+  // 但查看器永远默认进第一个节点,第二个只能靠手改 &node=n2 才看得到。
+  function renderSpaceNodeChips(sid, nodes, activeId, cloudBase) {
+    var container = $("sceneChips");
+    container.innerHTML = "";
+    if (!nodes || nodes.length < 2) {
+      container.classList.remove("on");
+      return;
+    }
+    var current = new URLSearchParams(location.search);
+    nodes.forEach(function (node, index) {
+      var q = new URLSearchParams();
+      q.set("space", sid);
+      q.set("node", node.id);
+      if (cloudBase) q.set("b", cloudBase);
+      if (current.get("pov") === "0") q.set("pov", "0");
+      var back = current.get("back");
+      if (back && !/^(https?:)?\/\//.test(back)) q.set("back", back);
+      var a = document.createElement("a");
+      a.className = "chip" + (node.id === activeId ? " active" : "");
+      a.href = "?" + q.toString();
+      a.textContent = String(node.name || ("场景 " + (index + 1)));
+      container.appendChild(a);
+    });
     container.classList.add("on");
   }
 
@@ -671,6 +707,7 @@ body.pov-on .mobile-hint { display: none !important; }
           if (!node) throw new Error("空间里找不到节点 “" + nodeId + "”");
         }
         node = node || nodes[0];
+        renderSpaceNodeChips(sid, nodes, node.id, cloudBase);
 
         // 照片按节点归属过滤；nodeId 为空的(心愿任务交上来的照片可能没绑节点)算进第一个节点，
         // 免得它们哪个空间都进不去，白交了。
@@ -1641,6 +1678,7 @@ body.pov-on .mobile-hint { display: none !important; }
           lookAt: function (deg, pitchDeg) {
             yaw = -deg * Math.PI / 180;
             if (typeof pitchDeg === "number") pitch = Math.max(-PITCH_LIMIT, Math.min(PITCH_LIMIT, pitchDeg * Math.PI / 180));
+            povUpdateHud();
           },
           aimAt: function (i) {   // 把相机瞄到第 i 个钉点上,验收"准星命中 -> 点击进 POV"用
             var s = photoSprites[i];

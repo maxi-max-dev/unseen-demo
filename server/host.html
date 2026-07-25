@@ -224,6 +224,23 @@
   .wishrow{ display:flex; gap:10px; align-items:center; margin-top:9px; flex-wrap:wrap; }
   .wishrow .bwrap{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--sub); }
   .wishrow .bwrap .inp{ width:78px; text-align:center; font-variant-numeric:tabular-nums; }
+  .node-manage{ background:#fff; border:1px solid var(--line2); border-radius:12px; padding:12px 14px; margin:0 0 14px; }
+  .node-manage-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:4px; }
+  .node-manage-head b{ font-size:12.5px; }
+  .node-list{ display:grid; gap:0; }
+  .node-row{ display:flex; align-items:center; gap:10px; min-width:0; padding:10px 0; border-top:1px solid var(--line2); }
+  .node-copy{ flex:1; min-width:0; }
+  .node-copy b{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12.5px; }
+  .node-copy span{ display:block; color:var(--sub); font-size:11px; }
+  .node-actions{ display:flex; align-items:center; gap:6px; flex:none; }
+  .btn.danger{ color:#b84b66; border-color:#f0c8d2; background:#fff7f9; }
+  .btn.danger:hover{ border-color:#df7892; background:#fff0f4; }
+  @media(max-width:560px){
+    .node-row{ align-items:flex-start; flex-wrap:wrap; }
+    .node-copy{ flex-basis:100%; }
+    .node-actions{ width:100%; }
+    .node-actions .btn{ flex:1; }
+  }
 
   /* ---------------- 邀请宾客 ---------------- */
   .qrbox{
@@ -369,14 +386,24 @@
   var MOCK = qs.get("mock") === "1";
   var AUTH_KEY = "unseen.studio.demo.auth.v1";
   var AUTH_TTL = 8 * 60 * 60 * 1000;
-  var CLOUD_DEMO = MOCK && !isHostOrigin();
+  var REMOTE_HOST = !isHostOrigin();
+  var CLOUD_DEMO = MOCK && REMOTE_HOST;
 
   function hasDemoAccess(){
     try {
       var raw = JSON.parse(sessionStorage.getItem(AUTH_KEY) || "null");
-      return !!(raw && raw.grantedAt && Date.now() - raw.grantedAt < AUTH_TTL);
+      return !!(raw && raw.pin === "1111" && raw.grantedAt &&
+        Date.now() - raw.grantedAt < AUTH_TTL);
     } catch (e) {
       return false;
+    }
+  }
+  function hostPin(){
+    try {
+      var raw = JSON.parse(sessionStorage.getItem(AUTH_KEY) || "null");
+      return raw && raw.pin === "1111" ? raw.pin : "";
+    } catch (e) {
+      return "";
     }
   }
   function demoLoginUrl(extra){
@@ -478,8 +505,16 @@
     return "/spaces/" + encodeURIComponent(SID) + "/" + p;
   }
 
+  function hostFetch(path, opts){
+    var next = Object.assign({}, opts || {});
+    var headers = new Headers(next.headers || {});
+    var pin = hostPin();
+    if (pin) headers.set("X-UNSEEN-Host-Pin", pin);
+    next.headers = headers;
+    return fetch(path, next);
+  }
   function api(path, opts){
-    return fetch(path, opts).then(function(r){ return r.json(); });
+    return hostFetch(path, opts).then(function(r){ return r.json(); });
   }
   function postJson(path, body){
     return api(path, {
@@ -630,9 +665,12 @@
   function viewTop(sp){
     var st = stats(sp);
     var collecting = !(sp.collection && sp.collection.status === "closed");
-    var pub = sp.published
-      ? '<span class="pill filled">已发布</span>'
-      : '<span class="pill closed">未发布</span>';
+    var dirty = !!sp.publishDirty;
+    var pub = dirty
+      ? '<span class="pill open">有改动待发布</span>'
+      : (sp.published
+          ? '<span class="pill filled">已发布</span>'
+          : '<span class="pill closed">未发布</span>');
     var btn = sp.published
       ? '<button class="btn sm" id="btnPublish">更新展览</button>'
       : '<button class="btn primary big" id="btnPublish">发布展览</button>';
@@ -668,7 +706,8 @@
           '</button>' +
           '<div class="pubstate" id="pubState">' +
             (CLOUD_DEMO ? '演示操作只影响当前页面'
-              : (S.cloudJson ? '公开快照已存在'
+              : (dirty ? '当前改动还没同步到公开展览'
+                : S.cloudJson ? '公开快照已存在'
                 : (sp.published ? '本机已发布,公开快照还没就绪' : '发布后才会生成公开展览'))) +
           '</div>' +
           // 发布时后台会无人值守跑一遍机器验收(结构闸+渲染闸+语义闸), 报告落
@@ -825,10 +864,43 @@
       '</div>';
     }).join("") : '<div class="empty"><span class="em">🧭</span>还没有任务。传一张全景,系统会自动找出没人拍过的方位。</div>';
 
+    var nodes = sp.nodes || [];
+    var nodeRows = nodes.map(function(n, nodeIndex){
+      var photoN = (sp.photos || []).filter(function(p){ return p.nodeId === n.id; }).length;
+      var taskN = (sp.tasks || []).filter(function(t){
+        return t.nodeId === n.id && t.type === "gap";
+      }).length;
+      var walkHref = MOCK
+        ? "../viewer/walk.html?scene=" +
+          encodeURIComponent(["ballroom","chapel_day","comfy_cafe","entrance_hall"][nodeIndex] || "ballroom") +
+          "&back=" + encodeURIComponent(studioBack())
+        : "../viewer/walk.html?space=" + encodeURIComponent(sp.id || SID) +
+          "&node=" + encodeURIComponent(n.id) +
+          "&back=" + encodeURIComponent(studioBack());
+      return '<div class="node-row">' +
+        '<div class="node-copy"><b>' + esc(n.name || n.id) + '</b><span>' +
+          esc(n.time || "时间未填") + " · " + photoN + " 张照片 · " + taskN + " 个空间任务</span></div>" +
+        '<div class="node-actions">' +
+          '<a class="btn sm quiet" href="' + esc(walkHref) + '" target="_blank">进入 3D</a>' +
+          (MOCK ? '' : '<button class="btn sm danger delete-node" type="button" data-node-id="' +
+            esc(n.id) + '">移除场景</button>') +
+        '</div>' +
+      '</div>';
+    }).join("");
+    var nodeManage = nodes.length
+      ? '<div class="node-manage"><div class="node-manage-head"><b>全景场景</b>' +
+          '<span class="sec-note">' +
+            (MOCK ? '演示页只读,真实后台可以移除场景'
+              : '移除会同时移除这个场景的照片和空间任务') +
+          '</span></div>' +
+          '<div class="node-list">' + nodeRows + '</div></div>'
+      : '<div class="empty" style="margin-bottom:14px"><span class="em">◎</span>还没有全景场景,先在下面上传一张 2 比 1 的 360 图片。</div>';
+
     return '' +
     '<div class="card" id="collect">' +
       '<div class="sec-head"><h2 class="sec-title">📣 悬赏任务</h2>' +
         '<span class="sec-note">🧭 系统自动发现的缺口 · 💌 你自己写的心愿</span></div>' +
+      nodeManage +
       rows +
       // 空间任务不是手写的, 是传全景以后系统自己算出来的 —— 入口放在任务列表下面,
       // 让"多一个全景 = 多一批通缉令"这件事在后台是看得见的
@@ -930,6 +1002,7 @@
 
   function viewExhibition(sp){
     var ex = exhibitionOf(sp);
+    var pendingPublish = !!sp.publishDirty;
     var choices = [
       ["walk","◎","走进空间"],["photos","▦","照片墙"],
       ["tasks","✓","任务痕迹"],["contributors","♡","贡献者"]
@@ -957,8 +1030,10 @@
       '<div class="card" id="exhibition">' +
         '<div class="sec-head"><h2 class="sec-title">🪟 展览</h2>' +
           '<span class="sec-note">' + dataNote + '</span>' +
-          '<span class="pill ' + (ex.status === "published" ? "filled" : "open") + '" style="margin-left:auto">' +
-            (ex.status === "published" ? "已发布" : "有草稿") + '</span></div>' +
+          '<span class="pill ' + (pendingPublish ? "open" : (ex.status === "published" ? "filled" : "open")) +
+            '" style="margin-left:auto">' +
+            (pendingPublish ? "有改动待发布" : (ex.status === "published" ? "已发布" : "有草稿")) +
+          '</span></div>' +
         '<div class="exhibit-grid">' +
           '<div class="exhibit-preview">' +
             '<h3>' + esc(sp.title || "我们的展览") + '</h3>' +
@@ -1038,6 +1113,7 @@
     var ex = exhibitionOf(sp);
     return [
       sp.title || "", sp.couple || "", sp.published ? 1 : 0, sp.ossSpaceJson || "",
+      sp.publishDirty ? 1 : 0, Number(sp.publishRevision) || 0,
       (sp.collection && sp.collection.status) || "open",
       ex.status + ":" + ex.entryView + ":" + ex.views.join("|") + ":" +
         (ex.allowPov ? 1 : 0) + ":" + ex.contributorVisibility + ":" + ex.taskVisibility,
@@ -1162,6 +1238,12 @@
       } else if (st.error){
         cloud.className = "system-box warn";
         cloud.innerHTML = "<b>公开展览更新失败</b><span>" + esc(st.error) + "</span>";
+      } else if (st.result && st.result.cleanupPending){
+        cloud.className = "system-box warn";
+        cloud.innerHTML = "<b>旧云端文件清理待重试</b><span>公开内容已更新,请再点一次更新展览完成清理</span>";
+      } else if (st.result && st.result.stale){
+        cloud.className = "system-box warn";
+        cloud.innerHTML = "<b>发布时空间又有改动</b><span>请再点一次更新展览,同步最新内容</span>";
       } else if ((st.result && st.result.spaceJson) || S.cloudJson){
         cloud.className = "system-box ok";
         cloud.innerHTML = "<b>公开展览已就绪</b><span>宾客页和只读展览都能从外网打开</span>";
@@ -1251,7 +1333,7 @@
     REPORT.state = waiting ? "waiting" : "idle";
     paintReport();
     (function tick(){
-      fetch("/spaces/" + encodeURIComponent(SID) + "/report.json", { cache: "no-store" })
+      hostFetch("/spaces/" + encodeURIComponent(SID) + "/report.json", { cache: "no-store" })
         .then(function(r){ return r.ok ? r.json() : null; })
         .then(function(rep){
           if (rep && rep.verdict){ REPORT.verdict = rep.verdict; REPORT.state = "done"; paintReport(); return; }
@@ -1292,6 +1374,7 @@
 
     var logout = $("btnDemoLogout");
     if (logout) logout.addEventListener("click", function(){
+      hostFetch("/api/host/logout", { method:"POST" }).catch(function(){});
       sessionStorage.removeItem(AUTH_KEY);
       S.space = null;
       $("app").innerHTML = '<div class="card"><div class="empty">正在退出…</div></div>';
@@ -1303,6 +1386,7 @@
     if (bp) bp.addEventListener("click", function(){
       if (S.busy) return;
       S.busy = true; bp.disabled = true;
+      var verifySkipped = false;
       if (MOCK){
         sp.published = true; S.busy = false;
         if (sp.exhibition) sp.exhibition.status = "published";
@@ -1314,7 +1398,8 @@
           sp.published = true;
           if (sp.exhibition) sp.exhibition.status = "published";
           REPORT.verdict = "";
-          REPORT.state = "waiting";
+          verifySkipped = !!d.verifySkipped;
+          REPORT.state = verifySkipped ? "none" : "waiting";
           return postJson("/api/space/" + encodeURIComponent(SID) + "/publish-cloud", {});
         })
         .then(function(cloud){
@@ -1327,7 +1412,7 @@
             toast("本机已发布,公开展览更新失败");
           }
           render();
-          pollReport(true);
+          pollReport(!verifySkipped);
           pullSystem();
         })
         .catch(function(e){
@@ -1483,6 +1568,9 @@
     // ---- 传全景 = 加节点
     var bn = $("btnNode");
     if (bn) bn.addEventListener("click", createNode);
+    Array.prototype.forEach.call(document.querySelectorAll(".delete-node"), function(b){
+      b.addEventListener("click", function(){ removeNode(b.getAttribute("data-node-id")); });
+    });
 
     // ---- 复制链接
     var bc = $("btnCopy");
@@ -1609,7 +1697,7 @@
     fd.append("time", time);
 
     S.busy = true;
-    fetch("/api/space/" + encodeURIComponent(SID) + "/node", { method:"POST", body: fd })
+    hostFetch("/api/space/" + encodeURIComponent(SID) + "/node", { method:"POST", body: fd })
       .then(function(r){ return r.json(); })
       .then(function(d){
         S.busy = false;
@@ -1624,6 +1712,70 @@
         S.busy = false; btn.disabled = false; btn.textContent = "传全景";
         toast("加节点失败: " + e.message);
       });
+  }
+
+  // ---------------------------------------------------------------- 移除全景节点
+  function removeNode(nodeId){
+    if (!nodeId || S.busy) return;
+    var node = (S.space.nodes || []).filter(function(n){ return n.id === nodeId; })[0];
+    if (!node){ toast("这个场景已经不在空间里了"); return; }
+    var removingLast = (S.space.nodes || []).filter(function(n){
+      return n.id !== nodeId;
+    }).length === 0;
+    var photoN = (S.space.photos || []).filter(function(p){
+      return removingLast || p.nodeId === nodeId;
+    }).length;
+    var taskN = (S.space.tasks || []).filter(function(t){
+      return t.type === "gap" && (removingLast || t.nodeId === nodeId);
+    }).length;
+    var msg = "确定移除「" + (node.name || nodeId) + "」吗？\n\n" +
+      "会同时移除这个场景的 " + photoN + " 张照片和 " + taskN + " 个空间任务。";
+    if (removingLast) {
+      msg += "\n\n这是最后一个场景,移除后照片收集会自动暂停,未归属旧照片也会一起清理。";
+    }
+    if (S.space.published || S.cloudJson) {
+      msg += "\n\n移除后需要重新发布,公网观众才会看到更新。";
+    }
+    if (!window.confirm(msg)) return;
+
+    if (MOCK){
+      S.space.nodes = (S.space.nodes || []).filter(function(n){ return n.id !== nodeId; });
+      S.space.photos = (S.space.photos || []).filter(function(p){ return p.nodeId !== nodeId; });
+      S.space.tasks = (S.space.tasks || []).filter(function(t){
+        return !(t.nodeId === nodeId && t.type === "gap");
+      });
+      render();
+      toast("场景已从当前演示页移除,刷新后会重置");
+      return;
+    }
+
+    S.busy = true;
+    var button = document.querySelector('.delete-node[data-node-id="' + nodeId.replace(/"/g, '\\"') + '"]');
+    if (button){ button.disabled = true; button.textContent = "正在移除"; }
+    hostFetch("/api/space/" + encodeURIComponent(SID) + "/node/" + encodeURIComponent(nodeId), {
+      method:"DELETE"
+    }).then(function(r){ return r.json(); }).then(function(d){
+      if (!(d && d.ok)) throw new Error((d && d.error) || "移除失败");
+      return api("/api/space/" + encodeURIComponent(SID) + "?role=host").then(function(latest){
+        if (!(latest && latest.ok && latest.space)) throw new Error("场景已移除,但页面刷新失败");
+        S.busy = false;
+        S.space = latest.space;
+        LIVE.sig = spaceSig(latest.space);
+        LIVE.at = Date.now();
+        render();
+        toast(d.cleanupWarnings && d.cleanupWarnings.length
+          ? "场景已移除,有 " + d.cleanupWarnings.length + " 个旧文件待清理"
+          : (d.collectionClosed
+              ? "场景已移除,照片收集已暂停,加好新场景后再开放"
+              : (d.mustRepublish
+                  ? "场景已移除,请点更新展览同步公网"
+                  : "场景已移除")));
+      });
+    }).catch(function(e){
+      S.busy = false;
+      if (button){ button.disabled = false; button.textContent = "移除场景"; }
+      toast("场景没能移除:" + e.message);
+    });
   }
 
   // ================================================================ 空间列表(没有 ?space)
@@ -1695,6 +1847,7 @@
     });
     var logout = $("btnDemoLogout");
     if (logout) logout.addEventListener("click", function(){
+      hostFetch("/api/host/logout", { method:"POST" }).catch(function(){});
       sessionStorage.removeItem(AUTH_KEY);
       location.replace(demoLoginUrl("out=1"));
     });
@@ -1810,7 +1963,7 @@
   }
 
   function gateThenBoot(){
-    if (CLOUD_DEMO && !hasDemoAccess()){
+    if (REMOTE_HOST && !hasDemoAccess()){
       location.replace(demoLoginUrl(""));
       return;
     }
@@ -1818,7 +1971,7 @@
   }
 
   window.addEventListener("pageshow", function(){
-    if (CLOUD_DEMO && !hasDemoAccess()) location.replace(demoLoginUrl(""));
+    if (REMOTE_HOST && !hasDemoAccess()) location.replace(demoLoginUrl(""));
   });
 
   gateThenBoot();

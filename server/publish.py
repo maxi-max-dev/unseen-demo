@@ -35,6 +35,7 @@ import os
 import sys
 import threading
 import time
+import fcntl
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,8 +45,13 @@ if REPO_ROOT not in sys.path:
 from server import oss                                          # noqa: E402
 from server.space import (                                         # noqa: E402
     SELECTED_STATES,
+    _cloud_publish_authorized,
+    _ensure_private_inbox_prefix,
+    _has_valid_cloud_delete_outbox,
+    _inbox_prefix as _space_inbox_prefix,
     _normal_collection,
     _normal_exhibition,
+    _normal_retired_inboxes,
     space_dir,
     space_txn,
 )
@@ -67,6 +73,19 @@ PUBLIC_READ = {"x-oss-object-acl": "public-read"}
 SLOW_UPLINK_BPS = 8 * 1024
 MIN_TIMEOUT_S = 60
 
+_publish_locks = {}
+_publish_locks_guard = threading.Lock()
+
+
+def _publish_lock(sid):
+    """同一空间的 worker 重发和 Studio 手动发布必须串行。
+
+    两轮同时写同一个 OSS space.json 时,旧轮可能最后完成把公网退回旧快照；
+    本地 .published.json 也会互相覆盖。按 sid 加锁,不同空间仍可并行。
+    """
+    with _publish_locks_guard:
+        return _publish_locks.setdefault(sid, threading.Lock())
+
 
 def upload_timeout(size):
     return max(MIN_TIMEOUT_S, int(size / SLOW_UPLINK_BPS) + 30)
@@ -82,8 +101,48 @@ def public_url(conf, sid, rel):
     return oss.public_url(conf, oss_key(sid, rel)) if rel else None
 
 
-def inbox_prefix(sid):
-    return f"{ROOT_PREFIX}/{sid}/inbox/"
+def inbox_prefix(sid, space=None):
+    return _space_inbox_prefix(sid, space or {})
+
+
+def _public_resource_rels(space):
+    """不碰网络，只列出当前真值仍可能公开引用的本地素材路径。"""
+    rels = set()
+
+    def add(raw, prefix):
+        rel = str(raw or "").replace("\\", "/").lstrip("/")
+        if rel.startswith(prefix) and ".." not in rel.split("/"):
+            rels.add(rel)
+
+    node_ids = set()
+    for node in space.get("nodes") or []:
+        node_ids.add(node.get("id"))
+        add(node.get("panorama"), "nodes/")
+        add(node.get("depth"), "nodes/")
+        add(node.get("depthJson"), "nodes/")
+    for photo in space.get("photos") or []:
+        if photo.get("state") in SELECTED_STATES:
+            add(photo.get("src"), "photos/")
+            add(photo.get("thumb"), "thumbs/")
+    task_visibility = _normal_exhibition(space.get("exhibition"))["taskVisibility"]
+    if task_visibility != "hidden":
+        for task in space.get("tasks") or []:
+            if task.get("nodeId") and node_ids and task.get("nodeId") not in node_ids:
+                continue
+            if task_visibility == "completed" and not (
+                task.get("status") == "filled" or bool(task.get("filledBy"))
+            ):
+                continue
+            add(task.get("briefImage"), "tasks/")
+    return rels
+
+
+def _save_publish_ledger(path, ledger):
+    """账本是性能缓存，原子写失败只会让下一轮多做 HEAD，不影响业务真值。"""
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(ledger, f)
+    os.replace(tmp, path)
 
 
 def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
@@ -134,6 +193,7 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
     collection = _normal_collection(space.get("collection"))
     exhibition = _normal_exhibition(space.get("exhibition"))
     contributor_visibility = exhibition["contributorVisibility"]
+    task_visibility = exhibition["taskVisibility"]
 
     def public_contributor(name):
         """展览的署名开关必须作用到公开数据本身,不能只靠页面藏文字。"""
@@ -206,6 +266,12 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         if t.get("nodeId") and node_ids and t.get("nodeId") not in node_ids:
             continue                      # 节点都没发布, 它的悬赏任务发了也点不进去
         filled_by = t.get("filledBy") or []
+        if task_visibility == "hidden":
+            continue
+        if task_visibility == "completed" and not (
+            t.get("status") == "filled" or filled_by
+        ):
+            continue
         if contributor_visibility == "anonymous":
             filled_by = ["匿名宾客"] if filled_by else []
         elif contributor_visibility == "hidden":
@@ -236,7 +302,7 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         contributors = []
 
     if collection["status"] == "open":
-        upload = oss.post_policy(conf, inbox_prefix(sid), expire_s=upload_expire_s)
+        upload = oss.post_policy(conf, inbox_prefix(sid, space), expire_s=upload_expire_s)
         upload["enabled"] = True
     else:
         # 关闭收集的公开快照不再携带仍可使用的签名。已经在旧页面里拿到的签名会自然过期,
@@ -263,7 +329,7 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         "pending": pending,
         "contributors": contributors,
         # 宾客页拿这份策略把照片直接 POST 进 OSS。表单字段:
-        # key / OSSAccessKeyId / policy / Signature / x-oss-object-acl / file
+        # key / OSSAccessKeyId / policy / Signature / x-oss-object-acl(private) / file
         "upload": upload,
         # 顶层再放一份过期时间, 前端过期时提示"上传通道已关闭,请联系新人"
         "expiresAt": upload["expiresAt"],
@@ -271,7 +337,42 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
     return public, rels, warnings
 
 
-def publish_space(sid, conf=None, progress=None, force=False):
+def build_empty_public_space(sid, space):
+    """生成删除最后一个节点后的公开撤展快照。
+
+    不能直接沿用普通构建结果:老数据里可能还留着心愿任务、贡献者或待审回执。
+    空展览必须不再引用任何画面和上传通道,然后发布器才会安全清掉旧对象。
+    """
+    now = time.time()
+    collection = _normal_collection(space.get("collection"))
+    collection["status"] = "closed"
+    exhibition = _normal_exhibition(space.get("exhibition"))
+    exhibition["status"] = "published"
+    upload = {"enabled": False, "expiresAt": now}
+    return {
+        "schema": space.get("schema"),
+        "id": sid,
+        "title": space.get("title"),
+        "couple": space.get("couple"),
+        "date": space.get("date") or "",
+        "place": space.get("place") or "",
+        "cover": space.get("cover") or "",
+        "createdAt": space.get("createdAt"),
+        "published": True,
+        "publishedAt": now,
+        "collection": collection,
+        "exhibition": exhibition,
+        "nodes": [],
+        "tasks": [],
+        "photos": [],
+        "pending": [],
+        "contributors": [],
+        "upload": upload,
+        "expiresAt": now,
+    }
+
+
+def _publish_space_locked(sid, conf=None, progress=None, force=False):
     """把空间 sid 发布到 OSS。返回一份发布报告。
 
     progress 是可选回调 progress(done, total, key), 给前端画进度条用。
@@ -284,14 +385,95 @@ def publish_space(sid, conf=None, progress=None, force=False):
     t0 = time.time()
     conf = conf or oss.load_conf()
 
+    # 旧版策略允许 starts-with spaces/<sid>/inbox/，即使后来在它下面加 gN
+    # 也挡不住旧标签页继续上传。发布前把所有老空间一次性迁到并列的 inbox-v2/，
+    # 让旧签名从前缀层面就够不到当前收件箱。
+    with space_txn(sid) as migration_space:
+        _ensure_private_inbox_prefix(sid, migration_space)
+
     with space_txn(sid, write=False) as space:
-        public, rels, warnings = build_public_space(conf, sid, space)
+        try:
+            source_revision = int(space.get("publishRevision") or 0)
+        except (TypeError, ValueError):
+            source_revision = 0
+        cloud_prefix = f"{ROOT_PREFIX}/{sid}/"
+        snapshot_inbox_prefix = inbox_prefix(sid, space)
+        retired_inbox_records = [
+            item for item in _normal_retired_inboxes(sid, space)
+            if item["prefix"] != snapshot_inbox_prefix
+        ]
+        retired_inbox_prefixes = [item["prefix"] for item in retired_inbox_records]
+        retired_expiry = {
+            item["prefix"]: item["expiresAt"] for item in retired_inbox_records
+        }
+        allowed_delete_prefixes = tuple(
+            cloud_prefix + rel
+            for rel in ("nodes/", "photos/", "thumbs/", "tasks/", "inbox/", "inbox-v2/")
+        )
+        published_delete_prefixes = tuple(
+            cloud_prefix + rel for rel in ("nodes/", "photos/", "thumbs/", "tasks/")
+        )
+        pending_cloud_deletes = []
+        for raw_key in (space.get("_pendingCloudDeletes") or []):
+            key = str(raw_key)
+            suffix = key[len(cloud_prefix):] if key.startswith(cloud_prefix) else ""
+            if key.startswith(allowed_delete_prefixes) and ".." not in suffix.split("/"):
+                pending_cloud_deletes.append(key)
+        protected_inbox_keys = set()
+        raw_published_keys = space.get("_publishedResourceKeys")
+        published_keys_known = (
+            isinstance(raw_published_keys, list)
+            or (
+                not bool(space.get("ossSpaceJson"))
+                and not bool(space.get("published"))
+                and not _has_valid_cloud_delete_outbox(sid, space)
+            )
+        )
+        published_resource_keys = {
+            str(value) for value in (raw_published_keys or [])
+            if str(value).startswith(f"{ROOT_PREFIX}/{sid}/")
+        }
+        for photo in (space.get("photos") or []):
+            key = str(photo.get("inboxKey") or "")
+            suffix = key[len(cloud_prefix):] if key.startswith(cloud_prefix) else ""
+            if (key.startswith((cloud_prefix + "inbox/", cloud_prefix + "inbox-v2/"))
+                    and ".." not in suffix.split("/")):
+                protected_inbox_keys.add(key)
+        if not _cloud_publish_authorized(space):
+            raise RuntimeError("这份展览还是主办方草稿,公开展览没有更新")
+        allow_empty_snapshot = (
+            not space.get("nodes")
+            and (
+                bool(space.get("ossSpaceJson"))
+                or (
+                    bool(space.get("published"))
+                    and _has_valid_cloud_delete_outbox(sid, space)
+                )
+            )
+            and _normal_collection(space.get("collection"))["status"] == "closed"
+        )
+        if not space.get("nodes"):
+            if not allow_empty_snapshot:
+                raise RuntimeError("还没有可发布的全景场景,公开展览没有更新")
+            public = build_empty_public_space(sid, space)
+            rels, warnings = [], []
+        else:
+            public, rels, warnings = build_public_space(conf, sid, space)
+    if not public.get("nodes") and not allow_empty_snapshot:
+        # 源真值有节点但公开版为空只可能是素材缺失,不能冒充撤展。
+        raise RuntimeError("全景素材不完整,公开展览没有更新")
+    if warnings:
+        # 业务真值还引用着、但本地文件不见了时,绝不能用缩水版清单覆盖公网，
+        # 更不能把云端可能仅存的一份当作 stale 删除。让本轮明确失败,修好本地
+        # 素材后再发布。
+        raise RuntimeError("本地素材不完整,公开展览没有更新:" + "；".join(warnings))
 
     root = space_dir(sid)
     total = len(rels) + 1          # +1 是最后那份 space.json
     uploaded = skipped = sent_bytes = 0
     done = 0
     done_lock = threading.Lock()
+    wanted_keys = {oss_key(sid, rel) for rel in rels}
 
     # 本地发布账本: {key: size}。
     # ⚠️ 为什么要它: 原来每个文件都打一次 head 问"你在不在"。实测这台机器到杭州单次往返
@@ -301,7 +483,7 @@ def publish_space(sid, conf=None, progress=None, force=False):
     #   账本不准就漏传 —— 只有"账本说传过"才敢跳。
     ledger_path = os.path.join(root, ".published.json")
     ledger = {}
-    if not force and os.path.exists(ledger_path):
+    if os.path.exists(ledger_path):
         try:
             with open(ledger_path, encoding="utf-8") as f:
                 ledger = json.load(f)
@@ -352,31 +534,235 @@ def publish_space(sid, conf=None, progress=None, force=False):
             sent_bytes += size
         ledger[key] = size
 
-    # space.json 永远最后传、永远重传:
-    #   最后传 —— 宾客拿到的清单里绝不会指向还没上传完的文件;
-    #   重传   —— 里面有新的直传策略和 publishedAt, 内容每次都变。
+    # space.json 永远最后传、永远重传。真正 PUT 前再拿一次业务事务锁复核 revision：
+    # 资源上传很慢，期间主办方可能删了场景或保存了新草稿。旧轮一旦过期，就只留下
+    # 已上传但尚未引用的不可见资源，绝不能再用旧清单覆盖公网。
     body = json.dumps(public, ensure_ascii=False, indent=2).encode("utf-8")
     key = oss_key(sid, "space.json")
-    space_json_url = oss.put_bytes(conf, key, body, "application/json", oss_headers=PUBLIC_READ)
+    manifest_skipped = False
+    latest_space_json_url = ""
+    with space_txn(sid) as current:
+        try:
+            manifest_revision = int(current.get("publishRevision") or 0)
+        except (TypeError, ValueError):
+            manifest_revision = 0
+        if manifest_revision != source_revision or not _cloud_publish_authorized(current):
+            manifest_skipped = True
+            latest_space_json_url = current.get("ossSpaceJson") or ""
+        else:
+            # 只在这一个很小的 manifest PUT 期间挡住业务写入，消除“复核后立刻被改”
+            # 的窗口。全景和照片大文件早已在锁外并发上传，不会长时间卡住宾客。
+            space_json_url = oss.put_bytes(
+                conf, key, body, "application/json", oss_headers=PUBLIC_READ,
+            )
+            current["published"] = True
+            current["ossSpaceJson"] = space_json_url
+            # 这是“公网当前 manifest 正在引用什么”的本机镜像。下一次慢发布过期时，
+            # 它用来区分可立刻清掉的新孤儿和仍被旧公网引用、必须等新 manifest 后再删的资源。
+            current["_publishedResourceKeys"] = sorted(wanted_keys)
+    if manifest_skipped:
+        stale_warnings = list(warnings)
+        stale_warnings.append("发布期间内容发生变化,旧公开快照已跳过")
+        deleted_remote = 0
+        cleanup_failed = False
+        # 旧轮可能刚把后来被拒绝的照片以 public-read 上传。先在短事务里按最新
+        # 真值把孤儿 key 持久入队，再释放全局业务锁做网络删除。断网时一个 DELETE
+        # 可等 60 秒，绝不能把所有空间的上传和审核一起锁住。
+        with space_txn(sid) as latest:
+            latest_wanted_keys = {
+                oss_key(sid, rel) for rel in _public_resource_rels(latest)
+            }
+            orphan_keys = sorted(wanted_keys - latest_wanted_keys)
+            pending = set(latest.get("_pendingCloudDeletes") or [])
+            pending.update(orphan_keys)
+            if pending:
+                latest["_pendingCloudDeletes"] = sorted(pending)
+            else:
+                latest.pop("_pendingCloudDeletes", None)
+        # 保存草稿不能破坏仍在线的旧 manifest。只有能证明“上一个公开清单从未引用”
+        # 的新对象才马上删；其余只入队，等主办方真正发布新清单后再清。
+        immediately_safe = (
+            set(orphan_keys) - published_resource_keys
+            if published_keys_known else set()
+        )
+        deleted_or_missing = set()
+        for orphan_key in sorted(immediately_safe):
+            try:
+                oss.delete(conf, orphan_key)
+                deleted_remote += 1
+                deleted_or_missing.add(orphan_key)
+                ledger.pop(orphan_key, None)
+            except Exception as e:
+                if "HTTP 404" in str(e):
+                    deleted_or_missing.add(orphan_key)
+                    ledger.pop(orphan_key, None)
+                    continue
+                cleanup_failed = True
+                stale_warnings.append(
+                    f"旧轮公开素材待清理 {orphan_key}: {type(e).__name__}"
+                )
+        if deleted_or_missing:
+            with space_txn(sid) as latest:
+                active_now = {
+                    oss_key(sid, rel) for rel in _public_resource_rels(latest)
+                }
+                # 若删除期间照片又被主办方重新批准，保留 pending。下一轮会先重传
+                # 当前文件，再把这条保护性队列清掉。
+                clearable = deleted_or_missing - active_now
+                left = [
+                    queued for queued in (latest.get("_pendingCloudDeletes") or [])
+                    if queued not in clearable
+                ]
+                if left:
+                    latest["_pendingCloudDeletes"] = left
+                else:
+                    latest.pop("_pendingCloudDeletes", None)
+        try:
+            _save_publish_ledger(ledger_path, ledger)
+        except Exception as e:
+            print(f"   (账本没写成,不影响发布: {e})", flush=True)
+        return {
+            "ok": True,
+            "sid": sid,
+            "spaceJson": latest_space_json_url,
+            "uploaded": uploaded,
+            "skipped": skipped,
+            "bytes": sent_bytes,
+            "elapsedS": round(time.time() - t0, 2),
+            "nodes": len(public["nodes"]),
+            "photos": len(public["photos"]),
+            "tasks": len(public["tasks"]),
+            "deletedRemote": deleted_remote,
+            "inboxPrefix": snapshot_inbox_prefix,
+            "expiresAt": public["expiresAt"],
+            "warnings": stale_warnings,
+            "stale": True,
+            "manifestSkipped": True,
+            "cleanupPending": cleanup_failed,
+            "public": public,
+        }
+
     uploaded += 1
     sent_bytes += len(body)
     done += 1
     if progress:
         progress(done, total, key)
 
+    # 新清单已经生效后,再清掉这台机器账本里记录过、如今不再被引用的旧资源。
+    # inbox 不进发布账本,不会被误删。即使某个 DELETE 失败,页面也已经不再引用它,
+    # 下次发布仍会继续尝试。
+    stale_keys = {
+        key for key in ledger
+        if key not in wanted_keys
+        and str(key).startswith(published_delete_prefixes)
+        and ".." not in str(key)[len(cloud_prefix):].split("/")
+    }
+    # 坏 legacy 数据可能把“待删记录”的路径串到仍被当前快照引用的同一个 key。
+    # 当前引用永远优先,不能先发布新清单再把它指向的文件删掉。inbox 不进 rels,
+    # 所以仍存于本地 photo 记录的原始投稿 key 也单独保护。
+    protected_pending = set(pending_cloud_deletes) & (wanted_keys | protected_inbox_keys)
+    pending_delete_set = set(pending_cloud_deletes) - protected_pending
+    delete_keys = sorted(stale_keys | pending_delete_set)
+    deleted_remote = 0
+    cleanup_failed = False
+    deleted_pending = []
+    for stale_key in delete_keys:
+        try:
+            oss.delete(conf, stale_key)
+            ledger.pop(stale_key, None)
+            if stale_key in pending_delete_set:
+                deleted_pending.append(stale_key)
+            deleted_remote += 1
+        except Exception as e:
+            if "HTTP 404" in str(e):
+                # 已经不存在等价于清理完成,但不能算作本次真的删了一个对象。
+                ledger.pop(stale_key, None)
+                if stale_key in pending_delete_set:
+                    deleted_pending.append(stale_key)
+                continue
+            cleanup_failed = True
+            warnings.append(
+                f"待删除云端资源没清掉 {stale_key}: {type(e).__name__}"
+            )
+
+    cleared_retired_prefixes = []
+    for retired_prefix in retired_inbox_prefixes:
+        prefix_clean = True
+        try:
+            retired_objects = oss.list_keys(conf, retired_prefix)
+        except Exception as e:
+            cleanup_failed = True
+            warnings.append(
+                f"旧收件箱待清理 {retired_prefix}: {type(e).__name__}"
+            )
+            continue
+        for item in retired_objects:
+            retired_key = str(item.get("key") or "")
+            suffix = retired_key[len(retired_prefix):] if retired_key.startswith(retired_prefix) else ""
+            if not suffix or ".." in suffix.split("/"):
+                prefix_clean = False
+                cleanup_failed = True
+                continue
+            if retired_prefix == cloud_prefix + "inbox/" and "/" in suffix:
+                # legacy 根前缀和当前 gN/ 前缀有包含关系。这里只清直接子对象，
+                # 绝不能把新一代收件箱一起当旧对象删掉。
+                continue
+            try:
+                oss.delete(conf, retired_key)
+                deleted_remote += 1
+            except Exception as e:
+                if "HTTP 404" in str(e):
+                    continue
+                prefix_clean = False
+                cleanup_failed = True
+                warnings.append(
+                    f"旧收件箱对象待清理 {retired_key}: {type(e).__name__}"
+                )
+        if prefix_clean and time.time() >= retired_expiry.get(retired_prefix, float("inf")):
+            cleared_retired_prefixes.append(retired_prefix)
+
     # 本地也记一笔"已发布", 新人后台好显示状态。真值仍然在本地 space.json 里。
+    stale = False
     with space_txn(sid) as space:
-        space["published"] = True
-        space["publishedAt"] = public["publishedAt"]
-        space["ossSpaceJson"] = space_json_url
+        try:
+            current_revision = int(space.get("publishRevision") or 0)
+        except (TypeError, ValueError):
+            current_revision = 0
+        revision_stale = current_revision != source_revision
+        cleared_pending = set(deleted_pending)
+        if not revision_stale:
+            # 当前快照仍引用的 key 只可能是坏历史队列，清掉它即可。若发布期间真值
+            # 已变化，这个 key 可能刚被删除动作重新加入队列，必须保留给下一轮清理。
+            cleared_pending |= protected_pending
+        if cleared_pending:
+            space["_pendingCloudDeletes"] = [
+                key for key in (space.get("_pendingCloudDeletes") or [])
+                if key not in cleared_pending
+            ]
+            if not space["_pendingCloudDeletes"]:
+                space.pop("_pendingCloudDeletes", None)
+        if cleared_retired_prefixes:
+            cleared_retired_set = set(cleared_retired_prefixes)
+            remaining_retired = [
+                item for item in _normal_retired_inboxes(sid, space)
+                if item["prefix"] not in cleared_retired_set
+            ]
+            if remaining_retired:
+                space["_retiredInboxPrefixes"] = remaining_retired
+            else:
+                space.pop("_retiredInboxPrefixes", None)
+        if not revision_stale and not cleanup_failed:
+            space["publishDirty"] = False
+            space["publishedAt"] = public["publishedAt"]
+        else:
+            # 内容版本变化或旧云对象还没清干净,都不能标成完全同步。
+            space["publishDirty"] = True
+            stale = revision_stale
 
     # 落账本(不含 space.json —— 它每次内容都变, 必须每次重传)。
     # 写坏了也只是下次多打几次 head, 不影响正确性, 所以失败不抛。
     try:
-        tmp = ledger_path + ".tmp"
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(ledger, f)
-        os.replace(tmp, ledger_path)
+        _save_publish_ledger(ledger_path, ledger)
     except Exception as e:
         print(f"   (账本没写成, 不影响发布: {e})", flush=True)
 
@@ -391,11 +777,31 @@ def publish_space(sid, conf=None, progress=None, force=False):
         "nodes": len(public["nodes"]),
         "photos": len(public["photos"]),
         "tasks": len(public["tasks"]),
-        "inboxPrefix": inbox_prefix(sid),
+        "deletedRemote": deleted_remote,
+        "inboxPrefix": snapshot_inbox_prefix,
         "expiresAt": public["expiresAt"],
         "warnings": warnings,
+        "stale": stale,
+        "manifestSkipped": False,
+        "cleanupPending": cleanup_failed,
         "public": public,
     }
+
+
+def publish_space(sid, conf=None, progress=None, force=False):
+    with _publish_lock(sid):
+        # worker 是独立 Python 进程,单靠 threading.Lock 挡不住它和主服务同时发布。
+        # 文件锁覆盖整轮上传,让同一 sid 的 OSS space.json 和本地账本跨进程也只
+        # 有一个写者。锁文件本身不进公开清单。
+        lock_path = os.path.join(space_dir(sid), ".publish.lock")
+        with open(lock_path, "a+", encoding="utf-8") as lock_file:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                return _publish_space_locked(
+                    sid, conf=conf, progress=progress, force=force,
+                )
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def _human_bytes(n):
