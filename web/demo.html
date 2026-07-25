@@ -77,6 +77,16 @@ button{ font:inherit; color:inherit; }
 .wordmark b{ font-size:14px; font-weight:500; letter-spacing:.3em; }
 .wordmark span{ font-size:11px; color:var(--ink-3); letter-spacing:.06em; }
 @media (max-width:430px){ .wordmark span{ display:none; } }
+.home-return{
+  min-width:64px; min-height:44px; padding:0 13px; flex:none;
+  display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--line); border-radius:999px;
+  background:rgba(255,255,255,.9); color:var(--ink-2);
+  font-size:13px; font-weight:600; text-decoration:none;
+  transition:border-color .2s,background .2s,color .2s;
+}
+.home-return:hover{ border-color:var(--rose); background:#fff; color:var(--ink); }
+.home-return:focus-visible{ outline:2px solid var(--rose); outline-offset:2px; }
 .dots{ margin-left:auto; display:flex; gap:6px; }
 .dots button{
   width:22px; height:22px; padding:0; border:0; background:transparent;
@@ -432,12 +442,13 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
 <div class="film-strip fs-b" aria-hidden="true"></div>
 
 <header class="topbar">
-  <a class="wordmark" href="../index.html">
+  <a class="wordmark" href="../portal.html">
     <svg width="22" height="22" viewBox="0 0 64 64" aria-hidden="true"><use href="#uLogo"/></svg>
     <b>UNSEEN</b><span>空间记忆</span>
   </a>
   <span class="demomode" id="demoBadge">演示模式</span>
   <nav class="dots" id="dots" aria-label="六幕"></nav>
+  <a class="home-return" href="../portal.html">主页</a>
 </header>
 
 <!-- 品牌标记：三个视角叠在一起，中间那块才是完整的记忆。
@@ -619,7 +630,7 @@ video{ width:100%; border-radius:18px; border:1px solid var(--line);
       </div>
       <p class="tiny" style="max-width:24em">婚礼，毕业，还有今天这个会场。</p>
       <div class="row" style="justify-content:center">
-        <a class="btn ghost" href="../index.html">回到入口</a>
+        <a class="btn ghost" href="../portal.html">返回主页</a>
         <a class="btn ghost" href="show.html">看六个展厅</a>
       </div>
     </div>
