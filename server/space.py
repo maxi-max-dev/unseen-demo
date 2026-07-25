@@ -1201,10 +1201,11 @@ def _release_task_fill(space, photo):
     更要命的是缺口: _close_stale_gap_tasks 只看 status=="open", filled 的一律不看,
     所以这条任务永远不会回到任务墙上, 那个方向从此没人再去补。
 
-    退回的口径 —— filledBy 里存的是【人名】不是照片 id, 所以真值只能从照片反推:
-    "还入选着、且 taskId 指着这个任务"的照片, 它们的贡献者才有资格留在 filledBy 里。
-      · 同一位宾客还有别的入选照片填着它  -> 名字留着, 任务照旧 filled(只退这一张对应的那份);
-      · 一个填着它的入选照片都不剩了      -> filledBy 清空, 任务退回 open, 缺口重新广播。
+    退回的口径 —— filledBy 里存的是【获奖人名】不是照片 id, 所以真值要从照片反推:
+    "还入选着、且 taskId 指着这个任务"的照片, 才有资格支撑这份悬赏。
+      · 原获奖人还有别的入选照片 -> 继续保留;
+      · 原获奖人没有了、但有合法后续照片 -> 最早留下的人接棒;
+      · 一张合法照片都不剩 -> filledBy 清空, gap 重新开放,心愿继续保持 open。
     照片自己的 taskId 【故意不清】: 它是"这张当初认领的是哪一条"的记录, 新人反悔再点通过时,
     apply_task_fill 会拿它重新校验一遍(节点 + 方位)再决定给不给分。
     """
@@ -1614,6 +1615,12 @@ def get_space(sid, role="host"):
     # 也不用拿 photos.length 猜(host 拿到的 photos 里还混着待审和被拒的)。
     data["selectedCount"] = sum(
         1 for p in space.get("photos", []) if p.get("state") in SELECTED_STATES)
+    # 老数据里的心愿曾被首张照片写成 filled,宾客页因此把上传按钮藏掉,
+    # 正常路径永远没有机会触发 apply_task_fill 的迁移。读接口时先把返回副本归一成 open,
+    # 让后来的人仍能响应；下一次真实上传会把同样状态写回磁盘。
+    for task in data.get("tasks", []):
+        if not _task_is_located(task):
+            task["status"] = "open"
     if role == "guest":
         data["photos"] = [p for p in data["photos"] if p.get("state") in SELECTED_STATES]
     else:

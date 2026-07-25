@@ -391,7 +391,7 @@
   <a class="backbtn" id="wBack" href="#" aria-label="返回">←</a>
   <div style="max-width:400px;margin:0 auto;width:100%">
     <div class="kicker">UNSEEN <span>· 空间记忆</span></div>
-    <h1 class="names" id="wNames">— <span class="heart">♥</span> —</h1>
+    <h1 class="names" id="wNames"></h1>
     <div class="subdate" id="wDate">&nbsp;</div>
 
     <div class="invite-line" id="wInvite">请你交一张照片</div>
@@ -400,7 +400,7 @@
 
     <div class="proof" id="wProof" style="display:none">
       <span class="faces" id="wFaces"></span>
-      <span>已有 <b id="wPeople">0</b> 位宾客交了 <b id="wPhotos">0</b> 张</span>
+      <span>已有 <b id="wPeople">0</b> 位宾客的 <b id="wPhotos">0</b> 张照片放进了空间</span>
     </div>
 
     <div class="nick-box">
@@ -417,8 +417,8 @@
   <div class="head-in">
     <div class="head-row">
       <a class="backbtn" id="hBack" href="#" aria-label="返回">←</a>
-      <div class="head-names" id="hNames">—</div>
-      <div class="head-me" id="hMe"><span>你好,</span><b id="hNick">—</b></div>
+      <div class="head-names" id="hNames"></div>
+      <div class="head-me" id="hMe"><span>你好,</span><b id="hNick"></b></div>
     </div>
     <div class="tabs">
       <button class="tab on" data-view="tasks" id="tabTasks">任务墙<span class="dot" id="tabCount">0</span></button>
@@ -579,9 +579,12 @@
   }
   // 任务卡上的房间药丸。多节点 + 拿得到人能读的名字,两个条件都满足才出现。
   function taskNodeBadge(t) {
-    if (!multiNode()) return "";
+    if (!multiNode() || !taskIsLocated(t)) return "";
     var nm = nodeNameOf(t && t.nodeId);
     return nm ? '<span class="badge node">📍 ' + esc(nm) + "</span>" : "";
+  }
+  function taskIsLocated(t) {
+    return !!(t && t.type === "gap" && Array.isArray(t.yawRange) && t.yawRange.length === 2);
   }
 
   // 罗盘删了(Max 拍板)。任务卡上那个位置改成一句方向文字,例如「朝 210° 左后方」。
@@ -728,12 +731,14 @@
   function taskCard(t) {
     var done = t.status !== "open";
     var who = (t.filledBy || []).join("、");
+    var wishAnswered = t.type === "wish" && !!who;
     var sysClosed = isSystemClosed(t);
     var doneCls = (done ? " done" : "") + (sysClosed ? " sysclosed-card" : "");
     var foot;
     if (!done) {
       foot = '<button class="btn-take" data-task="' + esc(t.id) + '">' +
-        (t.type === "gap" ? "我去拍这张" : "我有这张") + "</button>";
+        (t.type === "gap" ? "我去拍这张" : (wishAnswered ? "我也有这张" : "我有这张")) +
+        "</button>";
     } else if (who) {
       foot = '<div class="claimed">✅ 已被 ' + esc(who) + " 认领</div>";
     } else if (sysClosed) {
@@ -746,7 +751,9 @@
       // 状态说完成了、却没留下是谁 —— 别替它编个名字出来
       foot = '<div class="claimed">✅ 已经有人交了</div>';
     }
-    var bounty = '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>";
+    var bounty = wishAnswered
+      ? '<div class="bounty"><i>悬赏已领</i></div>'
+      : '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>";
 
     if (t.type === "gap") {
       var img = t.briefImage ? assetUrl(t.briefImage) : posterPlaceholder(t.yaw);
@@ -771,7 +778,7 @@
         '<span class="badge wish">💌 心愿任务 · ' + owner() + "亲手写的</span>" + taskNodeBadge(t) +
         '<h3 class="card-title"><span class="wish-quote">“</span>' + esc(t.title || "") + "</h3>" +
         '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
-        '<div class="wish-from">— ' + esc(isWedding() ? state.space.couple : spaceName()) + " 写的</div>" +
+        '<div class="wish-from">来自 ' + esc(isWedding() ? state.space.couple : spaceName()) + "</div>" +
         '<div class="card-foot">' + bounty + foot + "</div>" +
       "</div></div>";
   }
@@ -805,6 +812,8 @@
     var sp = state.space || {};
     var tasks = sp.tasks || [];
     var open = tasks.filter(function (t) { return t.status === "open"; });
+    var openGaps = open.filter(function (t) { return taskIsLocated(t); });
+    var openWishes = open.filter(function (t) { return !taskIsLocated(t); });
     // 不再开着的任务分两拨:真有人交了的,和系统自己关掉的(没人拍过)。
     // 混在一起顶着「已经有人交了 / 他们的照片已经在空间里」那句标题就是在编。
     var done = tasks.filter(function (t) { return t.status !== "open" && !isSystemClosed(t); });
@@ -838,8 +847,14 @@
       sub = "还想交照片就用上面那条,不挑任务也能传";
       blank = "";
     } else {
-      head = "还缺这 " + open.length + " 张";
-      sub = "挑一个去拍,或者从相册里翻一张出来";
+      if (openGaps.length) {
+        head = "还有 " + openGaps.length + " 个方向没拍到";
+        sub = "挑一个去拍" +
+          (openWishes.length ? ",另外还有 " + openWishes.length + " 份心愿在继续收照片" : "");
+      } else {
+        head = "还有 " + openWishes.length + " 份心愿";
+        sub = "心愿会继续收照片,从相册里挑一张回应";
+      }
       blank = "";
     }
     $("wallTitle").textContent = head;
@@ -969,12 +984,15 @@
         : "随手拍的、相册里翻出来的都行,系统会自己认这是哪个方位。";
     // 多节点空间:开拍之前先把房间说清楚。后端的节点校验是照着这个来的,
     // 站错房间照片照收但不算完成这个任务,不能等交完了才让宾客知道有这回事。
-    var pickRoom = task.id ? nodeNameOf(task.nodeId) : "";
+    var pickRoom = taskIsLocated(task) ? nodeNameOf(task.nodeId) : "";
     if (multiNode() && pickRoom) sub = "这个任务在「" + pickRoom + "」。" + sub;
+    if (task.type === "wish" && (task.filledBy || []).length) {
+      sub = "这份心愿还在继续收照片,悬赏已经发出。" + sub;
+    }
     openSheet(
       '<div class="grab"></div>' +
       "<h3>" + esc(task.title) + "</h3>" +
-      '<p class="sh-sub">' + sub + "</p>" +
+      '<p class="sh-sub">' + esc(sub) + "</p>" +
       '<div class="picker"><input type="file" id="fInput" accept="image/*" multiple>' +
         '<div class="pi">📷</div><div class="pt">拍一张 / 从相册选</div>' +
         '<div class="ps">可以一次选好几张</div></div>' +
@@ -1278,8 +1296,8 @@
       } else if (r.state === "auto_ok" || r.state === "approved") {
         head = "你这张回到了 <b>" + esc(dirWord(r.yaw)) + "</b> · 已进入空间 ✅";
         // 位数和用词跟后端 reason 对齐(后端一律 4 位小数、叫"匹配度"),
-        // 不然回执写"置信度 0.62"、我的贡献里写"匹配度 0.6182",看着像两个数。
-        sub = "匹配度 " + (r.confidence != null ? r.confidence.toFixed(4) : "—") +
+        // 不然回执和"我的贡献"显示成不同精度,看着像两个数。
+        sub = "匹配度 " + (r.confidence != null ? r.confidence.toFixed(4) : "未测") +
               " · " + Math.round(r.yaw || 0) + "°";
       } else if (r.state === "needs_review") {
         head = "机器拿不准,已交给" + owner() + "确认 ⏳";
@@ -1313,7 +1331,11 @@
     // 任务算不算被补上也一样以后端 taskFilled 为准,方位对不上的那几张不算。
     // 方位对不上的时候后端会把这次认领撤掉,再看看这张照片是不是正好补上了【别的】缺口。
     // 所以"补上了"分两种:补上的是你点的那个任务,还是顺手补上了另一个。
-    var filled = views.some(function (v) { return v.r.taskFilled && !v.mm; });
+    var rewardedWish = task.type === "wish" && views.some(function (v) {
+      return !v.mm && !!(v.r.taskRewarded || v.r.bountyPaid || v.r.taskFilled);
+    });
+    var filled = task.type !== "wish" &&
+      views.some(function (v) { return v.r.taskFilled && !v.mm; });
     var filledOther = views.some(function (v) { return v.r.taskFilled && v.mm; });
     var okN = results.filter(function (r) { return isSelected(r.state); }).length;
     var waitN = results.filter(function (r) { return r.state === "needs_review"; }).length;
@@ -1371,6 +1393,7 @@
         (yawN ? "<br>其中 " + yawN + " 张的方位和这个任务要的不一样,任务还开着" : "") +
         (filled ? "<br>这个任务被你补上了 🎉"
                 : (filledOther ? "<br>不过它顺手补上了另一个缺口 🎉" : "")) +
+        (rewardedWish ? "<br>这份心愿收到你的照片了 🎉" : "") +
         (noteLines.length ? "<br>" + esc(noteLines.join(" ")) : "") +
         '<div class="res-pts" id="resPoints">分数以榜单为准,正在跟后端对一下…</div>' +
       "</div>" +
@@ -1616,13 +1639,13 @@
     ],
     photos: [
       { id: "p1", src: "photos/p1.jpg", thumb: "thumbs/p1.jpg", nodeId: "n1", yaw: 105.6, pitch: 0,
-        confidence: 0.5915, state: "auto_ok", reason: "置信度 0.59 高于阈值,自动入选",
+        confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         contributor: "小雨", taskId: null, uploadedAt: 1753340000.0 },
       { id: "p2", src: "photos/p2.jpg", thumb: "thumbs/p2.jpg", nodeId: "n1", yaw: 298.0, pitch: 0,
-        confidence: 0.6410, state: "auto_ok", reason: "置信度 0.64 高于阈值,自动入选",
+        confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         contributor: "小雨", taskId: "t4", uploadedAt: 1753340000.0 },
       { id: "p3", src: "photos/p3.jpg", thumb: "thumbs/p3.jpg", nodeId: "n2", yaw: 12.3, pitch: 0,
-        confidence: 0.5502, state: "approved", reason: "新人手动通过",
+        confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         contributor: "阿哲", taskId: null, uploadedAt: 1753340000.0 }
     ],
     contributors: [
@@ -1654,9 +1677,9 @@
       setTimeout(function () {
         clearInterval(tick);
         var pool = [
-          { yaw: 213.4, confidence: 0.6182, state: "auto_ok", reason: "置信度 0.62 高于阈值,自动入选", taskFilled: true },
-          { yaw: 118.9, confidence: 0.3106, state: "needs_review", reason: "置信度 0.31 偏低,交给新人裁决", taskFilled: false },
-          { yaw: 47.2, confidence: 0.5730, state: "auto_ok", reason: "置信度 0.57 高于阈值,自动入选", taskFilled: false }
+          { yaw: 213.4, confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: true },
+          { yaw: 118.9, confidence: null, state: "needs_review", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false },
+          { yaw: 47.2, confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false }
         ];
         var out = [];
         for (var i = 0; i < n; i++) {
@@ -1680,11 +1703,11 @@
   }
 
   var MOCK_MINE = [
-      { photoId: "d1", yaw: 213.4, state: "auto_ok", reason: "置信度 0.62 高于阈值,自动入选",
+      { photoId: "d1", yaw: 213.4, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         thumb: posterPlaceholder(213), taskTitle: "缺这个角度 · 舞台右前方", at: 1 },
-      { photoId: "d2", yaw: 118.9, state: "needs_review", reason: "置信度 0.31 偏低,交给新人裁决",
+      { photoId: "d2", yaw: 118.9, state: "needs_review", reason: "演示数据,未跑模型,仅用于界面预览",
         thumb: posterPlaceholder(119), taskTitle: "自由投稿", at: 2 },
-      { photoId: "d3", yaw: 47.2, state: "auto_ok", reason: "置信度 0.57 高于阈值,自动入选",
+      { photoId: "d3", yaw: 47.2, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         thumb: posterPlaceholder(47), taskTitle: "缺这个角度 · 入口花门", at: 3 }
   ];
 
@@ -1693,10 +1716,10 @@
     var task = MOCK_SPACE.tasks[0];
     var thumbs = [posterPlaceholder(210), posterPlaceholder(120), posterPlaceholder(45)];
     sheetResults([
-      { photoId: "d1", yaw: 213.4, confidence: 0.6182, state: "auto_ok",
-        reason: "置信度 0.62 高于阈值,自动入选", taskFilled: true },
-      { photoId: "d2", yaw: 118.9, confidence: 0.3106, state: "needs_review",
-        reason: "置信度 0.31 偏低,交给新人裁决", taskFilled: false }
+      { photoId: "d1", yaw: 213.4, confidence: null, state: "approved",
+        reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: true },
+      { photoId: "d2", yaw: 118.9, confidence: null, state: "needs_review",
+        reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false }
     ], thumbs, task);
   }
 })();
