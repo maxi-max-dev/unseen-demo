@@ -11,6 +11,7 @@
 
   // 相对路径前缀:app/ 下的页面取 "../",根目录取 ""
   var PREFIX = /\/app\//.test(location.pathname) ? "../" : "";
+  var LOCAL_ORIGIN = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
 
   var BUILTIN = [{
     id: "s4",
@@ -27,7 +28,7 @@
       walk:   PREFIX + "viewer/walk.html?demo=1",
       film:   PREFIX + "film/out/memory-film-web.mp4",
       show:   PREFIX + "web/show.html?s=s4",
-      studio: PREFIX + "server/host.html?space=s4"
+      studio: PREFIX + (LOCAL_ORIGIN ? "server/host.html?space=s4" : "web/studio-login.html")
     }
   }];
 

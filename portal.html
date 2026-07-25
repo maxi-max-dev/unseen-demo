@@ -838,13 +838,14 @@
       </a>
 
       <a class="role-card host" data-local-path="/server/host.html?space=s4"
-         href="http://127.0.0.1:8777/server/host.html?space=s4" target="_blank" rel="noopener">
-        <span class="local-flag">主办方电脑</span>
+         data-cloud-path="web/studio-login.html" data-studio-link
+         href="web/studio-login.html" target="_blank" rel="noopener">
+        <span class="local-flag">云端演示登录</span>
         <span class="role-index">02</span>
         <h3>主办方 Studio</h3>
         <p>管理照片收集、机器状态、人工审核和展览草稿。主办方从这里完成发布。</p>
         <div class="role-list"><span>收集</span><span>审核</span><span>策展</span><span>发布</span></div>
-        <span class="role-open"><span class="arrow">↗</span>打开本机 Studio</span>
+        <span class="role-open"><span class="arrow">↗</span><span data-studio-action>登录云端演示 Studio</span></span>
       </a>
 
       <a class="role-card exhibit" href="web/show.html?s=s4" target="_blank" rel="noopener">
@@ -935,7 +936,8 @@
 <nav class="quickbar" aria-label="三个主要入口">
   <a href="web/join.html?s=s4" target="_blank" rel="noopener">宾客端</a>
   <a class="primary" data-local-path="/server/host.html?space=s4"
-     href="http://127.0.0.1:8777/server/host.html?space=s4" target="_blank" rel="noopener">Studio</a>
+     data-cloud-path="web/studio-login.html" href="web/studio-login.html"
+     target="_blank" rel="noopener">Studio</a>
   <a href="web/show.html?s=s4" target="_blank" rel="noopener">看展览</a>
 </nav>
 
@@ -945,9 +947,15 @@
 
   var isLocal = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
   document.querySelectorAll("[data-local-path]").forEach(function(link){
-    var path = link.getAttribute("data-local-path");
-    link.href = isLocal ? path : "http://127.0.0.1:8777" + path;
+    var localPath = link.getAttribute("data-local-path");
+    var cloudPath = link.getAttribute("data-cloud-path");
+    link.href = isLocal ? localPath : (cloudPath || ("http://127.0.0.1:8777" + localPath));
   });
+  var studioCard = document.querySelector("[data-studio-link]");
+  if (studioCard && isLocal) {
+    studioCard.querySelector(".local-flag").textContent = "主办方电脑";
+    studioCard.querySelector("[data-studio-action]").textContent = "打开本机 Studio";
+  }
 
   var fullBtn = document.getElementById("fullBtn");
   if (!document.documentElement.requestFullscreen) {

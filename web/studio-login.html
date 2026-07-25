@@ -1,0 +1,480 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff5f1">
+<meta name="robots" content="noindex,nofollow">
+<title>UNSEEN Studio · 主办方登录</title>
+<link rel="stylesheet" href="../app/theme.css">
+<style>
+  *{ box-sizing:border-box; }
+  html,body{ min-height:100%; overflow-x:hidden; }
+  body.u-body{ min-height:100svh; }
+  button,input{ font:inherit; }
+  button:focus-visible,a:focus-visible,.pin-display:focus-within{
+    outline:3px solid rgba(223,85,127,.4);
+    outline-offset:4px;
+  }
+  .login-shell{
+    position:relative;
+    z-index:1;
+    width:min(1080px,calc(100% - 36px));
+    min-height:100svh;
+    display:grid;
+    grid-template-columns:minmax(0,1.08fr) minmax(380px,.92fr);
+    align-items:center;
+    gap:54px;
+    margin:0 auto;
+    padding:48px 0;
+  }
+  .brand-pane{ padding:34px 10px; }
+  .topline{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    margin-bottom:78px;
+  }
+  .back{
+    width:44px;
+    height:44px;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(255,255,255,.86);
+    border-radius:50%;
+    color:var(--ink);
+    background:rgba(255,255,255,.68);
+    box-shadow:var(--shadow);
+    text-decoration:none;
+    font-size:19px;
+  }
+  .logo{
+    color:var(--ink);
+    font-size:15px;
+    font-weight:800;
+    letter-spacing:.43em;
+  }
+  .logo i{ color:var(--pink); font-style:normal; }
+  .eyebrow{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:#b86b53;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.22em;
+    text-transform:uppercase;
+  }
+  .eyebrow::before{ content:""; width:32px; height:1px; background:currentColor; }
+  .brand-pane h1{
+    max-width:560px;
+    margin:22px 0 17px;
+    color:#35242c;
+    font-size:clamp(48px,5.8vw,76px);
+    line-height:1.04;
+    letter-spacing:-.055em;
+  }
+  .brand-pane h1 span{
+    display:block;
+    color:transparent;
+    background:linear-gradient(100deg,#df557f,#f38b78 58%,#eeaa68);
+    -webkit-background-clip:text;
+    background-clip:text;
+  }
+  .lead{
+    max-width:520px;
+    margin:0;
+    color:var(--ink-2);
+    font-size:16px;
+    line-height:1.9;
+  }
+  .flow{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    margin-top:30px;
+  }
+  .flow span{
+    min-height:34px;
+    display:inline-flex;
+    align-items:center;
+    padding:0 12px;
+    border:1px solid rgba(188,112,135,.15);
+    border-radius:999px;
+    color:var(--ink-2);
+    background:rgba(255,255,255,.55);
+    font-size:11.5px;
+    font-weight:700;
+  }
+
+  .login-card{
+    position:relative;
+    overflow:hidden;
+    padding:34px;
+    border:1px solid rgba(255,255,255,.92);
+    border-radius:34px;
+    background:rgba(255,255,255,.78);
+    box-shadow:0 30px 80px rgba(168,91,116,.19);
+    -webkit-backdrop-filter:blur(22px);
+    backdrop-filter:blur(22px);
+  }
+  .login-card::before{
+    content:"";
+    position:absolute;
+    width:220px;
+    height:220px;
+    right:-90px;
+    top:-100px;
+    border-radius:50%;
+    background:linear-gradient(145deg,rgba(255,162,186,.45),rgba(255,192,132,.32));
+    filter:blur(3px);
+  }
+  .card-head{ position:relative; }
+  .access-tag{
+    display:inline-flex;
+    align-items:center;
+    min-height:28px;
+    padding:0 10px;
+    border-radius:999px;
+    color:#b34f6d;
+    background:#ffe9ef;
+    font-size:10.5px;
+    font-weight:800;
+    letter-spacing:.08em;
+  }
+  .card-head h2{
+    margin:18px 0 7px;
+    color:#3d2b33;
+    font-size:28px;
+    letter-spacing:-.025em;
+  }
+  .card-head p{ margin:0; color:var(--ink-2); font-size:13px; }
+  .pin-label{
+    display:block;
+    margin:28px 0 9px;
+    color:var(--ink-2);
+    font-size:12px;
+    font-weight:700;
+  }
+  .pin-wrap{ position:relative; }
+  #pinInput{
+    position:absolute;
+    width:1px;
+    height:1px;
+    opacity:.01;
+    pointer-events:none;
+  }
+  .pin-display{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:10px;
+    cursor:text;
+  }
+  .pin-cell{
+    min-height:62px;
+    display:grid;
+    place-items:center;
+    border:1.5px solid rgba(203,133,155,.23);
+    border-radius:18px;
+    color:#47343c;
+    background:rgba(255,255,255,.86);
+    font-size:25px;
+    font-weight:800;
+    transition:border-color .18s,box-shadow .18s,transform .18s;
+  }
+  .pin-cell.filled::after{
+    content:"";
+    width:11px;
+    height:11px;
+    border-radius:50%;
+    background:linear-gradient(145deg,#e25580,#f8a173);
+    box-shadow:0 0 0 6px rgba(226,85,128,.1);
+  }
+  .pin-display.active .pin-cell.current{
+    border-color:#ef8ba7;
+    box-shadow:0 0 0 4px rgba(239,139,167,.12);
+    transform:translateY(-1px);
+  }
+  .keypad{
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:9px;
+    margin-top:16px;
+  }
+  .key{
+    min-height:48px;
+    border:1px solid rgba(203,133,155,.16);
+    border-radius:17px;
+    color:#4a3740;
+    background:rgba(255,255,255,.72);
+    font-size:16px;
+    font-weight:750;
+    cursor:pointer;
+  }
+  .key:hover{ background:#fff; border-color:rgba(223,85,127,.32); }
+  .key:active{ transform:scale(.97); }
+  .key.quiet{ color:var(--ink-2); font-size:12px; }
+  .submit{
+    width:100%;
+    min-height:52px;
+    margin-top:16px;
+    border:0;
+    border-radius:999px;
+    color:#fff;
+    background:linear-gradient(105deg,#e65781,#ffae76);
+    box-shadow:0 14px 30px rgba(223,85,127,.28);
+    font-size:15px;
+    font-weight:800;
+    cursor:pointer;
+  }
+  .submit:disabled{ opacity:.55; cursor:not-allowed; }
+  .message{
+    min-height:24px;
+    margin:12px 2px 0;
+    color:var(--ink-2);
+    font-size:12px;
+    text-align:center;
+  }
+  .message.bad{ color:#c54d6c; }
+  .message.good{ color:#378967; }
+  .demo-note{
+    margin:16px 0 0;
+    padding-top:15px;
+    border-top:1px solid rgba(203,133,155,.15);
+    color:var(--ink-3);
+    font-size:10.5px;
+    line-height:1.7;
+    text-align:center;
+  }
+  .shake{ animation:shake .3s ease; }
+  @keyframes shake{
+    0%,100%{ transform:translateX(0); }
+    30%{ transform:translateX(-6px); }
+    70%{ transform:translateX(6px); }
+  }
+  @media(max-width:800px){
+    .login-shell{ grid-template-columns:1fr; gap:8px; width:min(560px,calc(100% - 30px)); padding:22px 0 46px; }
+    .brand-pane{ padding:0 4px; text-align:center; }
+    .topline{ margin-bottom:38px; }
+    .eyebrow,.flow{ justify-content:center; }
+    .brand-pane h1,.lead{ margin-left:auto; margin-right:auto; }
+    .brand-pane h1{ font-size:clamp(44px,12vw,62px); }
+    .lead{ font-size:14px; }
+    .flow{ margin-top:20px; }
+  }
+  @media(max-width:420px){
+    .login-shell{ width:100%; padding:15px 14px 32px; }
+    .topline{ margin:0 0 16px; }
+    .eyebrow{ font-size:9.5px; }
+    .brand-pane h1{
+      margin:10px auto 10px;
+      font-size:clamp(37px,10.6vw,44px);
+      line-height:1;
+    }
+    .lead{ font-size:12.5px; line-height:1.65; }
+    .flow{ display:none; }
+    .login-card{ padding:20px 18px; border-radius:28px; }
+    .card-head h2{ margin:12px 0 4px; font-size:23px; }
+    .card-head p{ font-size:12px; }
+    .pin-label{ margin-top:16px; }
+    .pin-cell{ min-height:50px; border-radius:15px; }
+    .keypad{ gap:7px; margin-top:11px; }
+    .key{ min-height:44px; border-radius:15px; }
+    .submit{ min-height:48px; margin-top:12px; }
+    .message{ margin-top:8px; }
+    .demo-note{ margin-top:10px; padding-top:10px; }
+  }
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{ animation:none!important; transition:none!important; }
+  }
+</style>
+</head>
+<body class="u-body">
+<div class="u-bokeh"></div>
+<main class="login-shell">
+  <section class="brand-pane">
+    <div class="topline">
+      <a class="back" href="../portal.html" aria-label="返回产品主页">‹</a>
+      <div class="logo">U N S E E N<i>.</i></div>
+    </div>
+    <div class="eyebrow">Studio Access</div>
+    <h1>主办方的<span>演示工作台。</span></h1>
+    <p class="lead">输入演示口令，进入照片收集、人工审核、策展与发布的完整主办方界面。</p>
+    <div class="flow" aria-label="Studio 功能">
+      <span>收集</span><span>审核</span><span>策展</span><span>发布</span>
+    </div>
+  </section>
+
+  <section class="login-card" id="loginCard">
+    <div class="card-head">
+      <span class="access-tag">云端演示门禁</span>
+      <h2>进入 UNSEEN Studio</h2>
+      <p>请输入四位主办方口令。</p>
+    </div>
+
+    <label class="pin-label" for="pinInput">演示访问口令</label>
+    <div class="pin-wrap">
+      <input id="pinInput" type="password" inputmode="numeric" pattern="[0-9]*"
+             maxlength="4" autocomplete="off" aria-describedby="message">
+      <div class="pin-display" id="pinDisplay" role="group" aria-label="四位口令输入框" tabindex="0">
+        <span class="pin-cell"></span><span class="pin-cell"></span>
+        <span class="pin-cell"></span><span class="pin-cell"></span>
+      </div>
+    </div>
+
+    <div class="keypad" aria-label="数字键盘">
+      <button class="key" type="button" data-key="1">1</button>
+      <button class="key" type="button" data-key="2">2</button>
+      <button class="key" type="button" data-key="3">3</button>
+      <button class="key" type="button" data-key="4">4</button>
+      <button class="key" type="button" data-key="5">5</button>
+      <button class="key" type="button" data-key="6">6</button>
+      <button class="key" type="button" data-key="7">7</button>
+      <button class="key" type="button" data-key="8">8</button>
+      <button class="key" type="button" data-key="9">9</button>
+      <button class="key quiet" type="button" data-action="clear">清空</button>
+      <button class="key" type="button" data-key="0">0</button>
+      <button class="key quiet" type="button" data-action="backspace">退格</button>
+    </div>
+
+    <button class="submit" id="submitBtn" type="button">验证并进入</button>
+    <div class="message" id="message" aria-live="polite">关闭这个标签页后，需要重新输入口令。</div>
+    <p class="demo-note">这是 AdventureX 演示环境的轻量门禁，不代表商业级账号系统。</p>
+  </section>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  var AUTH_KEY = "unseen.studio.demo.auth.v1";
+  var AUTH_TTL = 8 * 60 * 60 * 1000;
+  var DEFAULT_NEXT = "/server/host.html?space=s4&mock=1";
+  var pin = "";
+  var attempts = 0;
+  var lockedUntil = 0;
+  var input = document.getElementById("pinInput");
+  var display = document.getElementById("pinDisplay");
+  var cells = Array.prototype.slice.call(document.querySelectorAll(".pin-cell"));
+  var message = document.getElementById("message");
+  var card = document.getElementById("loginCard");
+  var submit = document.getElementById("submitBtn");
+
+  function validSession(){
+    try {
+      var raw = JSON.parse(sessionStorage.getItem(AUTH_KEY) || "null");
+      return !!(raw && raw.grantedAt && Date.now() - raw.grantedAt < AUTH_TTL);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function safeNext(){
+    var candidate = new URLSearchParams(location.search).get("next") || DEFAULT_NEXT;
+    try {
+      var target = new URL(candidate, location.origin);
+      if (target.origin !== location.origin || target.pathname !== "/server/host.html") return DEFAULT_NEXT;
+      target.searchParams.set("mock", "1");
+      if (!target.searchParams.get("space")) target.searchParams.set("space", "s4");
+      return target.pathname + target.search + target.hash;
+    } catch (e) {
+      return DEFAULT_NEXT;
+    }
+  }
+
+  function paint(){
+    cells.forEach(function(cell, i){
+      cell.classList.toggle("filled", i < pin.length);
+      cell.classList.toggle("current", i === Math.min(pin.length, 3));
+    });
+    display.classList.toggle("active", document.activeElement === input || document.activeElement === display);
+    input.value = pin;
+    submit.disabled = pin.length !== 4 || Date.now() < lockedUntil;
+  }
+
+  function setMessage(text, kind){
+    message.textContent = text;
+    message.className = "message" + (kind ? " " + kind : "");
+  }
+
+  function addDigit(digit){
+    if (Date.now() < lockedUntil || pin.length >= 4) return;
+    pin += digit;
+    setMessage("四位口令输入完成后，点验证并进入。", "");
+    paint();
+  }
+
+  function fail(){
+    attempts += 1;
+    pin = "";
+    card.classList.remove("shake");
+    void card.offsetWidth;
+    card.classList.add("shake");
+    if (attempts >= 5) {
+      lockedUntil = Date.now() + 10000;
+      attempts = 0;
+      setMessage("尝试次数较多，请十秒后再试。", "bad");
+      submit.disabled = true;
+      setTimeout(function(){
+        lockedUntil = 0;
+        setMessage("可以重新输入口令。", "");
+        paint();
+      }, 10000);
+    } else {
+      setMessage("口令不对，请重新输入。", "bad");
+    }
+    paint();
+    input.focus();
+  }
+
+  function enterStudio(){
+    if (Date.now() < lockedUntil || pin.length !== 4) return;
+    if (pin !== "1111") {
+      fail();
+      return;
+    }
+    sessionStorage.setItem(AUTH_KEY, JSON.stringify({ grantedAt:Date.now() }));
+    setMessage("口令正确，正在进入 Studio。", "good");
+    submit.disabled = true;
+    setTimeout(function(){ location.replace(safeNext()); }, 220);
+  }
+
+  document.querySelectorAll("[data-key]").forEach(function(button){
+    button.addEventListener("click", function(){ addDigit(button.getAttribute("data-key")); });
+  });
+  document.querySelector("[data-action=clear]").addEventListener("click", function(){
+    pin = ""; paint(); input.focus();
+  });
+  document.querySelector("[data-action=backspace]").addEventListener("click", function(){
+    pin = pin.slice(0, -1); paint(); input.focus();
+  });
+  display.addEventListener("click", function(){ input.focus(); paint(); });
+  display.addEventListener("keydown", function(e){
+    if (/^[0-9]$/.test(e.key)) { e.preventDefault(); addDigit(e.key); }
+    else if (e.key === "Backspace") { e.preventDefault(); pin = pin.slice(0,-1); paint(); }
+    else if (e.key === "Enter") { e.preventDefault(); enterStudio(); }
+  });
+  input.addEventListener("input", function(){
+    var raw = String(input.value || "");
+    pin = /^\d{0,4}$/.test(raw) ? raw : "";
+    paint();
+  });
+  input.addEventListener("keydown", function(e){
+    if (e.key === "Enter") { e.preventDefault(); enterStudio(); }
+  });
+  input.addEventListener("focus", paint);
+  input.addEventListener("blur", paint);
+  submit.addEventListener("click", enterStudio);
+  window.addEventListener("pageshow", function(){
+    if (validSession()) location.replace(safeNext());
+  });
+
+  if (new URLSearchParams(location.search).get("out") === "1") {
+    setMessage("你已经退出演示 Studio。", "good");
+  }
+  paint();
+  setTimeout(function(){ input.focus(); paint(); }, 80);
+})();
+</script>
+</body>
+</html>

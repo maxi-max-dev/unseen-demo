@@ -278,6 +278,18 @@
     display:inline-block; margin-left:8px; background:#f2eee7; color:var(--sub);
     font-size:10.5px; letter-spacing:1px; padding:2px 8px; border-radius:9px; vertical-align:middle;
   }
+  .demo-mode-card{
+    display:flex; align-items:center; gap:14px; padding:13px 16px;
+    border-color:#f5cad5; background:linear-gradient(100deg,#fff1f5,#fff8ef);
+  }
+  .demo-mode-card .demo-copy{ min-width:0; flex:1; }
+  .demo-mode-card b{ display:block; color:#a94665; font-size:13px; }
+  .demo-mode-card span{ display:block; color:var(--sub); font-size:11.5px; margin-top:2px; }
+  .demo-mode-card .btn{ min-height:44px; flex:none; }
+  @media(max-width:560px){
+    .demo-mode-card{ align-items:flex-start; flex-direction:column; }
+    .demo-mode-card .btn{ width:100%; }
+  }
   /* ---------------- 四个工作区 / 展览配置 ---------------- */
   .studio-tabs{
     position:sticky; top:8px; z-index:20; display:flex; gap:5px; width:max-content;
@@ -354,6 +366,23 @@
   var SID = qs.get("space") || "";
   var FROM = qs.get("from") || "";   // 从哪个空间点"换个空间"过来的(只用来保证它出现在列表里)
   var MOCK = qs.get("mock") === "1";
+  var AUTH_KEY = "unseen.studio.demo.auth.v1";
+  var AUTH_TTL = 8 * 60 * 60 * 1000;
+  var CLOUD_DEMO = MOCK && !isHostOrigin();
+
+  function hasDemoAccess(){
+    try {
+      var raw = JSON.parse(sessionStorage.getItem(AUTH_KEY) || "null");
+      return !!(raw && raw.grantedAt && Date.now() - raw.grantedAt < AUTH_TTL);
+    } catch (e) {
+      return false;
+    }
+  }
+  function demoLoginUrl(extra){
+    var next = location.pathname + location.search + location.hash;
+    return "../web/studio-login.html?" + (extra ? extra + "&" : "") +
+      "next=" + encodeURIComponent(next);
+  }
 
   // 宾客页的【公开地址】。现场宾客的手机连不到这台电脑, 所以二维码绝不能是局域网 IP ——
   // 页面托管在 GitHub Pages, 数据托管在阿里云 OSS(杭州, 和现场同城), 这台电脑只做后台计算。
@@ -382,8 +411,14 @@
     var at = String(S.cloudJson || "").indexOf(marker);
     return at >= 0 ? String(S.cloudJson).slice(0, at) : "";
   }
-  function studioBack(){ return "server/host.html?space=" + encodeURIComponent(SID) + "#exhibition"; }
+  function studioBack(){
+    return "server/host.html?space=" + encodeURIComponent(SID) +
+      (MOCK ? "&mock=1" : "") + "#exhibition";
+  }
   function localWalkUrl(){
+    if (CLOUD_DEMO) {
+      return "../viewer/walk.html?demo=1&back=" + encodeURIComponent(studioBack());
+    }
     var pov = S.space && S.space.exhibition && S.space.exhibition.allowPov === false ? "&pov=0" : "";
     return "../viewer/walk.html?space=" + encodeURIComponent(SID) + pov +
       "&back=" + encodeURIComponent(studioBack());
@@ -394,6 +429,9 @@
       "&back=" + encodeURIComponent(studioBack());
   }
   function localShowUrl(){
+    if (CLOUD_DEMO) {
+      return "../web/show.html?s=s4&back=" + encodeURIComponent(studioBack());
+    }
     return "../web/show.html?s=" + encodeURIComponent(SID) + "&mode=local&back=" +
       encodeURIComponent(studioBack());
   }
@@ -500,9 +538,10 @@
         contributor:"小明", taskId:"t2", uploadedAt: t0 + 960 }
     ];
     return {
-      schema:"psm-space/1", id: SID || "s1",
-      title:"陈屹 ♥ 林沐 · 2026.7.26", couple:"陈屹 & 林沐",
-      createdAt:t0, published:false,
+      schema:"psm-space/1", id: SID || (CLOUD_DEMO ? "s4" : "s1"),
+      title:CLOUD_DEMO ? "婚礼 · 那一天" : "陈屹 ♥ 林沐 · 2026.7.26",
+      couple:"陈屹 & 林沐",
+      createdAt:t0, published:CLOUD_DEMO,
       nodes:[
         { id:"n1", name:"宴会厅", time:"18:00", panorama:"nodes/n1/pano.jpg", depth:"nodes/n1/depth.png", depthJson:"nodes/n1/depth.json" },
         { id:"n2", name:"仪式草坪", time:"16:30", panorama:"nodes/n2/pano.jpg", depth:"nodes/n2/depth.png", depthJson:"nodes/n2/depth.json" }
@@ -551,6 +590,15 @@
   }
 
   // ================================================================ 渲染: 顶部概况
+  function viewDemoGate(){
+    if (!CLOUD_DEMO) return "";
+    return '<div class="card demo-mode-card">' +
+      '<div class="demo-copy"><b>云端演示模式</b>' +
+      '<span>这里可以完整试用主办方流程，操作只影响当前标签页，刷新后会重置。</span></div>' +
+      '<button class="btn" id="btnDemoLogout" type="button">退出登录</button>' +
+    '</div>';
+  }
+
   function viewTop(sp){
     var st = stats(sp);
     var collecting = !(sp.collection && sp.collection.status === "closed");
@@ -566,9 +614,12 @@
         '<a class="navlink" href="../index.html">← 回首页</a>' +
         // 带上 from: 列表页要把"你刚才在看的那个空间"永远留在列表里,
         // 哪怕它的名字长得像开发测试空间(现场就是拿这种空间在演示)
-        '<a class="navlink" href="host.html?from=' + encodeURIComponent(sp.id || SID) + '">换个空间</a>' +
+        '<a class="navlink" href="host.html?from=' + encodeURIComponent(sp.id || SID) +
+          (MOCK ? '&mock=1' : '') + '">换个空间</a>' +
       '</div>' +
-      '<div class="kicker">U N S E E N <span>Studio</span> · 主办后台' + (MOCK ? '<span class="mockbadge">MOCK 演示数据</span>' : '') + '</div>' +
+      '<div class="kicker">U N S E E N <span>Studio</span> · 主办后台' +
+        (MOCK ? '<span class="mockbadge">' + (CLOUD_DEMO ? '云端演示模式' : 'MOCK 演示数据') + '</span>' : '') +
+      '</div>' +
       '<div class="top">' +
         '<div>' +
           '<h1>' + esc(sp.title || "未命名空间") + '</h1>' +
@@ -588,8 +639,9 @@
             (collecting ? '结束照片收集' : '重新开放收集') +
           '</button>' +
           '<div class="pubstate" id="pubState">' +
-            (S.cloudJson ? '公开快照已存在'
-                         : (sp.published ? '本机已发布,公开快照还没就绪' : '发布后才会生成公开展览')) +
+            (CLOUD_DEMO ? '演示操作只影响当前页面'
+              : (S.cloudJson ? '公开快照已存在'
+                : (sp.published ? '本机已发布,公开快照还没就绪' : '发布后才会生成公开展览'))) +
           '</div>' +
           // 发布时后台会无人值守跑一遍机器验收(结构闸+渲染闸+语义闸), 报告落
           // /spaces/<sid>/report.json。这一格由 pollReport() 填, 拿不到就一直空着, 不占地方。
@@ -788,7 +840,9 @@
           '<button class="btn sm" id="btnCopy">复制</button>' +
         '</div>' +
         '<div class="qrtip">把二维码印在桌卡或投到大屏上,<br>宾客扫一下就能看到任务、传照片。<br>' +
-          (S.cloudJson
+          (CLOUD_DEMO
+            ? '这是公开演示地址,宾客用手机流量也能打开。'
+            : S.cloudJson
             ? '这是公开地址,宾客用手机流量也能打开。'
             : '这是局域网地址,只有和这台电脑连同一个 WiFi 的手机能打开。') +
         '</div>' +
@@ -865,10 +919,16 @@
     var publicAction = S.cloudJson
       ? '<a class="btn quiet" href="' + esc(cloudShowUrl()) + '" target="_blank">打开公开展览</a>'
       : "";
+    var dataNote = CLOUD_DEMO
+      ? "云端演示数据，操作只影响当前页面"
+      : "草稿和公开页使用同一份真实空间数据";
+    var saveNote = CLOUD_DEMO
+      ? "演示保存只影响当前页面，刷新后重置。"
+      : "保存不会公开,按右上角发布才会上云。";
     return '' +
       '<div class="card" id="exhibition">' +
         '<div class="sec-head"><h2 class="sec-title">🪟 展览</h2>' +
-          '<span class="sec-note">草稿和公开页使用同一份真实空间数据</span>' +
+          '<span class="sec-note">' + dataNote + '</span>' +
           '<span class="pill ' + (ex.status === "published" ? "filled" : "open") + '" style="margin-left:auto">' +
             (ex.status === "published" ? "已发布" : "有草稿") + '</span></div>' +
         '<div class="exhibit-grid">' +
@@ -877,8 +937,10 @@
             '<p>' + (sp.nodes || []).length + " 个全景节点," + (sp.selectedCount != null ? sp.selectedCount : stats(sp).inSpace) +
               " 张已入选照片。先看草稿,发布后观众看到同一套内容。</p>" +
             '<div class="preview-acts">' +
-              '<a class="btn" href="' + esc(localShowUrl()) + '" target="_blank">预览完整展览</a>' +
-              '<a class="btn quiet" href="' + esc(localWalkUrl()) + '" target="_blank">直接走进未成品</a>' +
+              '<a class="btn" href="' + esc(localShowUrl()) + '" target="_blank">' +
+                (CLOUD_DEMO ? '预览公开展览' : '预览完整展览') + '</a>' +
+              '<a class="btn quiet" href="' + esc(localWalkUrl()) + '" target="_blank">' +
+                (CLOUD_DEMO ? '进入 3D 演示' : '直接走进未成品') + '</a>' +
               publicAction +
             '</div>' +
           '</div>' +
@@ -902,7 +964,7 @@
             '<label class="checkline"><input id="exPov" type="checkbox"' + (ex.allowPov ? " checked" : "") +
               '>允许观众点击照片,回到拍摄者视角</label>' +
             '<div class="exhibit-save"><button class="btn primary" id="btnSaveExhibition">保存展览草稿</button>' +
-              '<span class="exhibit-note">保存不会公开,按右上角发布才会上云。</span></div>' +
+              '<span class="exhibit-note">' + saveNote + '</span></div>' +
           '</div>' +
         '</div>' +
       '</div>';
@@ -915,6 +977,7 @@
     var sp = S.space;
     var sy = window.pageYOffset || document.documentElement.scrollTop || 0;
     $("app").innerHTML =
+      viewDemoGate() +
       viewTop(sp) +
       '<nav class="studio-tabs" aria-label="Studio 工作区">' +
         '<a href="#overview">概况</a><a href="#collect">收集</a>' +
@@ -1030,6 +1093,18 @@
 
   function paintSystem(){
     var worker = $("workerSlot");
+    var cloud = $("cloudSlot");
+    if (CLOUD_DEMO){
+      if (worker){
+        worker.className = "system-box ok";
+        worker.innerHTML = "<b>处理流程演示</b><span>这里展示现场处理电脑接收和识别照片的状态</span>";
+      }
+      if (cloud){
+        cloud.className = "system-box ok";
+        cloud.innerHTML = "<b>公开展览示例已连接</b><span>预览按钮打开已发布的 s4 只读展览</span>";
+      }
+      return;
+    }
     if (worker){
       if (!S.worker){
         worker.className = "system-box";
@@ -1048,7 +1123,7 @@
       }
     }
 
-    var cloud = $("cloudSlot"), st = S.cloudState || {};
+    var st = S.cloudState || {};
     if (cloud){
       if (st.running){
         var total = Number(st.total) || 0, done = Number(st.done) || 0;
@@ -1185,6 +1260,14 @@
   // ================================================================ 交互
   function bind(){
     var sp = S.space;
+
+    var logout = $("btnDemoLogout");
+    if (logout) logout.addEventListener("click", function(){
+      sessionStorage.removeItem(AUTH_KEY);
+      S.space = null;
+      $("app").innerHTML = '<div class="card"><div class="empty">正在退出…</div></div>';
+      location.replace(demoLoginUrl("out=1"));
+    });
 
     // ---- 发布展览: 本机快照 + 云端公开快照是一颗按钮
     var bp = $("btnPublish");
@@ -1551,18 +1634,23 @@
           '<button class="btn sm quiet" id="btnDevSpaces" style="margin-left:auto">' + (showDevSpaces ? '收起测试空间' : '也显示测试空间') + '</button>' +
         '</div>'
       : '';
+    var createBlock = CLOUD_DEMO
+      ? '<hr class="hr"><div class="empty"><span class="em">🔐</span>' +
+          '云端演示只开放上面的示例空间。真实项目在主办方电脑上新建。</div>'
+      : '<hr class="hr">' +
+        '<div class="sec-head"><h2 class="sec-title">新建一个空间</h2></div>' +
+        '<input class="inp" id="newTitle" maxlength="40" placeholder="陈屹 ♥ 林沐 · 2026.7.26">' +
+        '<input class="inp" id="newCouple" style="margin-top:9px" maxlength="30" placeholder="陈屹 &amp; 林沐">' +
+        '<div class="wishrow"><button class="btn primary" id="btnNew">建空间</button></div>';
 
     $("app").innerHTML = '' +
+      viewDemoGate() +
       '<div class="card">' +
         '<div class="navrow"><a class="navlink" href="../index.html">← 回首页</a></div>' +
         '<div class="kicker">U N S E E N <span>Studio</span> · 主办后台</div>' +
         '<div class="sec-head"><h2 class="sec-title">我的空间</h2><span class="sec-note">点一个进后台</span></div>' +
         '<div class="slist">' + items + '</div>' + devRow +
-        '<hr class="hr">' +
-        '<div class="sec-head"><h2 class="sec-title">新建一个空间</h2></div>' +
-        '<input class="inp" id="newTitle" maxlength="40" placeholder="陈屹 ♥ 林沐 · 2026.7.26">' +
-        '<input class="inp" id="newCouple" style="margin-top:9px" maxlength="30" placeholder="陈屹 &amp; 林沐">' +
-        '<div class="wishrow"><button class="btn primary" id="btnNew">建空间</button></div>' +
+        createBlock +
       '</div>' +
       '<footer class="foot">照片识别在主办方电脑完成 · 云端负责收集与展示 · AdventureX 2026</footer>';
 
@@ -1576,7 +1664,13 @@
       showDevSpaces = !showDevSpaces;
       renderSpaceList(ALL_SPACES);
     });
-    $("btnNew").addEventListener("click", function(){
+    var logout = $("btnDemoLogout");
+    if (logout) logout.addEventListener("click", function(){
+      sessionStorage.removeItem(AUTH_KEY);
+      location.replace(demoLoginUrl("out=1"));
+    });
+    var add = $("btnNew");
+    if (add) add.addEventListener("click", function(){
       var title = ($("newTitle").value || "").trim();
       var couple = ($("newCouple").value || "").trim();
       if (!title){ toast("先给空间起个名"); return; }
@@ -1591,6 +1685,7 @@
 
   // ================================================================ 启动
   function fallbackJoinUrl(){
+    if (CLOUD_DEMO) return location.origin + "/web/join.html?s=s4";
     return location.origin + "/server/join.html?space=" + encodeURIComponent(SID);
   }
 
@@ -1635,7 +1730,9 @@
     if (!SID){
       if (MOCK){
         renderSpaceList([
-          { id:"s1", title:"陈屹 ♥ 林沐 · 2026.7.26", couple:"陈屹 & 林沐", photoCount:14, taskCount:3 }
+          { id:CLOUD_DEMO ? "s4" : "s1",
+            title:CLOUD_DEMO ? "婚礼 · 那一天" : "陈屹 ♥ 林沐 · 2026.7.26",
+            couple:"陈屹 & 林沐", photoCount:14, taskCount:3 }
         ]);
         return;
       }
@@ -1651,8 +1748,8 @@
     if (MOCK){
       S.space = mockSpace();
       S.joinUrl = fallbackJoinUrl();
-      S.worker = { running:true, note:"polling" };
-      S.cloudState = { result:{ spaceJson:"mock" } };
+      S.worker = CLOUD_DEMO ? null : { running:true, note:"polling" };
+      S.cloudState = CLOUD_DEMO ? {} : { result:{ spaceJson:"mock" } };
       render();
       return;
     }
@@ -1686,7 +1783,19 @@
       .catch(renderBootProblem);
   }
 
-  boot();
+  function gateThenBoot(){
+    if (CLOUD_DEMO && !hasDemoAccess()){
+      location.replace(demoLoginUrl(""));
+      return;
+    }
+    boot();
+  }
+
+  window.addEventListener("pageshow", function(){
+    if (CLOUD_DEMO && !hasDemoAccess()) location.replace(demoLoginUrl(""));
+  });
+
+  gateThenBoot();
 })();
 </script>
 </body>

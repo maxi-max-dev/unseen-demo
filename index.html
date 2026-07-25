@@ -73,7 +73,7 @@
   </header>
 
   <div class="hero-cta">
-    <a class="u-btn" href="server/host.html">进入主办方 Studio</a>
+    <a class="u-btn" data-studio-entry href="web/studio-login.html">进入主办方 Studio</a>
   </div>
 
   <div class="grid2">
@@ -83,7 +83,8 @@
   </div>
 
   <div class="col-b">
-    <div class="u-sec"><h2>我的空间</h2><a class="more" href="server/host.html">＋ 新建</a></div>
+    <div class="u-sec"><h2>我的空间</h2><a class="more" data-studio-entry data-studio-new
+      href="web/studio-login.html">登录</a></div>
     <div id="sceneList"></div>
   </div>
 
@@ -110,7 +111,7 @@
 
 <nav class="u-nav">
   <a class="on" href="index.html"><span class="ic">⌂</span>首页</a>
-  <a class="plus" href="server/host.html"><span class="ic">＋</span>Studio</a>
+  <a class="plus" data-studio-entry href="web/studio-login.html"><span class="ic">＋</span>Studio</a>
   <a href="web/demo.html"><span class="ic">▶</span>演示</a>
 </nav>
 
@@ -119,6 +120,13 @@
 (function(){
   "use strict";
   var U = window.UNSEEN;
+  var isLocalOrigin = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+
+  document.querySelectorAll("[data-studio-entry]").forEach(function(link){
+    link.href = isLocalOrigin ? "server/host.html" : "web/studio-login.html";
+  });
+  var studioNew = document.querySelector("[data-studio-new]");
+  if (studioNew && isLocalOrigin) studioNew.textContent = "＋ 新建";
 
   // 所有插值一律过这里再进 innerHTML:空间名字是用户在 create.html 自由输入的,
   // 也可能来自后端返回的 title,不转义就是一个注入口
@@ -189,7 +197,9 @@
       '" title="从这台设备移除" aria-label="从这台设备移除">✕</button>';
     var target = s.kind === "local"
       ? ("app/scene.html?s=" + encodeURIComponent(s.id))
-      : ((s.links && s.links.studio) || ("server/host.html?space=" + encodeURIComponent(s.id)));
+      : (!isLocalOrigin && s.kind === "cloud"
+        ? "web/studio-login.html"
+        : ((s.links && s.links.studio) || ("server/host.html?space=" + encodeURIComponent(s.id))));
     return '<div class="sc-wrap">' +
       '<a class="u-card sc-card" href="' + esc(target) + '">' +
       '<span class="sc-cover">' + cover + '</span>' +
