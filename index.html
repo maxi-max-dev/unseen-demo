@@ -73,17 +73,17 @@
   </header>
 
   <div class="hero-cta">
-    <a class="u-btn" href="app/create.html">＋ 创建记忆空间</a>
+    <a class="u-btn" href="server/host.html">进入主办方 Studio</a>
   </div>
 
   <div class="grid2">
   <div class="col-a">
-    <div class="u-sec"><h2>场景</h2><span class="u-note">选一个开始</span></div>
+    <div class="u-sec"><h2>适用场景</h2><span class="u-note">同一套系统</span></div>
     <div class="tpl-row" id="tplRow"></div>
   </div>
 
   <div class="col-b">
-    <div class="u-sec"><h2>我的空间</h2><a class="more" href="app/create.html">＋ 新建</a></div>
+    <div class="u-sec"><h2>我的空间</h2><a class="more" href="server/host.html">＋ 新建</a></div>
     <div id="sceneList"></div>
   </div>
 
@@ -95,9 +95,9 @@
       <span class="go">→</span>
     </a>
     <div style="height:10px"></div>
-    <a class="u-card demo-strip" href="web/show.html">
+    <a class="u-card demo-strip" href="web/show.html?s=s4">
       <span class="play" style="background:linear-gradient(95deg,#c9a2ff,#9fb8ff)">✦</span>
-      <span class="tx"><b>六个展厅</b><span>同一段记忆的六种看法</span></span>
+      <span class="tx"><b>只读展览</b><span>主办方选择内容,观众只负责观看</span></span>
       <span class="go">→</span>
     </a>
   </div>
@@ -110,7 +110,7 @@
 
 <nav class="u-nav">
   <a class="on" href="index.html"><span class="ic">⌂</span>首页</a>
-  <a class="plus" href="app/create.html"><span class="ic">＋</span>新建</a>
+  <a class="plus" href="server/host.html"><span class="ic">＋</span>Studio</a>
   <a href="web/demo.html"><span class="ic">▶</span>演示</a>
 </nav>
 
@@ -127,10 +127,10 @@
     return String(v == null ? "" : v).replace(/[&<>"']/g, function(c){ return ESC[c]; });
   }
 
-  // 场景模板三连
+  // 这里只说明产品适用范围,不是三套不同模板。建空间统一从 Studio 开始。
   document.getElementById("tplRow").innerHTML = U.TEMPLATES.map(function(t){
-    return '<a class="tpl" href="app/create.html?template=' + encodeURIComponent(t.t) + '">' +
-           '<img src="' + esc(t.cover) + '" alt="">' + '<b>' + esc(t.name) + '</b></a>';
+    return '<article class="tpl">' +
+           '<img src="' + esc(t.cover) + '" alt="">' + '<b>' + esc(t.name) + '</b></article>';
   }).join("");
 
   // 一次性清理:老版本首页会把本机后端里的每一个空间(含开发测试空间)自动写进 localStorage。
@@ -187,8 +187,11 @@
     var del = BUILTIN_IDS[s.id] ? "" :
       '<button type="button" class="sc-del" data-del="' + esc(s.id) +
       '" title="从这台设备移除" aria-label="从这台设备移除">✕</button>';
+    var target = s.kind === "local"
+      ? ("app/scene.html?s=" + encodeURIComponent(s.id))
+      : ((s.links && s.links.studio) || ("server/host.html?space=" + encodeURIComponent(s.id)));
     return '<div class="sc-wrap">' +
-      '<a class="u-card sc-card" href="app/scene.html?s=' + encodeURIComponent(s.id) + '">' +
+      '<a class="u-card sc-card" href="' + esc(target) + '">' +
       '<span class="sc-cover">' + cover + '</span>' +
       '<span class="sc-body"><h3>' + esc(s.title) + '</h3>' +
       '<span class="meta">' + esc(metaText(s)) + '</span>' +

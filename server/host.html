@@ -278,6 +278,62 @@
     display:inline-block; margin-left:8px; background:#f2eee7; color:var(--sub);
     font-size:10.5px; letter-spacing:1px; padding:2px 8px; border-radius:9px; vertical-align:middle;
   }
+  /* ---------------- 四个工作区 / 展览配置 ---------------- */
+  .studio-tabs{
+    position:sticky; top:8px; z-index:20; display:flex; gap:5px; width:max-content;
+    max-width:100%; overflow:auto; margin:0 auto 16px; padding:6px;
+    border:1px solid var(--line); border-radius:999px; background:rgba(255,255,255,.90);
+    box-shadow:var(--shadow); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px);
+  }
+  .studio-tabs a{
+    flex:none; min-height:44px; display:flex; align-items:center; padding:7px 14px;
+    border-radius:999px; color:var(--sub); text-decoration:none; font-size:12px; font-weight:700;
+  }
+  .studio-tabs a:hover{ color:var(--red); background:#fff4f6; }
+  .system-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-top:14px; }
+  .system-box{ padding:12px 13px; border:1px solid var(--line2); border-radius:15px; background:rgba(255,255,255,.62); }
+  .system-box b{ display:block; font-size:12px; }
+  .system-box span{ display:block; color:var(--sub); font-size:11px; margin-top:2px; }
+  .system-box.ok b{ color:#34825f; }.system-box.warn b{ color:#b96a3f; }
+  .exhibit-grid{ display:grid; grid-template-columns:minmax(0,1.15fr) minmax(260px,.85fr); gap:14px; }
+  .exhibit-preview{
+    min-height:258px; padding:22px; border-radius:18px; color:#fff;
+    background:radial-gradient(circle at 78% 18%,rgba(255,184,203,.54),transparent 38%),
+      linear-gradient(145deg,#4f3d49,#8b596c); display:flex; flex-direction:column; justify-content:flex-end;
+    position:relative; overflow:hidden;
+  }
+  .exhibit-preview:before,.exhibit-preview:after{
+    content:""; position:absolute; width:260px; height:112px; right:-36px; top:22px;
+    border:1px solid rgba(255,255,255,.22); border-radius:50%; transform:rotate(-15deg);
+  }
+  .exhibit-preview:after{ width:170px; height:72px; right:36px; top:59px; }
+  .exhibit-preview h3{ position:relative; margin:0 0 4px; font-size:22px; }
+  .exhibit-preview p{ position:relative; margin:0 0 15px; color:rgba(255,255,255,.72); font-size:12px; }
+  .preview-acts{ position:relative; display:flex; gap:8px; flex-wrap:wrap; }
+  .preview-acts .btn{ background:#fff; color:#654653; border-color:#fff; }
+  .preview-acts .btn.quiet{ background:rgba(255,255,255,.12); color:#fff; border-color:rgba(255,255,255,.3); }
+  .view-picks{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+  .view-pick{ position:relative; }
+  .view-pick input{ position:absolute; opacity:0; pointer-events:none; }
+  .view-pick span{
+    min-height:50px; display:flex; align-items:center; gap:8px; padding:10px 12px;
+    border:1px solid var(--line); border-radius:14px; background:#fff; color:var(--sub);
+    font-size:12px; font-weight:650; cursor:pointer;
+  }
+  .view-pick input:checked + span{ color:#b74e6d; border-color:#f2b1c2; background:#fff2f5; }
+  .view-pick input:focus-visible + span{ outline:3px solid rgba(224,92,134,.28); outline-offset:2px; }
+  .view-pick input:disabled + span{ opacity:.45; cursor:not-allowed; }
+  .exhibit-form .lab{ display:block; margin:12px 2px 5px; color:var(--sub); font-size:11px; }
+  .exhibit-form select{ width:100%; height:44px; padding:0 10px; border:1px solid var(--line);
+    border-radius:12px; background:#fff; color:var(--ink); font:inherit; }
+  .checkline{ display:flex; align-items:center; gap:8px; min-height:44px; margin-top:12px; font-size:12px; color:var(--sub); }
+  .exhibit-save{ display:flex; align-items:center; gap:10px; margin-top:14px; flex-wrap:wrap; }
+  .exhibit-note{ color:var(--sub); font-size:11px; }
+  @media(max-width:760px){
+    .exhibit-grid{ grid-template-columns:1fr; }
+    .system-grid{ grid-template-columns:1fr; }
+    .studio-tabs{ margin-left:0; }
+  }
   footer.foot{ text-align:center; font-size:10.5px; color:#b8b0a4; letter-spacing:.5px; margin-top:8px; }
 </style>
 </head>
@@ -304,7 +360,8 @@
   // (OSS 国内地域会给默认域名加 Content-Disposition: attachment, 地址栏直开会变下载,
   //  所以 HTML 只能放 Pages, 不能放 OSS。)
   var CLOUD_JOIN_BASE = "https://unseen-demo.vercel.app/web/join.html";
-  var CLOUD_WALK_BASE = "https://maxi-max-dev.github.io/unseen-demo/web/walk.html";
+  var CLOUD_WALK_BASE = "https://unseen-demo.vercel.app/viewer/walk.html";
+  var CLOUD_SHOW_BASE = "https://unseen-demo.vercel.app/web/show.html";
 
   var S = {          // 页面状态
     space: null,     // space.json
@@ -313,13 +370,37 @@
     busy: false,
     cloudJson: "",   // 已发布到 OSS 的公开清单地址(space.ossSpaceJson)
     cloudMsg: "",    // 云发布进度的人话
+    cloudState: null,
     worker: null     // { running, ageS } 后台工人心跳
   };
 
   // 云发布过没 = 本地 space.json 里有没有 ossSpaceJson。有了才把二维码换成公开地址,
   // 否则宾客扫到一个还没数据的链接, 比扫到局域网 IP 更糟。
   function cloudJoinUrl(){ return CLOUD_JOIN_BASE + "?s=" + encodeURIComponent(SID); }
-  function cloudWalkUrl(){ return CLOUD_WALK_BASE + "?cloud=" + encodeURIComponent(S.cloudJson); }
+  function cloudBase(){
+    var marker = "/spaces/" + SID + "/space.json";
+    var at = String(S.cloudJson || "").indexOf(marker);
+    return at >= 0 ? String(S.cloudJson).slice(0, at) : "";
+  }
+  function studioBack(){ return "server/host.html?space=" + encodeURIComponent(SID) + "#exhibition"; }
+  function localWalkUrl(){
+    var pov = S.space && S.space.exhibition && S.space.exhibition.allowPov === false ? "&pov=0" : "";
+    return "../viewer/walk.html?space=" + encodeURIComponent(SID) + pov +
+      "&back=" + encodeURIComponent(studioBack());
+  }
+  function cloudWalkUrl(){
+    return CLOUD_WALK_BASE + "?space=" + encodeURIComponent(SID) +
+      (cloudBase() ? "&b=" + encodeURIComponent(cloudBase()) : "") +
+      "&back=" + encodeURIComponent(studioBack());
+  }
+  function localShowUrl(){
+    return "../web/show.html?s=" + encodeURIComponent(SID) + "&mode=local&back=" +
+      encodeURIComponent(studioBack());
+  }
+  function cloudShowUrl(){
+    return CLOUD_SHOW_BASE + "?s=" + encodeURIComponent(SID) +
+      (cloudBase() ? "&b=" + encodeURIComponent(cloudBase()) : "");
+  }
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -472,14 +553,15 @@
   // ================================================================ 渲染: 顶部概况
   function viewTop(sp){
     var st = stats(sp);
+    var collecting = !(sp.collection && sp.collection.status === "closed");
     var pub = sp.published
       ? '<span class="pill filled">已发布</span>'
       : '<span class="pill closed">未发布</span>';
     var btn = sp.published
-      ? '<button class="btn sm" id="btnPublish">重新发布</button>'
-      : '<button class="btn primary big" id="btnPublish">发布空间</button>';
+      ? '<button class="btn sm" id="btnPublish">更新展览</button>'
+      : '<button class="btn primary big" id="btnPublish">发布展览</button>';
     return '' +
-    '<div class="card">' +
+    '<div class="card" id="overview">' +
       '<div class="navrow">' +
         '<a class="navlink" href="../index.html">← 回首页</a>' +
         // 带上 from: 列表页要把"你刚才在看的那个空间"永远留在列表里,
@@ -502,18 +584,21 @@
           '<div class="fresh" id="freshSlot"></div>' +
         '</div>' +
         '<div class="top-actions">' + pub + btn +
+          '<button class="btn sm quiet" id="btnCollection">' +
+            (collecting ? '结束照片收集' : '重新开放收集') +
+          '</button>' +
           '<div class="pubstate" id="pubState">' +
-            (S.cloudJson ? '已上云,宾客扫码就能走进去了'
-                         : (sp.published ? '本机已发布,还没推到云上' : '发布后宾客才能进入空间漫游')) +
+            (S.cloudJson ? '公开快照已存在'
+                         : (sp.published ? '本机已发布,公开快照还没就绪' : '发布后才会生成公开展览')) +
           '</div>' +
-          // 云发布进度 + 后台工人心跳。工人这一格很重要: 忘了起工人的话,
-          // 宾客传的照片会一直躺在 OSS 收件箱里没人算, 现场会当场懵。
-          '<div class="pubstate" id="cloudSlot"></div>' +
-          '<div class="pubstate" id="workerSlot"></div>' +
           // 发布时后台会无人值守跑一遍机器验收(结构闸+渲染闸+语义闸), 报告落
           // /spaces/<sid>/report.json。这一格由 pollReport() 填, 拿不到就一直空着, 不占地方。
           '<div class="pubstate" id="reportSlot"></div>' +
         '</div>' +
+      '</div>' +
+      '<div class="system-grid">' +
+        '<div class="system-box" id="workerSlot"><b>处理电脑</b><span>正在读取状态</span></div>' +
+        '<div class="system-box" id="cloudSlot"><b>公开展览</b><span>正在读取状态</span></div>' +
       '</div>' +
     '</div>';
   }
@@ -609,7 +694,7 @@
     }
 
     return '' +
-    '<div class="card" id="reviewCard">' +
+    '<div class="card" id="review">' +
       '<div class="sec-head"><h2 class="sec-title">🎯 待你确认</h2>' +
         '<span class="sec-note">机器拿不准的才会出现在这里</span></div>' +
       banner + body +
@@ -640,7 +725,7 @@
         ? '认领人 ' + t.filledBy.map(esc).join("、")
         : (t.status === "open" ? "还没人接" : "");
       var range = (isGap && t.yawRange && t.yawRange.length === 2)
-        ? ('方位 ' + t.yawRange[0] + '°–' + t.yawRange[1] + '°')
+        ? ('方位 ' + t.yawRange[0] + '° 到 ' + t.yawRange[1] + '°')
         : (t.createdBy === "couple" ? "新人亲自写的" : "");
       return '' +
       '<div class="task">' + thumb +
@@ -661,7 +746,7 @@
     }).join("") : '<div class="empty"><span class="em">🧭</span>还没有任务。传一张全景,系统会自动找出没人拍过的方位。</div>';
 
     return '' +
-    '<div class="card">' +
+    '<div class="card" id="collect">' +
       '<div class="sec-head"><h2 class="sec-title">📣 悬赏任务</h2>' +
         '<span class="sec-note">🧭 系统自动发现的缺口 · 💌 你自己写的心愿</span></div>' +
       rows +
@@ -734,6 +819,95 @@
     '</div>';
   }
 
+  // ================================================================ 渲染: 展览
+  function exhibitionOf(sp){
+    var raw = sp.exhibition || {};
+    var all = ["walk","photos","tasks","contributors"], views = [];
+    (raw.views || all).forEach(function(v){
+      if (all.indexOf(v) >= 0 && views.indexOf(v) < 0) views.push(v);
+    });
+    if (!views.length) views = ["walk"];
+    var out = {
+      status:raw.status || (sp.published ? "published" : "draft"),
+      views:views,
+      entryView:views.indexOf(raw.entryView) >= 0 ? raw.entryView : views[0],
+      allowPov:raw.allowPov !== false,
+      contributorVisibility:raw.contributorVisibility || "name",
+      taskVisibility:raw.taskVisibility || "all"
+    };
+    if (out.contributorVisibility === "hidden") {
+      out.views = out.views.filter(function(v){ return v !== "contributors"; });
+    }
+    if (out.taskVisibility === "hidden") {
+      out.views = out.views.filter(function(v){ return v !== "tasks"; });
+    }
+    if (!out.views.length) out.views = ["walk"];
+    out.entryView = out.views.indexOf(raw.entryView) >= 0 ? raw.entryView : out.views[0];
+    return out;
+  }
+
+  function viewExhibition(sp){
+    var ex = exhibitionOf(sp);
+    var choices = [
+      ["walk","◎","走进空间"],["photos","▦","照片墙"],
+      ["tasks","✓","任务痕迹"],["contributors","♡","贡献者"]
+    ].map(function(v){
+      var disabled = (v[0] === "tasks" && ex.taskVisibility === "hidden") ||
+        (v[0] === "contributors" && ex.contributorVisibility === "hidden");
+      return '<label class="view-pick"><input type="checkbox" data-ex-view="' + v[0] + '"' +
+        (ex.views.indexOf(v[0]) >= 0 ? " checked" : "") + (disabled ? " disabled" : "") +
+        '><span>' + v[1] + " " + v[2] + "</span></label>";
+    }).join("");
+    var entryOptions = ex.views.map(function(v){
+      var names = {walk:"走进空间",photos:"照片墙",tasks:"任务痕迹",contributors:"贡献者"};
+      return '<option value="' + v + '"' + (ex.entryView === v ? " selected" : "") + ">" + names[v] + "</option>";
+    }).join("");
+    var publicAction = S.cloudJson
+      ? '<a class="btn quiet" href="' + esc(cloudShowUrl()) + '" target="_blank">打开公开展览</a>'
+      : "";
+    return '' +
+      '<div class="card" id="exhibition">' +
+        '<div class="sec-head"><h2 class="sec-title">🪟 展览</h2>' +
+          '<span class="sec-note">草稿和公开页使用同一份真实空间数据</span>' +
+          '<span class="pill ' + (ex.status === "published" ? "filled" : "open") + '" style="margin-left:auto">' +
+            (ex.status === "published" ? "已发布" : "有草稿") + '</span></div>' +
+        '<div class="exhibit-grid">' +
+          '<div class="exhibit-preview">' +
+            '<h3>' + esc(sp.title || "我们的展览") + '</h3>' +
+            '<p>' + (sp.nodes || []).length + " 个全景节点," + (sp.selectedCount != null ? sp.selectedCount : stats(sp).inSpace) +
+              " 张已入选照片。先看草稿,发布后观众看到同一套内容。</p>" +
+            '<div class="preview-acts">' +
+              '<a class="btn" href="' + esc(localShowUrl()) + '" target="_blank">预览完整展览</a>' +
+              '<a class="btn quiet" href="' + esc(localWalkUrl()) + '" target="_blank">直接走进未成品</a>' +
+              publicAction +
+            '</div>' +
+          '</div>' +
+          '<div class="exhibit-form">' +
+            '<div class="sec-note" style="margin-bottom:7px">选择公开页出现什么</div>' +
+            '<div class="view-picks">' + choices + '</div>' +
+            '<label class="lab" for="exEntry">观众先看到</label>' +
+            '<select id="exEntry">' + entryOptions + '</select>' +
+            '<label class="lab" for="exNames">贡献者名字</label>' +
+            '<select id="exNames">' +
+              '<option value="name"' + (ex.contributorVisibility === "name" ? " selected" : "") + '>显示名字</option>' +
+              '<option value="anonymous"' + (ex.contributorVisibility === "anonymous" ? " selected" : "") + '>匿名编号</option>' +
+              '<option value="hidden"' + (ex.contributorVisibility === "hidden" ? " selected" : "") + '>整段隐藏</option>' +
+            '</select>' +
+            '<label class="lab" for="exTasks">任务痕迹</label>' +
+            '<select id="exTasks">' +
+              '<option value="all"' + (ex.taskVisibility === "all" ? " selected" : "") + '>全部任务</option>' +
+              '<option value="completed"' + (ex.taskVisibility === "completed" ? " selected" : "") + '>只看已补上的</option>' +
+              '<option value="hidden"' + (ex.taskVisibility === "hidden" ? " selected" : "") + '>整段隐藏</option>' +
+            '</select>' +
+            '<label class="checkline"><input id="exPov" type="checkbox"' + (ex.allowPov ? " checked" : "") +
+              '>允许观众点击照片,回到拍摄者视角</label>' +
+            '<div class="exhibit-save"><button class="btn primary" id="btnSaveExhibition">保存展览草稿</button>' +
+              '<span class="exhibit-note">保存不会公开,按右上角发布才会上云。</span></div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
   // ================================================================ 整页渲染
   // 整页 innerHTML 重画, 所以重画前后要把滚动位置接住 —— 不然自动刷新一到,
   // 正在看第 8 张照片的人会被弹回页面顶上。
@@ -742,16 +916,22 @@
     var sy = window.pageYOffset || document.documentElement.scrollTop || 0;
     $("app").innerHTML =
       viewTop(sp) +
+      '<nav class="studio-tabs" aria-label="Studio 工作区">' +
+        '<a href="#overview">概况</a><a href="#collect">收集</a>' +
+        '<a href="#review">审核</a><a href="#exhibition">展览</a>' +
+      '</nav>' +
+      viewExhibition(sp) +
       viewReview(sp) +
       '<div class="cols">' +
         '<div>' + viewTasks(sp) + '</div>' +
         '<div>' + viewInvite() + viewRank(sp) + '</div>' +
       '</div>' +
-      '<footer class="foot">全程本地处理 · 断网可用 · AdventureX 2026</footer>';
+      '<footer class="foot">照片识别在主办方电脑完成 · 云端负责收集与展示 · AdventureX 2026</footer>';
     bind();
     renderQr();
     paintReport();
     paintFresh();
+    paintSystem();
     if (sy) window.scrollTo(0, sy);
   }
 
@@ -764,8 +944,12 @@
 
   // 页面上显示了什么, 签名就只看什么。签名没变 = 不重画, 省得白闪。
   function spaceSig(sp){
+    var ex = exhibitionOf(sp);
     return [
       sp.title || "", sp.couple || "", sp.published ? 1 : 0, sp.ossSpaceJson || "",
+      (sp.collection && sp.collection.status) || "open",
+      ex.status + ":" + ex.entryView + ":" + ex.views.join("|") + ":" +
+        (ex.allowPov ? 1 : 0) + ":" + ex.contributorVisibility + ":" + ex.taskVisibility,
       (sp.nodes || []).map(function(n){ return n.id + ":" + (n.name || ""); }).join(","),
       (sp.photos || []).map(function(p){ return p.id + ":" + p.state; }).join(","),
       (sp.tasks || []).map(function(t){ return t.id + ":" + t.status + ":" + (t.filledBy || []).join("|"); }).join(","),
@@ -839,6 +1023,92 @@
       paintFresh();
       if (!document.hidden) pullSpace();          // 切回来立刻补一次, 别让人看着旧数字
     });
+  }
+
+  // ---------------------------------------------------------------- 处理电脑 + 云发布状态
+  var SYSTEM = { timer:null };
+
+  function paintSystem(){
+    var worker = $("workerSlot");
+    if (worker){
+      if (!S.worker){
+        worker.className = "system-box";
+        worker.innerHTML = "<b>处理电脑</b><span>正在读取状态</span>";
+      } else if (S.worker.running){
+        worker.className = "system-box ok";
+        worker.innerHTML = "<b>处理电脑运行中</b><span>" +
+          (S.worker.note === "loading-clip" ? "正在加载识别模型,冷启动通常要十几秒" : "正在接收和处理宾客照片") +
+          "</span>";
+      } else {
+        worker.className = "system-box warn";
+        worker.innerHTML = '<b>处理电脑没有在线</b><span>新照片可以先保存,但暂时不会归入空间。</span>' +
+          '<button class="btn sm" id="btnStartWorker" style="margin-top:8px">启动处理电脑</button>';
+        var start = $("btnStartWorker");
+        if (start) start.addEventListener("click", startWorker);
+      }
+    }
+
+    var cloud = $("cloudSlot"), st = S.cloudState || {};
+    if (cloud){
+      if (st.running){
+        var total = Number(st.total) || 0, done = Number(st.done) || 0;
+        cloud.className = "system-box";
+        cloud.innerHTML = "<b>正在更新公开展览</b><span>" +
+          (total ? (done + "/" + total + " 个文件") : "正在准备文件") + "</span>";
+      } else if (st.error){
+        cloud.className = "system-box warn";
+        cloud.innerHTML = "<b>公开展览更新失败</b><span>" + esc(st.error) + "</span>";
+      } else if ((st.result && st.result.spaceJson) || S.cloudJson){
+        cloud.className = "system-box ok";
+        cloud.innerHTML = "<b>公开展览已就绪</b><span>宾客页和只读展览都能从外网打开</span>";
+      } else {
+        cloud.className = "system-box";
+        cloud.innerHTML = "<b>公开展览还没生成</b><span>保存草稿后,按右上角发布展览</span>";
+      }
+    }
+  }
+
+  function pullSystem(){
+    if (MOCK || !SID) return;
+    Promise.all([
+      api("/api/space/" + encodeURIComponent(SID) + "/worker-status").catch(function(){ return null; }),
+      api("/api/space/" + encodeURIComponent(SID) + "/publish-cloud").catch(function(){ return null; })
+    ]).then(function(all){
+      if (all[0] && all[0].ok) S.worker = all[0];
+      if (all[1] && all[1].ok) {
+        S.cloudState = all[1].state || {};
+        if (S.cloudState.result && S.cloudState.result.spaceJson && !S.cloudJson){
+          S.cloudJson = S.cloudState.result.spaceJson;
+          S.joinUrl = cloudJoinUrl();
+          renderQr();
+        }
+      }
+      paintSystem();
+    });
+  }
+
+  function startSystem(){
+    if (MOCK || !SID) return;
+    clearInterval(SYSTEM.timer);
+    pullSystem();
+    SYSTEM.timer = setInterval(pullSystem, 5000);
+  }
+
+  function startWorker(){
+    var btn = $("btnStartWorker");
+    if (btn) { btn.disabled = true; btn.textContent = "正在启动"; }
+    postJson("/api/space/" + encodeURIComponent(SID) + "/worker/start", {})
+      .then(function(d){
+        if (!(d && d.ok)) throw new Error((d && d.error) || "启动失败");
+        S.worker = { running:true, note:"loading-clip" };
+        paintSystem();
+        toast(d.started ? "处理电脑已启动,正在加载模型" : "处理电脑已经在运行");
+        setTimeout(pullSystem, 2500);
+      })
+      .catch(function(e){
+        if (btn) { btn.disabled = false; btn.textContent = "启动处理电脑"; }
+        toast("处理电脑没启动:" + e.message);
+      });
   }
 
   // ---------------------------------------------------------------- 机器验收报告
@@ -916,31 +1186,144 @@
   function bind(){
     var sp = S.space;
 
-    // ---- 发布空间
+    // ---- 发布展览: 本机快照 + 云端公开快照是一颗按钮
     var bp = $("btnPublish");
     if (bp) bp.addEventListener("click", function(){
       if (S.busy) return;
       S.busy = true; bp.disabled = true;
       if (MOCK){
         sp.published = true; S.busy = false;
-        toast("已发布(演示数据)"); render(); return;
+        if (sp.exhibition) sp.exhibition.status = "published";
+        toast("展览已发布(演示数据)"); render(); return;
       }
       postJson("/api/space/" + encodeURIComponent(SID) + "/publish", {})
         .then(function(d){
-          S.busy = false;
-          if (d && d.ok){
-            sp.published = true;
-            REPORT.verdict = "";       // 这次发布的报告还没跑出来, 别沿用上一次的裁决
-            REPORT.state = "waiting";
-            render();
-            pollReport(true);
-            toast("已发布" + (d.viewUrl ? ",宾客可以进空间了" : ""));
-          } else {
-            bp.disabled = false;
-            toast("发布失败: " + ((d && d.error) || "未知错误"));
-          }
+          if (!(d && d.ok)) throw new Error((d && d.error) || "本机发布失败");
+          sp.published = true;
+          if (sp.exhibition) sp.exhibition.status = "published";
+          REPORT.verdict = "";
+          REPORT.state = "waiting";
+          return postJson("/api/space/" + encodeURIComponent(SID) + "/publish-cloud", {});
         })
-        .catch(function(e){ S.busy = false; bp.disabled = false; toast("发布失败: " + e.message); });
+        .then(function(cloud){
+          S.busy = false;
+          if (cloud && cloud.ok){
+            S.cloudState = cloud.state || { running:true };
+            toast(cloud.started ? "本机已发布,正在更新公开展览" : "公开展览已经在更新");
+          } else {
+            S.cloudState = { error:(cloud && cloud.error) || "云发布没有启动" };
+            toast("本机已发布,公开展览更新失败");
+          }
+          render();
+          pollReport(true);
+          pullSystem();
+        })
+        .catch(function(e){
+          S.busy = false; bp.disabled = false;
+          toast("发布失败:" + e.message);
+          paintSystem();
+        });
+    });
+
+    // ---- 收集通道和展览发布是两个独立状态
+    var bcol = $("btnCollection");
+    if (bcol) bcol.addEventListener("click", function(){
+      if (S.busy) return;
+      var current = !(sp.collection && sp.collection.status === "closed");
+      var next = current ? "closed" : "open";
+      if (MOCK){
+        sp.collection = { status:next, updatedAt:Date.now()/1000 };
+        toast(next === "open" ? "照片收集已开放" : "照片收集已结束");
+        render(); return;
+      }
+      S.busy = true; bcol.disabled = true;
+      postJson("/api/space/" + encodeURIComponent(SID) + "/collection", { status:next })
+        .then(function(d){
+          S.busy = false;
+          if (!(d && d.ok && d.collection)) throw new Error((d && d.error) || "保存失败");
+          sp.collection = d.collection;
+          toast(S.cloudJson
+            ? (next === "open" ? "照片收集已开放,正在同步公网" : "照片收集已结束,正在同步公网")
+            : (next === "open" ? "照片收集已开放" : "照片收集已结束"));
+          render();
+          if (!S.cloudJson) return null;
+          return postJson("/api/space/" + encodeURIComponent(SID) + "/publish-cloud", {})
+            .then(function(cloud){
+              if (!(cloud && cloud.ok)) throw new Error((cloud && cloud.error) || "公网同步没有启动");
+              S.cloudState = cloud.state || { running:true };
+              paintSystem();
+            });
+        })
+        .catch(function(e){
+          S.busy = false;
+          var currentButton = $("btnCollection");
+          if (currentButton) currentButton.disabled = false;
+          toast("收集状态没能同步:" + e.message);
+        });
+    });
+
+    // ---- 展览草稿配置
+    function syncEntryOptions(){
+      var entry = $("exEntry");
+      if (!entry) return;
+      var old = entry.value, names = {walk:"走进空间",photos:"照片墙",tasks:"任务痕迹",contributors:"贡献者"};
+      var views = Array.prototype.slice.call(document.querySelectorAll("[data-ex-view]:checked"))
+        .map(function(x){ return x.getAttribute("data-ex-view"); });
+      entry.innerHTML = views.map(function(v){
+        return '<option value="' + v + '">' + names[v] + "</option>";
+      }).join("");
+      entry.value = views.indexOf(old) >= 0 ? old : (views[0] || "");
+    }
+    Array.prototype.forEach.call(document.querySelectorAll("[data-ex-view]"), function(box){
+      box.addEventListener("change", syncEntryOptions);
+    });
+    function syncHiddenViews(){
+      var pairs = [
+        ["exNames","hidden","contributors"],
+        ["exTasks","hidden","tasks"]
+      ];
+      pairs.forEach(function(pair){
+        var select = $(pair[0]);
+        var box = document.querySelector('[data-ex-view="' + pair[2] + '"]');
+        if (select && box) {
+          box.disabled = select.value === pair[1];
+          if (box.disabled) box.checked = false;
+        }
+      });
+      syncEntryOptions();
+    }
+    ["exNames","exTasks"].forEach(function(id){
+      var select = $(id);
+      if (select) select.addEventListener("change", syncHiddenViews);
+    });
+    var bsave = $("btnSaveExhibition");
+    if (bsave) bsave.addEventListener("click", function(){
+      var views = Array.prototype.slice.call(document.querySelectorAll("[data-ex-view]:checked"))
+        .map(function(x){ return x.getAttribute("data-ex-view"); });
+      if (!views.length){ toast("至少保留一个展示模块"); return; }
+      var payload = {
+        views:views,
+        entryView:($("exEntry") && $("exEntry").value) || views[0],
+        allowPov:!!($("exPov") && $("exPov").checked),
+        contributorVisibility:($("exNames") && $("exNames").value) || "name",
+        taskVisibility:($("exTasks") && $("exTasks").value) || "all"
+      };
+      if (MOCK){
+        payload.status = "draft"; sp.exhibition = payload;
+        toast("展览草稿已保存(演示数据)"); render(); return;
+      }
+      if (S.busy) return;
+      S.busy = true; bsave.disabled = true;
+      postJson("/api/space/" + encodeURIComponent(SID) + "/exhibition", payload)
+        .then(function(d){
+          S.busy = false;
+          if (!(d && d.ok && d.exhibition)) throw new Error((d && d.error) || "保存失败");
+          sp.exhibition = d.exhibition;
+          toast("展览草稿已保存,预览页已经更新");
+          render();
+          location.hash = "exhibition";
+        })
+        .catch(function(e){ S.busy = false; bsave.disabled = false; toast("草稿没保存:" + e.message); });
     });
 
     // ---- 待审: 勾选
@@ -1181,7 +1564,7 @@
         '<input class="inp" id="newCouple" style="margin-top:9px" maxlength="30" placeholder="陈屹 &amp; 林沐">' +
         '<div class="wishrow"><button class="btn primary" id="btnNew">建空间</button></div>' +
       '</div>' +
-      '<footer class="foot">全程本地处理 · 断网可用 · AdventureX 2026</footer>';
+      '<footer class="foot">照片识别在主办方电脑完成 · 云端负责收集与展示 · AdventureX 2026</footer>';
 
     Array.prototype.forEach.call(document.querySelectorAll(".sitem"), function(it){
       it.addEventListener("click", function(){
@@ -1211,6 +1594,35 @@
     return location.origin + "/server/join.html?space=" + encodeURIComponent(SID);
   }
 
+  function renderBackendUnavailable(detail){
+    var onHost = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+    var suffix = SID ? "?space=" + encodeURIComponent(SID) : "";
+    var localUrl = "http://127.0.0.1:8777/server/host.html" + suffix;
+    var body = onHost
+      ? "主办方后台还没有启动。启动后刷新这一页,空间和照片会从本机数据里恢复。"
+      : "Studio 运行在主办方的处理电脑上,公开网站只负责宾客上传和只读展览。";
+    var action = onHost
+      ? '<button class="btn primary" type="button" onclick="location.reload()">重新检查</button>'
+      : '<a class="btn primary" href="' + esc(localUrl) + '">在主办方电脑打开 Studio</a>';
+    $("app").innerHTML =
+      '<div class="card"><div class="navrow"><a class="navlink" href="../index.html">← 回首页</a></div>' +
+      '<div class="empty"><span class="em">🖥️</span><b>Studio 需要主办方后台</b><br>' +
+      esc(body) +
+      '<div style="margin-top:16px">' + action + '</div></div></div>';
+  }
+
+  function renderBootProblem(err){
+    var message = String(err && (err.message || err) || "");
+    if (/找不到这个空间|读不到这个空间/.test(message)) {
+      $("app").innerHTML =
+        '<div class="card"><div class="navrow"><a class="navlink" href="host.html">← 返回空间列表</a></div>' +
+        '<div class="empty"><span class="em">🗂️</span><b>找不到这个空间</b><br>' +
+        '它可能已经被移走,也可能是链接里的空间编号不对。</div></div>';
+      return;
+    }
+    renderBackendUnavailable(message);
+  }
+
   function boot(){
     if (!SID){
       if (MOCK){
@@ -1220,14 +1632,19 @@
         return;
       }
       api("/api/spaces")
-        .then(function(d){ renderSpaceList((d && d.ok) ? d.spaces : []); })
-        .catch(function(){ renderSpaceList([]); });
+        .then(function(d){
+          if (!(d && d.ok)) throw new Error((d && d.error) || "后台没有返回空间列表");
+          renderSpaceList(d.spaces || []);
+        })
+        .catch(renderBootProblem);
       return;
     }
 
     if (MOCK){
       S.space = mockSpace();
       S.joinUrl = fallbackJoinUrl();
+      S.worker = { running:true, note:"polling" };
+      S.cloudState = { result:{ spaceJson:"mock" } };
       render();
       return;
     }
@@ -1246,8 +1663,10 @@
         LIVE.at = Date.now();
         render();
         startLive();   // 从这一刻起数字自己会跟着后台走
+        startSystem(); // 工人和云端状态也必须自己刷新
         // 已经发布过的空间: 进页面就去看看机器验收报告出了没(可能是上一次发布留下的)
-        if (S.space.published) pollReport(false);
+        if (S.space.published && S.space.reportAvailable) pollReport(false);
+        else if (S.space.published) { REPORT.state = "none"; paintReport(); }
         // 加入链接以后端为准, 拿到了再刷新二维码
         return api("/api/space/" + encodeURIComponent(SID) + "/joinurl");
       })
@@ -1256,10 +1675,7 @@
         // 已经上云了就不能被局域网地址覆盖回去, 宾客的手机连不到这台电脑。
         if (!S.cloudJson && d && d.ok && d.url){ S.joinUrl = d.url; renderQr(); }
       })
-      .catch(function(e){
-        $("app").innerHTML = '<div class="card"><div class="empty"><span class="em">⚠️</span>' +
-          esc(e.message || e) + '<br><br>后端没起也没关系,在网址后面加 <b>&amp;mock=1</b> 可以看演示数据。</div></div>';
-      });
+      .catch(renderBootProblem);
   }
 
   boot();

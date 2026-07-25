@@ -270,6 +270,18 @@
     padding:46px 20px; border:1.5px dashed var(--line); border-radius:18px; background:rgba(255,255,255,.4);
   }
   .empty .big{ font-size:26px; display:block; margin-bottom:10px; opacity:.5; }
+  .free-upload{
+    width:100%; min-height:92px; margin:0 0 16px; padding:16px 18px; display:flex;
+    align-items:center; gap:14px; text-align:left; cursor:pointer; font-family:inherit;
+    color:var(--ink); background:linear-gradient(110deg,#fff8f1,#ffe9e9);
+    border:1px solid #ead8cc; border-radius:18px; box-shadow:0 4px 16px rgba(120,100,70,.07);
+  }
+  .free-upload:active{ transform:scale(.985); }
+  .free-upload .ico{ width:48px; height:48px; flex:none; display:grid; place-items:center;
+    border-radius:16px; background:#fff; font-size:22px; }
+  .free-upload b{ display:block; font-size:15px; }
+  .free-upload span{ display:block; margin-top:2px; color:var(--sub); font-size:12px; }
+  .free-upload .go{ margin-left:auto; color:var(--red); font-size:18px; }
 
   /* ============ 我的贡献 ============ */
   .stats{
@@ -610,9 +622,14 @@
   // ================================================================ 云:直传 OSS
   // 关键的一步:照片【不经过任何服务器】,浏览器拿着 space.json 里那段策略直接 POST 进 OSS。
   // 策略本身限死了前缀、大小和有效期,所以放在公开页面里是安全的 —— 页面里没有、也不需要密钥。
+  function collectionOpen(sp) {
+    return !(sp && sp.collection && sp.collection.status === "closed");
+  }
+
   function policyOf(sp) {
+    if (!collectionOpen(sp)) return null;
     var up = (sp && (sp.upload || sp.post || sp.direct)) || null;
-    if (!up || !up.policy) return null;
+    if (!up || !up.policy || up.enabled === false) return null;
     return {
       host: (up.host || BASE).replace(/\/+$/, ""),
       accessKeyId: up.OSSAccessKeyId || up.accessKeyId || up.ossAccessKeyId || "",
@@ -998,8 +1015,11 @@
   // ================================================================ 渲染:任务墙
   function taskCard(t) {
     var done = t.status !== "open";
+    var paused = !collectionOpen(state.space);
     var who = (t.filledBy || []).map(publicName).join("、");
-    var foot = done
+    var foot = paused
+      ? '<div class="claimed">照片收集已结束</div>'
+      : done
       ? '<div class="claimed">✅ 已被 ' + esc(who || "宾客") + " 认领</div>"
       // 这里故意不挂 u-btn:theme.css 的 .u-btn 带 padding:15px 22px + width:100%,
       // 漏进这颗行内小按钮就会把文字挤成一列。.btn-take 自己样式是全的。
@@ -1055,19 +1075,32 @@
     var tasks = (state.space && state.space.tasks) || [];
     var open = tasks.filter(function (t) { return t.status === "open"; });
     var done = tasks.filter(function (t) { return t.status !== "open"; });
+    var paused = !collectionOpen(state.space);
+    if (paused) {
+      $("tabCount").textContent = "0";
+      $("wallTitle").textContent = "照片收集已结束";
+      $("wallSub").textContent = "你仍然可以查看自己的贡献,也可以进入展览";
+    } else {
     $("tabCount").textContent = open.length;
     $("wallTitle").textContent = open.length ? "还缺这 " + open.length + " 张" : "全都补齐了";
     $("wallSub").textContent = open.length
       ? "挑一个去拍,或者从相册里翻一张出来"
       : "所有任务都被认领了,进空间看看吧";
+    }
 
-    var html = open.map(taskCard).join("");
+    var html = paused ? "" :
+      '<button class="free-upload" type="button" data-free-upload>' +
+        '<span class="ico">📷</span><span><b>直接交照片</b>' +
+        '<span>不认领任务也可以,机器会自己判断它朝着哪个方向</span></span>' +
+        '<span class="go">›</span></button>';
+    html += open.map(taskCard).join("");
     if (done.length) {
       html += '<div class="sect"><h2>已经有人交了</h2><p>他们的照片已经在空间里</p></div>' +
         done.map(taskCard).join("");
     }
-    $("taskList").innerHTML = html ||
-      '<div class="empty"><span class="big">🎐</span>新人还没发任务<br>过一会儿再来看看</div>';
+    $("taskList").innerHTML = html || (paused
+      ? '<div class="empty"><span class="big">🌙</span>这次照片收集已经结束<br>你仍然可以查看自己的贡献和展览</div>'
+      : '<div class="empty"><span class="big">🎐</span>新人还没发任务<br>过一会儿再来看看</div>');
   }
 
   // ================================================================ 渲染:我的贡献
@@ -1174,12 +1207,19 @@
   }
 
   function sheetPick(task) {
+    if (!collectionOpen(state.space)) {
+      toast("主办方已经结束照片收集");
+      return;
+    }
     state.task = task; state.files = [];
     var isGap = task.type === "gap";
+    var isFree = task.type === "free";
     openSheet(
       '<div class="grab"></div>' +
       "<h3>" + esc(task.title) + "</h3>" +
-      '<p class="sh-sub">' + (isGap
+      '<p class="sh-sub">' + (isFree
+        ? "从相册里挑一张或几张,机器会自己判断它们朝着哪个方向。"
+        : isGap
         ? "拍好了直接选,或者从相册里翻一张 " + dirWord(task.yaw) + " 的照片。"
         : "从相册里挑一张,能对上这份心愿就行。") + "</p>" +
       '<div class="picker"><input type="file" id="fInput" accept="image/jpeg,image/png,image/webp" multiple>' +
@@ -1231,7 +1271,9 @@
     var pol = policyOf(state.space);
     if (!MOCK && !pol) {
       closeSheet();
-      toast("这个空间还没开上传通道,找新人问一下");
+      toast(collectionOpen(state.space)
+        ? "这个空间还没开上传通道,找新人问一下"
+        : "主办方已经结束照片收集");
       return;
     }
     if (!MOCK && pol.expiresAt && pol.expiresAt * 1000 < Date.now()) {
@@ -1555,7 +1597,10 @@
   var retrying = false;
   function retryPending(silent) {
     var pol = policyOf(state.space);
-    if (!pol) { if (!silent) toast("上传通道还没开,等一下"); return Promise.resolve(); }
+    if (!pol) {
+      if (!silent) toast(collectionOpen(state.space) ? "上传通道还没开,等一下" : "照片收集已结束");
+      return Promise.resolve();
+    }
     if (retrying) { if (!silent) toast("正在补传,别急"); return Promise.resolve(); }
     retrying = true;
     return dbAll().then(function (all) {
@@ -1671,6 +1716,11 @@
     $("welcome").classList.remove("off");
   });
   document.addEventListener("click", function (e) {
+    var free = e.target.closest && e.target.closest("[data-free-upload]");
+    if (free) {
+      sheetPick({ id:"", type:"free", title:"自由投稿", brief:"把你想留下的照片交给他们" });
+      return;
+    }
     var t = e.target.closest && e.target.closest("[data-task]");
     if (t) {
       var id = t.getAttribute("data-task");

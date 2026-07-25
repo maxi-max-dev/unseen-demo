@@ -31,6 +31,7 @@ server/space.py -- 「空间记忆」闭环产品的数据层 + 全部 HTTP API�
 不改动 tools/ 下任何脚本, 只 import 复用。
 """
 import copy
+import ipaddress
 import json
 import math
 import os
@@ -44,7 +45,7 @@ import traceback
 from urllib.parse import quote
 
 import numpy as np
-from fastapi import APIRouter, Body, File, Form, UploadFile
+from fastapi import APIRouter, Body, File, Form, Request, UploadFile
 from fastapi.responses import JSONResponse
 from PIL import Image, UnidentifiedImageError
 
@@ -68,6 +69,9 @@ from tools.match import match_one  # noqa: E402
 
 # ---------------------------------------------------------------- 常量
 SCHEMA = "psm-space/1"
+EXHIBITION_SCHEMA = "unseen-exhibition/1"
+EXHIBITION_VIEWS = ("walk", "photos", "tasks", "contributors")
+DEFAULT_EXHIBITION_VIEWS = ("walk", "photos", "tasks", "contributors")
 
 # 置信度分流阈值: 两个判据【都】达标才自动入选, 差一个就进待审队列。
 #
@@ -277,6 +281,123 @@ def _clean_meta(date=None, place=None, cover=None, private=None):
     }
 
 
+def _default_collection(now=None):
+    return {
+        "status": "open",
+        "updatedAt": float(now if now is not None else time.time()),
+    }
+
+
+def _normal_collection(raw):
+    """把老空间补成明确的收集状态, 只改返回副本时也能安全使用。"""
+    out = _default_collection()
+    if isinstance(raw, dict):
+        if raw.get("status") in ("open", "closed"):
+            out["status"] = raw["status"]
+        if isinstance(raw.get("updatedAt"), (int, float)):
+            out["updatedAt"] = float(raw["updatedAt"])
+    return out
+
+
+def _default_exhibition(now=None):
+    return {
+        "schema": EXHIBITION_SCHEMA,
+        "status": "draft",
+        "revision": 0,
+        "entryView": "walk",
+        "views": list(DEFAULT_EXHIBITION_VIEWS),
+        "allowPov": True,
+        "contributorVisibility": "name",
+        "taskVisibility": "all",
+        "updatedAt": float(now if now is not None else time.time()),
+    }
+
+
+def _normal_exhibition(raw):
+    """归一老数据。公开展示只认这份白名单, 未知模块永远不会漏到前端。"""
+    out = _default_exhibition()
+    if not isinstance(raw, dict):
+        return out
+    views = []
+    for view in raw.get("views") or []:
+        if view in EXHIBITION_VIEWS and view not in views:
+            views.append(view)
+    if views:
+        out["views"] = views
+    entry = raw.get("entryView")
+    out["entryView"] = entry if entry in out["views"] else out["views"][0]
+    if raw.get("status") in ("draft", "published"):
+        out["status"] = raw["status"]
+    if isinstance(raw.get("revision"), int) and raw["revision"] >= 0:
+        out["revision"] = raw["revision"]
+    if isinstance(raw.get("allowPov"), bool):
+        out["allowPov"] = raw["allowPov"]
+    if raw.get("contributorVisibility") in ("name", "anonymous", "hidden"):
+        out["contributorVisibility"] = raw["contributorVisibility"]
+    if raw.get("taskVisibility") in ("hidden", "completed", "all"):
+        out["taskVisibility"] = raw["taskVisibility"]
+    if isinstance(raw.get("updatedAt"), (int, float)):
+        out["updatedAt"] = float(raw["updatedAt"])
+    return out
+
+
+def set_collection_status(sid, status):
+    if status not in ("open", "closed"):
+        raise ValueError("收集状态只能是 open 或 closed")
+    with space_txn(sid) as space:
+        collection = _normal_collection(space.get("collection"))
+        collection["status"] = status
+        collection["updatedAt"] = time.time()
+        space["collection"] = collection
+        return copy.deepcopy(collection)
+
+
+def set_exhibition(sid, payload):
+    payload = payload if isinstance(payload, dict) else {}
+    views = payload.get("views")
+    if not isinstance(views, list):
+        raise ValueError("展示模块必须是数组")
+    unknown = [v for v in views if v not in EXHIBITION_VIEWS]
+    if unknown:
+        raise ValueError("包含不支持的展示模块")
+    clean_views = []
+    for view in views:
+        if view not in clean_views:
+            clean_views.append(view)
+    if not clean_views:
+        raise ValueError("至少保留一个展示模块")
+
+    entry = payload.get("entryView") or clean_views[0]
+    if entry not in clean_views:
+        raise ValueError("默认入口必须属于已启用模块")
+    contributor_visibility = payload.get("contributorVisibility", "name")
+    if contributor_visibility not in ("name", "anonymous", "hidden"):
+        raise ValueError("贡献者显示方式不支持")
+    task_visibility = payload.get("taskVisibility", "all")
+    if task_visibility not in ("hidden", "completed", "all"):
+        raise ValueError("任务显示方式不支持")
+    if contributor_visibility == "hidden" and "contributors" in clean_views:
+        raise ValueError("贡献者整段隐藏时不能启用贡献者模块")
+    if task_visibility == "hidden" and "tasks" in clean_views:
+        raise ValueError("任务整段隐藏时不能启用任务模块")
+
+    with space_txn(sid) as space:
+        old = _normal_exhibition(space.get("exhibition"))
+        exhibition = {
+            "schema": EXHIBITION_SCHEMA,
+            "status": "draft",
+            "revision": old["revision"] + 1,
+            "entryView": entry,
+            "views": clean_views,
+            "allowPov": bool(payload.get("allowPov", True)),
+            "contributorVisibility": contributor_visibility,
+            "taskVisibility": task_visibility,
+            "updatedAt": time.time(),
+        }
+        space["exhibition"] = exhibition
+        return copy.deepcopy(exhibition)
+
+
 def create_space(title, couple, date=None, place=None, cover=None, private=None):
     """建一个新空间, 返回 sid。目录骨架一次建齐, 后面各处就不用到处 makedirs 了。
 
@@ -289,13 +410,16 @@ def create_space(title, couple, date=None, place=None, cover=None, private=None)
         d = space_dir(sid)
         for sub in ("", "nodes", "photos", "thumbs", "tasks"):
             os.makedirs(os.path.join(d, sub), exist_ok=True)
+        now = time.time()
         space = {
             "schema": SCHEMA,
             "id": sid,
             "title": (title or "").strip() or "我们的空间",
             "couple": (couple or "").strip(),
-            "createdAt": time.time(),
+            "createdAt": now,
             "published": False,
+            "collection": _default_collection(now),
+            "exhibition": _default_exhibition(now),
             "nodes": [],
             "tasks": [],
             "photos": [],
@@ -1406,6 +1530,8 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
 
     # 1) 锁里只做两件快事: 拿节点快照 + 把 photo id 占住(建 0 字节占位文件防并发撞号)
     with space_txn(sid, write=False) as space:
+        if _normal_collection(space.get("collection"))["status"] != "open":
+            raise RuntimeError("这个空间已经暂停收集照片")
         if not space.get("nodes"):
             raise RuntimeError("这个空间还没有全景节点,请新人先传一张全景")
         pids = []
@@ -1615,7 +1741,10 @@ def get_space(sid, role="host"):
     # 这里只补在返回的副本上, 不回写磁盘, 老空间的 space.json 一个字节都不动。
     for k, dflt in (("date", ""), ("place", ""), ("cover", ""), ("private", False)):
         data.setdefault(k, dflt)
+    data["collection"] = _normal_collection(data.get("collection"))
+    data["exhibition"] = _normal_exhibition(data.get("exhibition"))
     data["hasCover"] = bool(data.get("cover"))
+    data["reportAvailable"] = os.path.exists(os.path.join(space_dir(sid), "report.json"))
     # 两种 role 都给 selectedCount(= 真的出现在空间里的照片数), 前端不用自己数、
     # 也不用拿 photos.length 猜(host 拿到的 photos 里还混着待审和被拒的)。
     data["selectedCount"] = sum(
@@ -1636,6 +1765,10 @@ def get_space(sid, role="host"):
 def publish_space(sid):
     with space_txn(sid) as space:
         space["published"] = True
+        exhibition = _normal_exhibition(space.get("exhibition"))
+        exhibition["status"] = "published"
+        exhibition["updatedAt"] = time.time()
+        space["exhibition"] = exhibition
     return guest_url(sid)
 
 
@@ -1852,6 +1985,32 @@ def api_get_space(sid: str, role: str = "host"):
         return _fail_user(e, "空间读不出来,刷新一下页面再试", "读空间")
 
 
+@router.post("/space/{sid}/collection")
+def api_collection(sid: str, payload: dict = Body(default={})):
+    try:
+        collection = set_collection_status(sid, payload.get("status"))
+        return {"ok": True, "collection": collection}
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "改收集状态")
+    except ValueError as e:
+        return _fail(str(e))
+    except Exception as e:
+        return _fail_user(e, "收集状态没保存成功,再试一次", "改收集状态")
+
+
+@router.post("/space/{sid}/exhibition")
+def api_exhibition(sid: str, payload: dict = Body(default={})):
+    try:
+        exhibition = set_exhibition(sid, payload)
+        return {"ok": True, "exhibition": exhibition}
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "保存展览")
+    except ValueError as e:
+        return _fail(str(e))
+    except Exception as e:
+        return _fail_user(e, "展览设置没保存成功,再试一次", "保存展览")
+
+
 @router.post("/space/{sid}/node")
 def api_add_node(
     sid: str,
@@ -1948,6 +2107,8 @@ def api_publish(sid: str, payload: dict = Body(default={})):
 # 进度写在内存里, 前端 GET 轮询画进度条。
 _cloud_state = {}          # sid -> {running, done, total, key, result, error, at}
 _cloud_lock = threading.Lock()
+_worker_processes = {}      # sid -> Popen, 只负责本次服务进程启动的工人
+_worker_lock = threading.Lock()
 
 
 def _cloud_get(sid):
@@ -2008,19 +2169,85 @@ def api_publish_cloud_state(sid: str):
     return {"ok": True, "state": _cloud_get(sid)}
 
 
-@router.get("/space/{sid}/worker-status")
-def api_worker_status(sid: str):
-    """后台工人还活着吗? —— 工人(server/worker.py)每轮往空间目录写一次 .worker.json,
-    60 秒内有心跳就算在跑。忘了起工人的话宾客传的照片永远不会出现, 这一格必须显眼。"""
+def worker_status(sid):
     path = os.path.join(space_dir(sid), ".worker.json")
     try:
         with open(path, encoding="utf-8") as f:
             hb = json.load(f)
         age = time.time() - float(hb.get("at") or 0)
-        return {"ok": True, "running": age < 60, "ageS": round(age, 1),
+        return {"running": age < 60, "ageS": round(age, 1),
                 "pid": hb.get("pid"), "note": hb.get("note") or ""}
     except Exception:
-        return {"ok": True, "running": False, "ageS": None, "pid": None, "note": ""}
+        return {"running": False, "ageS": None, "pid": None, "note": ""}
+
+
+def start_worker(sid):
+    """给 Studio 一个真正的一键开工入口。标准输出丢弃, 避免云配置落进日志。"""
+    with space_txn(sid, write=False):
+        pass
+    current = worker_status(sid)
+    if current["running"]:
+        return False, current.get("pid")
+
+    python = os.path.join(REPO_ROOT, ".venv", "bin", "python")
+    if not os.path.exists(python):
+        raise RuntimeError("本地运行环境不完整")
+    with _worker_lock:
+        proc = _worker_processes.get(sid)
+        if proc is not None and proc.poll() is None:
+            return False, proc.pid
+        proc = subprocess.Popen(
+            [python, "-m", "server.worker", sid, "--interval", "5"],
+            cwd=REPO_ROOT,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        _worker_processes[sid] = proc
+        return True, proc.pid
+
+
+@router.get("/space/{sid}/worker-status")
+def api_worker_status(sid: str):
+    """后台工人还活着吗? —— 工人(server/worker.py)每轮往空间目录写一次 .worker.json,
+    60 秒内有心跳就算在跑。忘了起工人的话宾客传的照片永远不会出现, 这一格必须显眼。"""
+    try:
+        with space_txn(sid, write=False):
+            pass
+        return {"ok": True, **worker_status(sid)}
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "读工人状态")
+    except Exception as e:
+        return _fail_user(e, "工人状态读不出来,刷新一下页面", "读工人状态")
+
+
+@router.post("/space/{sid}/worker/start")
+def api_worker_start(
+    sid: str,
+    request: Request,
+    payload: dict = Body(default={}),
+):
+    """工人会占用一份 CLIP 内存,只允许从这台主办方电脑点火。"""
+    try:
+        client_host = request.client.host if request.client else ""
+        if not ipaddress.ip_address(client_host).is_loopback:
+            return JSONResponse(
+                status_code=403,
+                content={"ok": False, "error": "只能在主办方电脑上启动处理工人"},
+            )
+    except ValueError:
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "error": "只能在主办方电脑上启动处理工人"},
+        )
+    try:
+        started, pid = start_worker(sid)
+        return {"ok": True, "started": started, "pid": pid}
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "启动工人")
+    except Exception as e:
+        return _fail_user(e, "处理电脑没能启动,检查本地环境", "启动工人")
 
 
 @router.get("/space/{sid}/joinurl")

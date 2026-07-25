@@ -4,224 +4,331 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
   <meta name="theme-color" content="#fff8f5">
-  <title>六个展厅 · UNSEEN</title>
+  <title>我们的展览 · UNSEEN</title>
   <link rel="stylesheet" href="../app/theme.css">
   <style>
-    /* 本页只写版式，不覆盖 theme.css 的设计变量。 */
-    .hub {
-      padding-bottom: calc(26px + env(safe-area-inset-bottom, 0));
+    .show-page{ padding-bottom:calc(54px + env(safe-area-inset-bottom,0)); }
+    .show-bar{ position:sticky; top:0; z-index:20; margin:0 -18px; padding:12px 18px 8px;
+      background:linear-gradient(180deg,rgba(255,248,245,.96),rgba(255,248,245,.72) 76%,transparent);
+      backdrop-filter:blur(12px); -webkit-backdrop-filter:blur(12px); }
+    .mode-chip{ margin-left:auto; }
+    .hero{ position:relative; overflow:hidden; min-height:330px; margin-top:12px; padding:28px;
+      display:flex; flex-direction:column; justify-content:flex-end; }
+    .hero-cover{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity:.48; }
+    .hero-shade{ position:absolute; inset:0; background:
+      linear-gradient(180deg,rgba(255,255,255,.08) 0%,rgba(255,248,245,.30) 42%,rgba(255,250,248,.96) 100%),
+      radial-gradient(circle at 82% 18%,rgba(255,180,203,.58),transparent 40%); }
+    .hero-copy{ position:relative; z-index:1; max-width:620px; }
+    .eyebrow{ margin:0 0 8px; color:#c2536f; font-size:11px; font-weight:800;
+      letter-spacing:.28em; text-transform:uppercase; }
+    .hero h2{ margin:0; font-family:"Songti SC","STSong",serif; font-size:clamp(32px,8vw,58px);
+      line-height:1.14; letter-spacing:.04em; }
+    .couple{ margin:8px 0 0; color:var(--ink-2); font-size:15px; }
+    .meta{ display:flex; flex-wrap:wrap; gap:8px; margin-top:15px; }
+    .hero-actions{ display:flex; flex-wrap:wrap; gap:10px; margin-top:22px; }
+    .hero-actions .u-btn{ width:auto; min-height:46px; }
+    .facts{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; margin-top:12px; }
+    .fact{ padding:14px 10px; text-align:center; }
+    .fact b{ display:block; font-size:23px; line-height:1.2; font-variant-numeric:tabular-nums; }
+    .fact span{ font-size:11px; color:var(--ink-2); }
+    .view-nav{ display:flex; gap:8px; overflow:auto; padding:4px 2px 8px; scrollbar-width:none; }
+    .view-nav::-webkit-scrollbar{ display:none; }
+    .view-nav a{ flex:none; min-height:44px; display:inline-flex; align-items:center; gap:6px;
+      padding:8px 14px; border-radius:999px; color:var(--ink-2); text-decoration:none;
+      background:rgba(255,255,255,.72); border:1px solid var(--card-line); font-size:13px; font-weight:700; }
+    .section{ scroll-margin-top:82px; margin-top:18px; }
+    .section-head{ display:flex; align-items:flex-end; gap:12px; margin:0 2px 10px; }
+    .section-head h2{ margin:0; font-size:19px; }
+    .section-head p{ margin:0; color:var(--ink-3); font-size:12px; }
+    .walk-card{ position:relative; overflow:hidden; min-height:270px; padding:24px;
+      display:flex; flex-direction:column; justify-content:flex-end;
+      background:linear-gradient(145deg,rgba(81,61,76,.94),rgba(139,87,106,.82)); color:#fff; }
+    .space-orbit{ position:absolute; inset:0; opacity:.88; overflow:hidden; }
+    .space-orbit:before,.space-orbit:after{ content:""; position:absolute; border:1px solid rgba(255,255,255,.24);
+      border-radius:50%; transform:rotate(-15deg); }
+    .space-orbit:before{ width:320px; height:150px; right:-45px; top:18px; }
+    .space-orbit:after{ width:220px; height:96px; right:34px; top:64px; }
+    .pin{ position:absolute; width:14px; height:14px; border-radius:50%; background:#ffc693;
+      box-shadow:0 0 0 7px rgba(255,198,147,.15),0 0 24px rgba(255,198,147,.8); }
+    .pin.p1{ right:16%; top:23%; }.pin.p2{ right:43%; top:44%; }.pin.p3{ right:28%; top:64%; }
+    .walk-copy{ position:relative; z-index:1; max-width:520px; }
+    .walk-copy h3{ margin:0 0 6px; font-size:25px; }
+    .walk-copy p{ margin:0 0 18px; color:rgba(255,255,255,.72); font-size:13px; }
+    .walk-copy .u-btn{ width:auto; min-height:46px; background:#fff; color:#6b4655; box-shadow:none; }
+    .photo-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
+    .photo{ position:relative; overflow:hidden; aspect-ratio:1/1.12; background:rgba(255,255,255,.55); }
+    .photo img{ width:100%; height:100%; object-fit:cover; display:block; }
+    .photo-cap{ position:absolute; left:8px; right:8px; bottom:8px; display:flex; justify-content:space-between;
+      gap:8px; padding:7px 9px; border-radius:12px; background:rgba(50,38,44,.72); color:#fff;
+      backdrop-filter:blur(8px); font-size:11px; }
+    .photo-cap span:last-child{ color:rgba(255,255,255,.68); white-space:nowrap; }
+    .task-list,.people{ display:grid; gap:9px; }
+    .task-row{ padding:15px 16px; display:grid; grid-template-columns:38px minmax(0,1fr) auto;
+      align-items:center; gap:11px; }
+    .task-icon{ width:38px; height:38px; display:grid; place-items:center; border-radius:14px;
+      background:var(--grad-soft); font-size:18px; }
+    .task-row h3{ margin:0; font-size:14px; }
+    .task-row p{ margin:2px 0 0; color:var(--ink-2); font-size:12px; }
+    .task-state{ font-size:11px; color:var(--ink-2); white-space:nowrap; }
+    .people{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .person{ padding:14px; display:flex; align-items:center; gap:10px; }
+    .avatar{ width:38px; height:38px; border-radius:50%; display:grid; place-items:center;
+      color:#fff; font-size:13px; font-weight:800; background:linear-gradient(145deg,#f2739b,#f5a66b); }
+    .person b{ display:block; font-size:13px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .person span{ color:var(--ink-2); font-size:11px; }
+    .empty{ padding:30px 18px; text-align:center; color:var(--ink-2); }
+    .empty .big{ display:block; margin-bottom:6px; font-size:30px; }
+    .load-card{ margin-top:28px; padding:42px 20px; text-align:center; }
+    .spinner{ width:28px; height:28px; margin:0 auto 14px; border:3px solid #ffe3e9;
+      border-top-color:var(--pink); border-radius:50%; animation:spin .8s linear infinite; }
+    @keyframes spin{ to{ transform:rotate(360deg); } }
+    .error-title{ margin:0 0 8px; font-size:20px; }
+    .error-copy{ margin:0 0 18px; color:var(--ink-2); }
+    .show-foot{ margin:28px 0 0; text-align:center; color:var(--ink-3); font-size:11px; letter-spacing:.12em; }
+    @media(min-width:720px){
+      .hero{ min-height:410px; padding:42px; }
+      .facts{ max-width:520px; }
+      .photo-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+      .people{ grid-template-columns:repeat(3,minmax(0,1fr)); }
+      .task-list{ grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
-
-    .mark {
-      flex: none;
-      width: 26px;
-      height: 26px;
-      display: block;
-    }
-
-    .mark .lens {
-      mix-blend-mode: multiply;
-    }
-
-    .lede {
-      margin: 4px 4px 14px;
-      font-size: 13.5px;
-      color: var(--ink-2);
-    }
-
-    .rooms {
-      display: grid;
-      gap: 10px;
-      margin-top: 16px;
-    }
-
-    /* 权重要压过 theme.css 的 a.u-card{display:block}，否则卡片不会变成一行 */
-    a.u-card.room {
-      display: grid;
-      grid-template-columns: 40px minmax(0, 1fr) 10px;
-      align-items: center;
-      gap: 12px;
-      padding: 12px 14px;
-    }
-
-    .room .no {
-      width: 40px;
-      height: 40px;
-      border-radius: 14px;
-      display: grid;
-      place-items: center;
-      background: var(--grad-soft);
-      color: #c2536f;
-      font-size: 13px;
-      font-weight: 700;
-      font-variant-numeric: tabular-nums;
-      letter-spacing: .02em;
-    }
-
-    .room .nm {
-      display: block;
-      font-size: 15px;
-      font-weight: 700;
-      line-height: 1.35;
-    }
-
-    .room .ds {
-      display: block;
-      margin-top: 1px;
-      font-size: 12px;
-      line-height: 1.5;
-      color: var(--ink-3);
-    }
-
-    .room .go {
-      color: var(--ink-3);
-      display: block;
-    }
-
-    .room:hover .go {
-      color: var(--pink);
-    }
-
-    .foot {
-      margin: 18px 4px 0;
-      text-align: center;
-    }
-
-    @media (min-width: 900px) {
-      .rooms {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        gap: 12px;
-      }
-
-      a.u-card.room {
-        padding: 14px 16px;
-      }
-
-      /* 桌面上主按钮不必拉满一整行 */
-      #startBtn {
-        max-width: 300px;
-      }
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      * {
-        transition-duration: .01ms !important;
-        animation-duration: .01ms !important;
-      }
-    }
+    @media(prefers-reduced-motion:reduce){ .spinner{ animation:none; } *{ scroll-behavior:auto!important; } }
   </style>
 </head>
 <body class="u-body">
   <div class="u-bokeh" aria-hidden="true"></div>
-
-  <div class="u-page hub">
-    <div class="u-bar">
-      <a class="u-back" id="backLink" href="../index.html" aria-label="返回">←</a>
-      <h1>六个展厅</h1>
-      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true">
-        <g class="lens">
-          <circle cx="20" cy="14" r="11" fill="#ff9fc0" opacity=".55"></circle>
-          <circle cx="13.5" cy="25" r="11" fill="#ff6e9e" opacity=".55"></circle>
-          <circle cx="26.5" cy="25" r="11" fill="#ffc26b" opacity=".55"></circle>
-        </g>
-        <path d="M20 25.6c-3.8-3.3-6-4.9-6-6.9 0-1.6 1.2-2.8 2.8-2.8 1.2 0 2.5.7 3.2 1.8.7-1.1 2-1.8 3.2-1.8 1.6 0 2.8 1.2 2.8 2.8 0 2-2.2 3.6-6 6.9z"
-              fill="#fff" opacity=".92"></path>
-      </svg>
+  <main class="u-page show-page">
+    <div id="app">
+      <div class="u-card load-card">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>正在打开这场展览</div>
+      </div>
     </div>
-
-    <p class="lede">同一段记忆，六种进入方式。</p>
-
-    <a class="u-btn" id="startBtn" data-back-link
-       href="../viewer/journey.html?back=web%2Fshow.html">从第一个展厅开始</a>
-
-    <nav class="rooms" aria-label="六个展厅">
-      <a class="u-card room" data-back-link href="../viewer/journey.html?back=web%2Fshow.html">
-        <span class="no">01</span>
-        <span>
-          <b class="nm">重温那一天</b>
-          <span class="ds">按当天的顺序前行，让散落的瞬间重新连成一段旅程。</span>
-        </span>
-        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-
-      <a class="u-card room" data-back-link href="../viewer/walk.html?demo=1&amp;back=web%2Fshow.html">
-        <span class="no">02</span>
-        <span>
-          <b class="nm">走进全景</b>
-          <span class="ds">让深度恢复距离感，像走回真实房间一样靠近照片。</span>
-        </span>
-        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-
-      <a class="u-card room" data-back-link href="../viewer/album.html?back=web%2Fshow.html">
-        <span class="no">03</span>
-        <span>
-          <b class="nm">相册</b>
-          <span class="ds">把空间摊成一本可翻阅的册子，适合慢慢看，也适合一键成片。</span>
-        </span>
-        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-
-      <a class="u-card room" data-back-link href="../viewer/timeline.html?back=web%2Fshow.html">
-        <span class="no">04</span>
-        <span>
-          <b class="nm">时光轴</b>
-          <span class="ds">沿时间拨动现场，让照片像记忆碎片一样重新浮现。</span>
-        </span>
-        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-
-      <a class="u-card room" data-back-link href="../viewer/machine.html?back=web%2Fshow.html">
-        <span class="no">05</span>
-        <span>
-          <b class="nm">机器记忆</b>
-          <span class="ds">换成机器的冷静目光，看它如何识别、定位并保存一次相聚。</span>
-        </span>
-        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-
-      <a class="u-card room" data-back-link href="../viewer/online.html?back=web%2Fshow.html">
-        <span class="no">06</span>
-        <span>
-          <b class="nm">真实地图</b>
-          <span class="ds">回到真实地理坐标，沿婚车路线看见记忆如何穿过一座城。</span>
-        </span>
-        <svg class="go" viewBox="0 0 12 20" width="8" height="14" aria-hidden="true"><path d="M2 2l8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </a>
-    </nav>
-
-    <p class="u-note foot">六个展厅，同一段记忆。</p>
-  </div>
+  </main>
 
   <script>
-    (function () {
+    (function(){
       "use strict";
+      var Q = new URLSearchParams(location.search);
+      var SID = Q.get("s") || Q.get("space") || "s4";
+      var BASE = (Q.get("b") || "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com").replace(/\/+$/,"");
+      var LOCAL = Q.get("mode") === "local";
+      var VIEWS = ["walk","photos","tasks","contributors"];
+      var VIEW_META = {
+        walk:["走进空间","◎"], photos:["照片墙","▦"], tasks:["任务痕迹","✓"], contributors:["一起补全的人","♡"]
+      };
 
-      function backTarget(fallback){
-        try{
-          var b = new URLSearchParams(location.search).get("back");
-          if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
-        }catch(e){}
-        return fallback;
-      }
-
-      var backLink = document.getElementById("backLink");
-      if (backLink) backLink.setAttribute("href", backTarget("../index.html"));
-
-      /* 把"我从哪来"接力给展厅：从展厅退回本页时，本页的返回键仍然指向原点。
-         没有 back 参数时，各展厅链接保持 HTML 里写死的 back=web/show.html，无 JS 也正确。 */
-      var inherited = "";
-      try {
-        var raw = new URLSearchParams(location.search).get("back");
-        if (raw && !/^(https?:)?\/\//.test(raw)) inherited = raw;
-      } catch (e) {}
-
-      if (inherited) {
-        var relay = encodeURIComponent("web/show.html?back=" + encodeURIComponent(inherited));
-        Array.prototype.forEach.call(document.querySelectorAll("[data-back-link]"), function (a) {
-          a.setAttribute("href", a.getAttribute("href").replace(/back=[^&]*/, "back=" + relay));
+      function esc(s){
+        return String(s == null ? "" : s).replace(/[&<>"']/g,function(c){
+          return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
         });
       }
+      function backTarget(){
+        var b = Q.get("back");
+        if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+        return "../index.html";
+      }
+      function configOf(sp){
+        var raw = sp.exhibition || {};
+        var views = [];
+        (raw.views || VIEWS).forEach(function(v){
+          if (VIEWS.indexOf(v) >= 0 && views.indexOf(v) < 0) views.push(v);
+        });
+        var cfg = {
+          status:raw.status || (sp.published ? "published" : "draft"),
+          views:views, entryView:raw.entryView, allowPov:raw.allowPov !== false,
+          contributorVisibility:["name","anonymous","hidden"].indexOf(raw.contributorVisibility) >= 0
+            ? raw.contributorVisibility : "name",
+          taskVisibility:["hidden","completed","all"].indexOf(raw.taskVisibility) >= 0
+            ? raw.taskVisibility : "all"
+        };
+        if (cfg.taskVisibility === "hidden") cfg.views = cfg.views.filter(function(v){ return v !== "tasks"; });
+        if (cfg.contributorVisibility === "hidden") {
+          cfg.views = cfg.views.filter(function(v){ return v !== "contributors"; });
+        }
+        if (!cfg.views.length) cfg.views = ["walk"];
+        cfg.entryView = cfg.views.indexOf(cfg.entryView) >= 0 ? cfg.entryView : cfg.views[0];
+        return cfg;
+      }
+      function publicName(name){
+        var n = String(name || "").trim();
+        var blocked = {"泛音测":1,"泛音测试":1,"延迟测试":1,"你大爷":1,"阿伟测试":1};
+        var looksLikeQa = /^(FIX|E2E|QA|TMP|SMOKE|TEST)[-_]?/i.test(n) ||
+          /(验收测试|回归测试|攻击测试)/.test(n);
+        return (!n || blocked[n] || looksLikeQa || n.indexOf("并发") === 0) ? "匿名宾客" : n;
+      }
+      function assetUrl(path){
+        if (!path) return "";
+        if (/^(https?:|data:|blob:|\/)/.test(path)) return path;
+        var rel = String(path).replace(/^\/+/,"").split("/").map(encodeURIComponent).join("/");
+        return LOCAL ? ("/spaces/" + encodeURIComponent(SID) + "/" + rel)
+          : (BASE + "/spaces/" + encodeURIComponent(SID) + "/" + rel);
+      }
+      function coverUrl(path){
+        if (!path) return "";
+        if (/^(https?:|data:|blob:|\/|\.\.\/)/.test(path)) return path;
+        if (/^(assets|app|web)\//.test(path)) return "../" + path;
+        return assetUrl(path);
+      }
+      function showSelfPath(){
+        var raw = "web/show.html?s=" + encodeURIComponent(SID);
+        if (LOCAL) raw += "&mode=local";
+        else raw += "&b=" + encodeURIComponent(BASE);
+        var inherited = Q.get("back");
+        if (inherited && !/^(https?:)?\/\//.test(inherited)) raw += "&back=" + encodeURIComponent(inherited);
+        return raw;
+      }
+      function walkUrl(cfg){
+        var url = "../viewer/walk.html?space=" + encodeURIComponent(SID);
+        if (!LOCAL) url += "&b=" + encodeURIComponent(BASE);
+        if (cfg && cfg.allowPov === false) url += "&pov=0";
+        return url + "&back=" + encodeURIComponent(showSelfPath());
+      }
+      function dirWord(yaw){
+        if (typeof yaw !== "number") return "";
+        var words = ["正前方","右前方","右侧","右后方","正后方","左后方","左侧","左前方"];
+        return words[Math.round((((yaw % 360) + 360) % 360) / 45) % 8];
+      }
+      function loadSpace(){
+        var url = LOCAL
+          ? "/api/space/" + encodeURIComponent(SID) + "?role=guest"
+          : BASE + "/spaces/" + encodeURIComponent(SID) + "/space.json?t=" + Date.now();
+        var ctrl = window.AbortController ? new AbortController() : null;
+        var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); },18000);
+        return fetch(url,{cache:"no-store",signal:ctrl ? ctrl.signal : undefined}).then(function(r){
+          clearTimeout(timer);
+          if (!r.ok) throw new Error((r.status === 403 || r.status === 404)
+            ? "这场展览还没有发布" : "读取展览失败,HTTP " + r.status);
+          return r.json();
+        }).then(function(d){
+          if (LOCAL) {
+            if (!(d && d.ok && d.space)) throw new Error((d && d.error) || "读不到本地展览");
+            return d.space;
+          }
+          return d;
+        }).catch(function(e){
+          clearTimeout(timer);
+          if (e && e.name === "AbortError") throw new Error("网络太慢,18 秒内没有读到展览");
+          throw e;
+        });
+      }
+      function sectionNav(cfg){
+        if (cfg.views.length < 2) return "";
+        return '<nav class="view-nav" aria-label="展览内容">' + cfg.views.map(function(v){
+          return '<a href="#' + v + '"><span>' + VIEW_META[v][1] + '</span>' + VIEW_META[v][0] + '</a>';
+        }).join("") + "</nav>";
+      }
+      function empty(icon,text){
+        return '<div class="u-card empty"><span class="big">' + icon + "</span>" + esc(text) + "</div>";
+      }
+      function walkSection(sp,cfg){
+        var nodes = sp.nodes || [], photos = sp.photos || [];
+        var body = nodes.length
+          ? '<div class="u-card walk-card"><div class="space-orbit" aria-hidden="true">' +
+              '<i class="pin p1"></i><i class="pin p2"></i><i class="pin p3"></i></div>' +
+              '<div class="walk-copy"><h3>回到照片朝着的方向</h3><p>' +
+              (cfg.allowPov ? "在空间里移动,点一张照片就能回到拍摄者当时朝着的方向。"
+                            : "在空间里移动,看看这些照片怎样围绕现场重新出现。") +
+              '</p><a class="u-btn sm" href="' + esc(walkUrl(cfg)) + '">进入 3D 空间</a></div></div>'
+          : empty("◎","还没有可进入的全景节点");
+        return '<section class="section" id="walk"><div class="section-head"><h2>走进空间</h2>' +
+          '<p>' + nodes.length + " 个全景节点," + photos.length + " 张照片</p></div>" + body + "</section>";
+      }
+      function photosSection(sp,cfg){
+        var photos = sp.photos || [];
+        var visibility = cfg.contributorVisibility;
+        var body = photos.length ? '<div class="photo-grid">' + photos.map(function(p,i){
+          var name = visibility === "name" ? publicName(p.contributor) :
+            (visibility === "anonymous" ? "一位宾客" : "");
+          var yaw = typeof p.yaw === "number" ? p.yaw : parseFloat(p.yaw);
+          var dir = isFinite(yaw) ? dirWord(yaw) : "";
+          return '<article class="u-card photo"><img src="' + esc(assetUrl(p.thumb || p.src)) +
+            '" alt="展览照片 ' + (i + 1) + '" loading="lazy"><div class="photo-cap"><span>' +
+            esc(name) + '</span><span>' + esc(dir) + "</span></div></article>";
+        }).join("") + "</div>" : empty("▦","主办方还没有选入照片");
+        return '<section class="section" id="photos"><div class="section-head"><h2>照片墙</h2>' +
+          "<p>只展示主办方已经选入的照片</p></div>" + body + "</section>";
+      }
+      function tasksSection(sp,cfg){
+        var tasks = (sp.tasks || []).slice();
+        if (cfg.taskVisibility === "completed") {
+          tasks = tasks.filter(function(t){
+            return t.status === "filled" || (t.filledBy && t.filledBy.length);
+          });
+        }
+        var body = tasks.length ? '<div class="task-list">' + tasks.map(function(t){
+          var done = t.status === "filled" || (t.filledBy && t.filledBy.length);
+          return '<article class="u-card task-row"><div class="task-icon">' +
+            (t.type === "wish" ? "♡" : "◎") + '</div><div><h3>' + esc(t.title || "一段记忆") +
+            "</h3><p>" + esc(t.brief || "") + '</p></div><span class="task-state">' +
+            (done ? "已经补上" : (t.status === "closed" ? "已经结束" : "仍在寻找")) +
+            "</span></article>";
+        }).join("") + "</div>" : empty("✓","这里还没有可展示的任务痕迹");
+        return '<section class="section" id="tasks"><div class="section-head"><h2>任务痕迹</h2>' +
+          "<p>看见哪些方向被大家一起补上</p></div>" + body + "</section>";
+      }
+      function peopleSection(sp,cfg){
+        var list = (sp.contributors || []).slice().sort(function(a,b){
+          return (b.photos || 0) - (a.photos || 0);
+        });
+        var body = list.length ? '<div class="people">' + list.map(function(c,i){
+          var name = cfg.contributorVisibility === "anonymous" ? ("宾客 " + String(i+1).padStart(2,"0"))
+            : publicName(c.name);
+          return '<article class="u-card person"><span class="avatar">' + esc(name.slice(0,1)) +
+            '</span><div><b>' + esc(name) + "</b><span>" + (c.photos || 0) +
+            " 张照片进入空间</span></div></article>";
+        }).join("") + "</div>" : empty("♡","还没有贡献者记录");
+        return '<section class="section" id="contributors"><div class="section-head"><h2>一起补全的人</h2>' +
+          "<p>感谢每一个留下视角的人</p></div>" + body + "</section>";
+      }
+      function render(sp){
+        var cfg = configOf(sp);
+        var requested = Q.get("view");
+        var entry = cfg.views.indexOf(requested) >= 0 ? requested : cfg.entryView;
+        var photos = sp.photos || [], nodes = sp.nodes || [], people = sp.contributors || [];
+        var cover = coverUrl(sp.cover);
+        var date = sp.date || "", place = sp.place || "";
+        var mode = LOCAL ? '<span class="u-chip hot mode-chip">草稿预览</span>'
+          : '<span class="u-chip ok mode-chip">只读展览</span>';
+        var primary = entry === "walk"
+          ? '<a class="u-btn" href="' + esc(walkUrl(cfg)) + '">走进这段记忆</a>'
+          : '<a class="u-btn" href="#' + esc(entry) + '">开始观看</a>';
+        var sections = "";
+        cfg.views.forEach(function(v){
+          if (v === "walk") sections += walkSection(sp,cfg);
+          if (v === "photos") sections += photosSection(sp,cfg);
+          if (v === "tasks" && cfg.taskVisibility !== "hidden") sections += tasksSection(sp,cfg);
+          if (v === "contributors" && cfg.contributorVisibility !== "hidden") sections += peopleSection(sp,cfg);
+        });
+        document.title = (sp.title || "我们的展览") + " · UNSEEN";
+        document.getElementById("app").innerHTML =
+          '<div class="show-bar"><div class="u-bar"><a class="u-back" href="' + esc(backTarget()) +
+          '" aria-label="返回">←</a><h1>' + esc(sp.title || "我们的展览") + "</h1>" + mode + "</div>" +
+          sectionNav(cfg) + "</div>" +
+          '<section class="u-card hero">' + (cover ? '<img class="hero-cover" src="' + esc(cover) +
+          '" alt="展览封面">' : "") + '<div class="hero-shade"></div><div class="hero-copy">' +
+          '<p class="eyebrow">U N S E E N · MEMORY EXHIBITION</p><h2>' +
+          esc(sp.title || "我们的展览") + '</h2><p class="couple">' + esc(sp.couple || "") +
+          '</p><div class="meta">' + (date ? '<span class="u-chip">' + esc(date) + "</span>" : "") +
+          (place ? '<span class="u-chip">' + esc(place) + "</span>" : "") +
+          '</div><div class="hero-actions">' + primary + "</div></div></section>" +
+          '<div class="facts"><div class="u-card fact"><b>' + nodes.length +
+          '</b><span>空间节点</span></div><div class="u-card fact"><b>' + photos.length +
+          '</b><span>展出照片</span></div><div class="u-card fact"><b>' + people.length +
+          "</b><span>贡献者</span></div></div>" + sections +
+          '<footer class="show-foot">UNSEEN · 把散落的视角放回同一个空间</footer>';
+        if (requested && requested !== entry) history.replaceState(null,"",location.pathname +
+          "?" + new URLSearchParams(Array.from(Q.entries()).filter(function(x){ return x[0] !== "view"; })).toString());
+      }
+      function renderError(err){
+        document.getElementById("app").innerHTML =
+          '<div class="u-bar"><a class="u-back" href="' + esc(backTarget()) +
+          '" aria-label="返回">←</a><h1>展览没有打开</h1></div><div class="u-card load-card">' +
+          '<span style="font-size:34px">🥀</span><h2 class="error-title">暂时看不到这场展览</h2>' +
+          '<p class="error-copy">' + esc(err && err.message ? err.message : "读取失败") +
+          '</p><button class="u-btn sm" onclick="location.reload()">再试一次</button></div>';
+      }
+      loadSpace().then(render).catch(renderError);
     })();
   </script>
 </body>

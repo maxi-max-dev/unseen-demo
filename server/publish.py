@@ -42,7 +42,13 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from server import oss                                          # noqa: E402
-from server.space import SELECTED_STATES, space_dir, space_txn   # noqa: E402
+from server.space import (                                         # noqa: E402
+    SELECTED_STATES,
+    _normal_collection,
+    _normal_exhibition,
+    space_dir,
+    space_txn,
+)
 
 # OSS 上的根前缀。所有空间都挂在这下面, 别的项目要用同一个 bucket 也不会撞。
 ROOT_PREFIX = "spaces"
@@ -125,6 +131,24 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "depthJson": take(n.get("depthJson")),
         })
     node_ids = {n["id"] for n in nodes}
+    collection = _normal_collection(space.get("collection"))
+    exhibition = _normal_exhibition(space.get("exhibition"))
+    contributor_visibility = exhibition["contributorVisibility"]
+
+    def public_contributor(name):
+        """展览的署名开关必须作用到公开数据本身,不能只靠页面藏文字。"""
+        if contributor_visibility == "name":
+            return name
+        if contributor_visibility == "anonymous":
+            return "匿名宾客"
+        return None
+
+    def public_receipt_ref(key):
+        """公开回执只保留时间戳和随机短 id,去掉 key 里编码过的昵称与任务。"""
+        if not key:
+            return None
+        stem = os.path.splitext(os.path.basename(str(key)))[0]
+        return stem.split("__", 1)[0][:96] or None
 
     photos = []
     for p in space.get("photos") or []:
@@ -133,7 +157,7 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         src = take(p.get("src"))
         if not src:
             continue
-        photos.append({
+        photo = {
             "id": p.get("id"),
             "src": src,
             "thumb": take(p.get("thumb")) or src,
@@ -141,12 +165,15 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "yaw": p.get("yaw"),
             "pitch": p.get("pitch", 0),
             "confidence": p.get("confidence"),
-            "contributor": p.get("contributor"),
             "taskId": p.get("taskId"),
             "uploadedAt": p.get("uploadedAt"),
             # 宾客页靠这段 key 里的短 id 认领"我传的那张"(见 web/join.html findMine)
-            "inboxKey": p.get("inboxKey"),
-        })
+            "inboxKey": public_receipt_ref(p.get("inboxKey")),
+        }
+        contributor = public_contributor(p.get("contributor"))
+        if contributor:
+            photo["contributor"] = contributor
+        photos.append(photo)
 
     # 待确认回执: 只发【状态和署名】, 不发照片文件、不发方位、不发机器评分。
     #
@@ -165,10 +192,9 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         pending.append({
             "id": p.get("id"),
             "state": st,
-            "contributor": p.get("contributor"),
             "uploadedAt": p.get("uploadedAt"),
             "taskId": p.get("taskId"),
-            "inboxKey": p.get("inboxKey"),
+            "inboxKey": public_receipt_ref(p.get("inboxKey")),
             # 给宾客看的人话, 不暴露机器的具体评分
             "note": {"needs_review": "已收到,等新人确认",
                      "rejected": "新人看过了,这张没收进空间",
@@ -179,6 +205,11 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
     for t in space.get("tasks") or []:
         if t.get("nodeId") and node_ids and t.get("nodeId") not in node_ids:
             continue                      # 节点都没发布, 它的悬赏任务发了也点不进去
+        filled_by = t.get("filledBy") or []
+        if contributor_visibility == "anonymous":
+            filled_by = ["匿名宾客"] if filled_by else []
+        elif contributor_visibility == "hidden":
+            filled_by = []
         tasks.append({
             "id": t.get("id"),
             "nodeId": t.get("nodeId"),
@@ -190,24 +221,47 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "briefImage": take(t.get("briefImage")),
             "bounty": t.get("bounty"),
             "status": t.get("status"),
-            "filledBy": t.get("filledBy") or [],
+            "filledBy": filled_by,
         })
 
-    upload = oss.post_policy(conf, inbox_prefix(sid), expire_s=upload_expire_s)
+    raw_contributors = space.get("contributors") or []
+    if contributor_visibility == "name":
+        contributors = raw_contributors
+    elif contributor_visibility == "anonymous":
+        contributors = [{
+            "name": f"宾客 {i + 1:02d}",
+            "photos": int(c.get("photos") or 0),
+        } for i, c in enumerate(raw_contributors)]
+    else:
+        contributors = []
+
+    if collection["status"] == "open":
+        upload = oss.post_policy(conf, inbox_prefix(sid), expire_s=upload_expire_s)
+        upload["enabled"] = True
+    else:
+        # 关闭收集的公开快照不再携带仍可使用的签名。已经在旧页面里拿到的签名会自然过期,
+        # 工人端还有同一道 collection 闸门,因此旧页面传来的对象也不会被归入空间。
+        upload = {"enabled": False, "expiresAt": time.time()}
 
     public = {
         "schema": space.get("schema"),
         "id": sid,
         "title": space.get("title"),
         "couple": space.get("couple"),
+        "date": space.get("date") or "",
+        "place": space.get("place") or "",
+        "cover": space.get("cover") or "",
         "createdAt": space.get("createdAt"),
+        "published": True,
         "publishedAt": time.time(),
+        "collection": collection,
+        "exhibition": exhibition,
         "nodes": nodes,
         "tasks": tasks,
         "photos": photos,
         # 待确认回执(不含照片文件, 见上面 pending 那段注释)
         "pending": pending,
-        "contributors": space.get("contributors") or [],
+        "contributors": contributors,
         # 宾客页拿这份策略把照片直接 POST 进 OSS。表单字段:
         # key / OSSAccessKeyId / policy / Signature / x-oss-object-acl / file
         "upload": upload,

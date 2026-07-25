@@ -440,6 +440,7 @@ body.pov-on .mobile-hint { display: none !important; }
   // 小工具
   // ============================================================
   function qs(name) { return new URLSearchParams(location.search).get(name); }
+  var POV_ENABLED = qs("pov") !== "0";
 
   // 返回动线契约(全 App 统一):?back=<相对仓库根的路径,已 encodeURIComponent>。
   // 有 back 就回"我来的地方",没有就用各模式原来的 fallback,行为一个字节都不变。
@@ -765,6 +766,12 @@ body.pov-on .mobile-hint { display: none !important; }
     $("hudTitle").textContent = opts.title;
     $("backLink").href = opts.backHref;
     $("errBack").href = opts.backHref;
+    if (!POV_ENABLED) {
+      var lockSub = document.querySelector("#cardLock .sub");
+      if (lockSub) lockSub.textContent = "WASD 移动 · 鼠标环视 · Shift 加速 · 瞄准相框点击看原图 · ESC 退出";
+      var mobileHint = $("mobileHint");
+      if (mobileHint) mobileHint.innerHTML = "<span>拖动环视 · 左下摇杆行走 · 点相框看原图</span>";
+    }
 
     if (!detectWebGL()) {
       showError("当前设备/浏览器不支持 WebGL", "无法进入 3D 行走查看器", opts.backHref);
@@ -1146,7 +1153,11 @@ body.pov-on .mobile-hint { display: none !important; }
         -(clientY / window.innerHeight) * 2 + 1
       );
       var sprite = photoSprites.length ? raycastPhotoHit(tapNDC) : null;
-      if (sprite) { povEnter(sprite); return; }
+      if (sprite) {
+        if (POV_ENABLED) povEnter(sprite);
+        else openPhotoLightbox(sprite.userData.photo);
+        return;
+      }
       if (pov.state === "active") povExit();
     }
 
@@ -1417,6 +1428,7 @@ body.pov-on .mobile-hint { display: none !important; }
     }
 
     function povEnter(sprite) {
+      if (!POV_ENABLED) return;
       if (!sprite || pov.state === "flying") return;
       if (lightboxOpen) return;
       // 已经在这张的 POV 里就别重进;点了另一张(或者刚退出还在收尾)就先收干净再换过去
@@ -1617,6 +1629,7 @@ body.pov-on .mobile-hint { display: none !important; }
         setYaw: function (deg) { yaw = deg * Math.PI / 180; }, openPhoto: function (i) { if (photoSprites[i]) openPhotoLightbox(photoSprites[i].userData.photo); },
         // POV 的调试出口:验收时用它驱动状态机、读扇区覆盖、核对方位换算
         pov: {
+          enabled: POV_ENABLED,
           state: function () { return pov.state; },
           enter: function (i) { if (photoSprites[i]) povEnter(photoSprites[i]); },
           exit: function () { povExit(); },
@@ -1694,7 +1707,8 @@ body.pov-on .mobile-hint { display: none !important; }
       var sprite = raycastPhotoHit(ndcCenter);
       if (sprite) {
         e.preventDefault();
-        povEnter(sprite);
+        if (POV_ENABLED) povEnter(sprite);
+        else openPhotoLightbox(sprite.userData.photo);
       } else if (pov.state === "active") {
         e.preventDefault();
         povExit();

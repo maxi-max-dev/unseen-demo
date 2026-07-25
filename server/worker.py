@@ -211,13 +211,24 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
         return {"ok": True, "listed": len(listed), "new": 0,
                 "processed": 0, "failed": 0, "results": [], "published": None}
 
-    # 已知任务 id, 用来挡掉宾客页传来的野 taskId(带个不存在的任务会让积分/任务状态错乱)
+    # 主办方暂停收集时, 新对象留在收件箱里等恢复, 既不处理也不记失败。
+    # 公开直传策略在过期前仍可能被旧页面持有, 所以工人也必须守这道闸。
     try:
-        known_tasks = {t["id"] for t in space.load_space(sid).get("tasks", [])}
+        current_space = space.load_space(sid)
+        collection = space._normal_collection(current_space.get("collection"))
+        if collection["status"] != "open":
+            if log_empty:
+                log(f"收集已暂停, 云端还有 {len(fresh)} 张照片等待恢复后处理")
+            return {"ok": True, "listed": len(listed), "new": len(fresh),
+                    "processed": 0, "failed": 0, "paused": True,
+                    "results": [], "published": None}
     except FileNotFoundError as e:
         log(f"⚠️ {e} —— 先在后台建好空间再开工人")
         return {"ok": False, "error": str(e), "listed": len(listed), "new": len(fresh),
                 "processed": 0, "failed": 0, "results": [], "published": None}
+
+    # 已知任务 id, 用来挡掉宾客页传来的野 taskId(带个不存在的任务会让积分/任务状态错乱)
+    known_tasks = {t["id"] for t in current_space.get("tasks", [])}
 
     results, failed = [], 0
     for item in fresh:
@@ -288,7 +299,8 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
 def run_forever(sid, interval=5, conf=None):
     """常驻循环。Ctrl-C 干净退出(台账每张都已经落盘, 不会丢进度)。"""
     conf = conf or oss.load_conf()
-    log(f"工人上岗: 空间 {sid} ← oss://{conf['bucket']}/{inbox_prefix(sid)}, 每 {interval}s 看一眼")
+    # 云配置的任何值都不进日志。后台只需要知道空间和轮询间隔。
+    log(f"工人上岗: 空间 {sid}, 每 {interval}s 查看云端收件箱")
     beat(sid, "loading-clip")   # 先跳一下: 加载 CLIP 那十几秒, 后台也该显示"工人在了"
     space.get_clip_model()      # 先把 CLIP 加载完, 别让第一个宾客等这 10-20 秒
     log("CLIP 就绪, 开始盯收件箱(Ctrl-C 收工)")

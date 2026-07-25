@@ -26,7 +26,7 @@
       story:  PREFIX + "viewer/journey.html",
       walk:   PREFIX + "viewer/walk.html?demo=1",
       film:   PREFIX + "film/out/memory-film-web.mp4",
-      show:   PREFIX + "web/show.html",
+      show:   PREFIX + "web/show.html?s=s4",
       studio: PREFIX + "server/host.html?space=s4"
     }
   }];
