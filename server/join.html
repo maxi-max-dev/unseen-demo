@@ -591,6 +591,7 @@
   // yaw 的来源和读法完全没变(还是 t.yaw + dirWord()),度数和八方位口语一个都没少,只是不画针了。
   // 这里不再放缩略图:gap 卡片上方的通缉令海报本来就是同一张图,再放一次纯属重复。
   function taskDirWidget(t) {
+    if (MOCK) return '<span class="dir-pill">方位未测</span>';
     return '<span class="dir-pill">朝 ' + Math.round(t.yaw || 0) + "° " + dirWord(t.yaw) + "</span>";
   }
 
@@ -698,6 +699,7 @@
     $("wDate").textContent = isWedding()
       ? ((sp.title || "").split("·").pop().trim() || "")
       : [sp.date, sp.place].filter(Boolean).join(" · ");
+    if (MOCK) $("wDate").textContent = "演示数据,照片数、方位和积分均未测";
     $("wInvite").textContent = isWedding() ? "他们请你交一张照片" : "请你交一张照片";
     $("wInviteSub").innerHTML = (isWedding() ? "那一天" : "现场") +
       "散在每个人手机里。<br>你交的这张,会回到它当时朝着的方向。";
@@ -707,7 +709,7 @@
     var people = (sp.contributors || []).length;
     // 用 contributors 的累计张数,不用 photos.length:宾客视角看不到待审核的那些,会少报
     var photos = (sp.contributors || []).reduce(function (a, c) { return a + (c.photos || 0); }, 0);
-    if (people > 0) {
+    if (!MOCK && people > 0) {
       $("wProof").style.display = "inline-flex";
       $("wPeople").textContent = people;
       $("wPhotos").textContent = photos;
@@ -751,7 +753,9 @@
       // 状态说完成了、却没留下是谁 —— 别替它编个名字出来
       foot = '<div class="claimed">✅ 已经有人交了</div>';
     }
-    var bounty = wishAnswered
+    var bounty = MOCK
+      ? '<div class="bounty"><i>悬赏未测</i></div>'
+      : wishAnswered
       ? '<div class="bounty"><i>悬赏已领</i></div>'
       : '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>";
 
@@ -764,7 +768,9 @@
           // 邮戳跟落款说的是同一件事:没人认领过就不许盖"已认领"
           '<div class="stamp">' +
             (!done ? "待认领" : (sysClosed ? "已补齐" : (who ? "已认领" : "已完成"))) + "</div>" +
-          '<div class="yawtag">全景裁切 · ' + Math.round(t.yaw || 0) + "° " + dirWord(t.yaw) + "</div>" +
+          '<div class="yawtag">' + (MOCK
+            ? "全景裁切 · 方位未测"
+            : "全景裁切 · " + Math.round(t.yaw || 0) + "° " + dirWord(t.yaw)) + "</div>" +
         "</div>" +
         '<div class="card-body">' +
           '<span class="badge gap">🧭 空间任务 · 系统发现的空洞</span>' + taskNodeBadge(t) +
@@ -804,7 +810,9 @@
       '<ellipse cx="' + (bx - 40) + '" cy="335" rx="86" ry="26" fill="#241813"/>' +
       '<ellipse cx="' + (ax - 120) + '" cy="345" rx="80" ry="28" fill="#241813"/>' +
       '<text x="320" y="200" font-size="20" fill="#8a7462" text-anchor="middle" ' +
-      'font-family="sans-serif">此方位暂无照片 · ' + Math.round(yaw || 0) + "°</text></svg>";
+      'font-family="sans-serif">' + (MOCK
+        ? "演示素材 · 方位未测"
+        : "此方位暂无照片 · " + Math.round(yaw || 0) + "°") + "</text></svg>";
     return "data:image/svg+xml," + encodeURIComponent(svg);
   }
 
@@ -818,7 +826,7 @@
     // 混在一起顶着「已经有人交了 / 他们的照片已经在空间里」那句标题就是在编。
     var done = tasks.filter(function (t) { return t.status !== "open" && !isSystemClosed(t); });
     var closedT = tasks.filter(function (t) { return t.status !== "open" && isSystemClosed(t); });
-    $("tabCount").textContent = open.length;
+    $("tabCount").textContent = MOCK ? "未测" : open.length;
 
     // 没有全景 = 这个空间根本还没立起来,后端也会直接拒收照片(要先有节点才能定位),
     // 所以自由投稿入口跟着一起藏起来,别给一个点了必然失败的按钮。
@@ -857,8 +865,10 @@
       }
       blank = "";
     }
-    $("wallTitle").textContent = head;
-    $("wallSub").textContent = sub;
+    $("wallTitle").textContent = MOCK ? "界面预览" : head;
+    $("wallSub").textContent = MOCK
+      ? "演示数据,照片数、方位和积分均未测"
+      : sub;
 
     var html = open.map(taskCard).join("");
     if (done.length) {
@@ -915,14 +925,17 @@
     var dirs = {};
     mineSel.forEach(function (m) { if (m.yaw != null) dirs[dirWord(m.yaw)] = 1; });
 
-    $("stPhotos").textContent = me ? me.photos : mineSel.length;
-    $("stPoints").textContent = me ? me.points : 0;
-    $("stDirs").textContent = Object.keys(dirs).length;
+    $("stPhotos").textContent = MOCK ? "未测" : (me ? me.photos : mineSel.length);
+    $("stPoints").textContent = MOCK ? "未测" : (me ? me.points : 0);
+    $("stDirs").textContent = MOCK ? "未测" : Object.keys(dirs).length;
 
     // 待审的那几张为什么没算进上面的数字,直说,别让人自己猜
     var pending = merged.filter(function (m) { return m.state === "needs_review"; });
     var note = $("mineNote");
-    if (pending.length) {
+    if (MOCK) {
+      note.style.display = "";
+      note.textContent = "演示数据,只预览界面状态,不代表实测结果。";
+    } else if (pending.length) {
       note.style.display = "";
       note.textContent = "另外还有 " + pending.length + " 张在等" + owner() +
         "过目。上面的数字只算已经进空间的照片,等" + owner() + "点了通过,它们才会计进去。";
@@ -1238,7 +1251,12 @@
 
     var rows = views.map(function (v, i) {
       var head, sub, r = v.r, mm = v.mm;
-      if (mm) {
+      if (MOCK) {
+        head = r.state === "needs_review"
+          ? "待确认状态的界面预览"
+          : "入选状态的界面预览";
+        sub = "演示数据,未跑模型,方位未测";
+      } else if (mm) {
         var cat = mismatchCat(mm);
         // 对不上就如实说,别假装认领成功。照片照收,任务照旧开着。
         // 后端给了方位词就用它的;没给才退回自己按 yaw 换算(老后端 / 简化返回)。
@@ -1331,12 +1349,13 @@
     // 任务算不算被补上也一样以后端 taskFilled 为准,方位对不上的那几张不算。
     // 方位对不上的时候后端会把这次认领撤掉,再看看这张照片是不是正好补上了【别的】缺口。
     // 所以"补上了"分两种:补上的是你点的那个任务,还是顺手补上了另一个。
-    var rewardedWish = task.type === "wish" && views.some(function (v) {
+    var rewardedWish = !MOCK && task.type === "wish" && views.some(function (v) {
       return !v.mm && !!(v.r.taskRewarded || v.r.bountyPaid || v.r.taskFilled);
     });
-    var filled = task.type !== "wish" &&
+    var filled = !MOCK && task.type !== "wish" &&
       views.some(function (v) { return v.r.taskFilled && !v.mm; });
-    var filledOther = views.some(function (v) { return v.r.taskFilled && v.mm; });
+    var filledOther = !MOCK &&
+      views.some(function (v) { return v.r.taskFilled && v.mm; });
     var okN = results.filter(function (r) { return isSelected(r.state); }).length;
     var waitN = results.filter(function (r) { return r.state === "needs_review"; }).length;
     // ⚠️ 汇总和上面的卡片必须读同一份归类(mismatchCat),不许各判各的 ——
@@ -1371,20 +1390,24 @@
     });
 
     var lines = [];
-    if (okN) lines.push(okN + " 张已经回到它当时朝着的方向");
-    if (waitN) lines.push(waitN + " 张机器拿不准,交给" + owner() + "过目了");
-    if (badN) lines.push(badN + " 张先放一边了");
-    if (otherN > 0) lines.push(otherN + " 张还在处理");
+    if (!MOCK) {
+      if (okN) lines.push(okN + " 张已经回到它当时朝着的方向");
+      if (waitN) lines.push(waitN + " 张机器拿不准,交给" + owner() + "过目了");
+      if (badN) lines.push(badN + " 张先放一边了");
+      if (otherN > 0) lines.push(otherN + " 张还在处理");
+    }
 
     openSheet(
       '<div class="grab"></div>' +
-      "<h3>好了,一共 " + results.length + " 张</h3>" +
-      '<p class="sh-sub">' + (task.type === "wish"
+      "<h3>" + (MOCK ? "界面预览" : "好了,一共 " + results.length + " 张") + "</h3>" +
+      '<p class="sh-sub">' + (MOCK
+        ? "演示数据,未跑模型,这里只预览回执样式。"
+        : task.type === "wish"
         ? "心愿任务不算方位," + owner() + "会亲自看。"
         : "系统按画面内容认方位,认不准的会交给" + owner() + "。") + "</p>" +
       rows +
       '<div class="res-sum" id="resSum">' +
-        "已经收到 " + results.length + " 张" +
+        (MOCK ? "演示数据,照片数、方位和积分均未测" : "已经收到 " + results.length + " 张") +
         (lines.length ? " · " + esc(lines.join(" · ")) : "") +
         // 对不上的单独起一行说"其中",不跟上面的张数并排,免得"1 张 · 1 张"被读成两张
         (nodeBadN ? "<br>其中 " + nodeBadN + " 张不是在这个任务要的位置拍的,任务还开着" : "") +
@@ -1439,6 +1462,10 @@
   function fillResultPoints(fresh, waitN) {
     var el = $("resPoints");
     if (!el) return;                       // 抽屉已经被关掉了,没地方写
+    if (MOCK) {
+      el.textContent = "演示数据,积分未测";
+      return;
+    }
     if (!fresh) {
       el.textContent = "分数这次没拉到(网可能断了),以" + owner() + "那边的榜单为准。";
       return;
@@ -1638,13 +1665,13 @@
         briefImage: null, bounty: 40, status: "filled", filledBy: ["小雨"], createdBy: "system", createdAt: 1753340000.0 }
     ],
     photos: [
-      { id: "p1", src: "photos/p1.jpg", thumb: "thumbs/p1.jpg", nodeId: "n1", yaw: 105.6, pitch: 0,
+      { id: "p1", src: "photos/p1.jpg", thumb: "thumbs/p1.jpg", nodeId: "n1", yaw: null, pitch: 0,
         confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         contributor: "小雨", taskId: null, uploadedAt: 1753340000.0 },
-      { id: "p2", src: "photos/p2.jpg", thumb: "thumbs/p2.jpg", nodeId: "n1", yaw: 298.0, pitch: 0,
+      { id: "p2", src: "photos/p2.jpg", thumb: "thumbs/p2.jpg", nodeId: "n1", yaw: null, pitch: 0,
         confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         contributor: "小雨", taskId: "t4", uploadedAt: 1753340000.0 },
-      { id: "p3", src: "photos/p3.jpg", thumb: "thumbs/p3.jpg", nodeId: "n2", yaw: 12.3, pitch: 0,
+      { id: "p3", src: "photos/p3.jpg", thumb: "thumbs/p3.jpg", nodeId: "n2", yaw: null, pitch: 0,
         confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         contributor: "阿哲", taskId: null, uploadedAt: 1753340000.0 }
     ],
@@ -1677,9 +1704,9 @@
       setTimeout(function () {
         clearInterval(tick);
         var pool = [
-          { yaw: 213.4, confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: true },
-          { yaw: 118.9, confidence: null, state: "needs_review", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false },
-          { yaw: 47.2, confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false }
+          { yaw: null, confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: true },
+          { yaw: null, confidence: null, state: "needs_review", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false },
+          { yaw: null, confidence: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false }
         ];
         var out = [];
         for (var i = 0; i < n; i++) {
@@ -1703,11 +1730,11 @@
   }
 
   var MOCK_MINE = [
-      { photoId: "d1", yaw: 213.4, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
+      { photoId: "d1", yaw: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         thumb: posterPlaceholder(213), taskTitle: "缺这个角度 · 舞台右前方", at: 1 },
-      { photoId: "d2", yaw: 118.9, state: "needs_review", reason: "演示数据,未跑模型,仅用于界面预览",
+      { photoId: "d2", yaw: null, state: "needs_review", reason: "演示数据,未跑模型,仅用于界面预览",
         thumb: posterPlaceholder(119), taskTitle: "自由投稿", at: 2 },
-      { photoId: "d3", yaw: 47.2, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
+      { photoId: "d3", yaw: null, state: "approved", reason: "演示数据,未跑模型,仅用于界面预览",
         thumb: posterPlaceholder(47), taskTitle: "缺这个角度 · 入口花门", at: 3 }
   ];
 
@@ -1716,9 +1743,9 @@
     var task = MOCK_SPACE.tasks[0];
     var thumbs = [posterPlaceholder(210), posterPlaceholder(120), posterPlaceholder(45)];
     sheetResults([
-      { photoId: "d1", yaw: 213.4, confidence: null, state: "approved",
+      { photoId: "d1", yaw: null, confidence: null, state: "approved",
         reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: true },
-      { photoId: "d2", yaw: 118.9, confidence: null, state: "needs_review",
+      { photoId: "d2", yaw: null, confidence: null, state: "needs_review",
         reason: "演示数据,未跑模型,仅用于界面预览", taskFilled: false }
     ], thumbs, task);
   }
