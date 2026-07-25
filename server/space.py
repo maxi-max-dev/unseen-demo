@@ -41,6 +41,7 @@ import sys
 import threading
 import time
 import traceback
+from urllib.parse import quote
 
 import numpy as np
 from fastapi import APIRouter, Body, File, Form, UploadFile
@@ -54,6 +55,10 @@ DEPTH_SCRIPT = os.path.join(REPO_ROOT, "tools", "depth.py")
 DEPTH_ASSET_DIR = os.path.join(REPO_ROOT, "assets", "depth")
 PUBLIC_URL_FILE = os.path.join(REPO_ROOT, "server", "public_url.txt")
 FFMPEG = "/opt/homebrew/bin/ffmpeg"
+CLOUD_JOIN_BASE = (
+    os.environ.get("PSM_CLOUD_JOIN_BASE")
+    or "https://unseen-demo.vercel.app/web/join.html"
+).strip() or "https://unseen-demo.vercel.app/web/join.html"
 
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
@@ -1760,8 +1765,15 @@ def public_base():
 
 
 def guest_url(sid):
-    """给二维码用的宾客链接。宾客扫码直接进 H5, 不注册不装 app。"""
+    """尚未上云的空间使用本机宾客页。宾客扫码直接进 H5,不注册不装 app。"""
     return f"{public_base()}/server/join.html?space={sid}"
+
+
+def canonical_guest_url(sid, space):
+    """同一个空间只给一种入口:已上云走云宾客页,否则走本机宾客页。"""
+    if space.get("ossSpaceJson"):
+        return f"{CLOUD_JOIN_BASE}?s={quote(str(sid), safe='')}"
+    return guest_url(sid)
 
 
 # ================================================================ HTTP 路由
@@ -2014,9 +2026,9 @@ def api_worker_status(sid: str):
 @router.get("/space/{sid}/joinurl")
 def api_joinurl(sid: str):
     try:
-        with space_txn(sid, write=False):
-            pass    # 只是确认空间存在
-        return {"ok": True, "url": guest_url(sid)}
+        with space_txn(sid, write=False) as space:
+            url = canonical_guest_url(sid, space)
+        return {"ok": True, "url": url}
     except FileNotFoundError as e:
         return _fail_user(e, "找不到这个空间,链接可能已经过期了", "生成宾客链接")
     except Exception as e:

@@ -202,7 +202,9 @@
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (u) {
             var url = u && u.ok && (u.url || u.joinUrl || u.joinurl);
-            targetUrl = url || (U.API + "/server/join.html?space=" + encodeURIComponent(scene.id));
+            targetUrl = url || (sp.ossSpaceJson
+              ? DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id)
+              : U.API + "/server/join.html?space=" + encodeURIComponent(scene.id));
             joinable = true;
           });
       })

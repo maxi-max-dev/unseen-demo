@@ -107,6 +107,7 @@
   var Q = new URLSearchParams(location.search);
   var SID = Q.get("s") || "";
   var OSS_BASE = "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com";
+  var CLOUD_JOIN_BASE = "https://unseen-demo.vercel.app/web/join.html";
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
@@ -288,7 +289,9 @@
       L.walk = U.PREFIX + "viewer/walk.html?space=" + encodeURIComponent(s.id);
     }
     if (live.published && !L.join) {
-      L.join = U.PREFIX + "server/join.html?space=" + encodeURIComponent(s.id);
+      L.join = live.ossSpaceJson
+        ? CLOUD_JOIN_BASE + "?s=" + encodeURIComponent(s.id)
+        : U.PREFIX + "server/join.html?space=" + encodeURIComponent(s.id);
     }
     return Object.assign({}, s, { links: L });
   }
