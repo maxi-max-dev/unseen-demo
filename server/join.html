@@ -1356,6 +1356,11 @@
       views.some(function (v) { return v.r.taskFilled && !v.mm; });
     var filledOther = !MOCK &&
       views.some(function (v) { return v.r.taskFilled && v.mm; });
+    // 同一批里只要有一张真的把这个任务补上了,后面那些"对不上"的就不能再说"任务还开着"。
+    // 踩过:一次交 2 张,第 1 张对上了第 2 张偏了,一屏同时出现「任务还开着」和「这个任务被你补上了 🎉」。
+    function stillOpenTail() {
+      return filled ? ",不过同一批里有一张对上了,这个任务已经补上" : ",任务还开着";
+    }
     var okN = results.filter(function (r) { return isSelected(r.state); }).length;
     var waitN = results.filter(function (r) { return r.state === "needs_review"; }).length;
     // ⚠️ 汇总和上面的卡片必须读同一份归类(mismatchCat),不许各判各的 ——
@@ -1410,10 +1415,15 @@
         (MOCK ? "演示数据,照片数、方位和积分均未测" : "已经收到 " + results.length + " 张") +
         (lines.length ? " · " + esc(lines.join(" · ")) : "") +
         // 对不上的单独起一行说"其中",不跟上面的张数并排,免得"1 张 · 1 张"被读成两张
-        (nodeBadN ? "<br>其中 " + nodeBadN + " 张不是在这个任务要的位置拍的,任务还开着" : "") +
+        // ⚠️「任务还开着」只有在这一批真的没人补上它的时候才成立。
+        // 踩过:一次交 2 张,第 1 张对上了、第 2 张偏了,于是一屏同时出现
+        // 「其中 1 张的方位和这个任务要的不一样,任务还开着」和「这个任务被你补上了 🎉」,
+        // 同一条任务上一行说还开着下一行说被补上了。这种混合批次比整批都对更常见,
+        // 因为宾客本来就分不清 240 度和 255 度。
+        (nodeBadN ? "<br>其中 " + nodeBadN + " 张不是在这个任务要的位置拍的" + stillOpenTail() : "") +
         (goneN ? "<br>其中 " + goneN + " 张对应的任务已经失效了,照片照常收下" : "") +
         (takenN ? "<br>其中 " + takenN + " 张对应的方向刚才已经有人补上了,照片照常收下" : "") +
-        (yawN ? "<br>其中 " + yawN + " 张的方位和这个任务要的不一样,任务还开着" : "") +
+        (yawN ? "<br>其中 " + yawN + " 张的方位和这个任务要的不一样" + stillOpenTail() : "") +
         (filled ? "<br>这个任务被你补上了 🎉"
                 : (filledOther ? "<br>不过它顺手补上了另一个缺口 🎉" : "")) +
         (rewardedWish ? "<br>这份心愿收到你的照片了 🎉" : "") +
