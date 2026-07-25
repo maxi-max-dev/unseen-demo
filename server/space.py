@@ -764,9 +764,16 @@ def place_photos(sid, space, photo_paths, node_id=None):
     两组的 margin 区间几乎完全重叠(难分段 AUC 0.510, 约等于抛硬币), 真正拦住外来照片的是
     confidence。详见文件顶部 CONF_MIN/MARGIN_MIN 上方的实测数据注释。
     """
-    nodes = [n for n in space.get("nodes", []) if node_id is None or n["id"] == node_id]
-    if not nodes:
+    all_nodes = space.get("nodes", [])
+    if not all_nodes:
         raise RuntimeError("这个空间还没有全景节点,请新人先传一张全景")
+    nodes = [n for n in all_nodes if node_id is None or n["id"] == node_id]
+    if not nodes:
+        # ⚠️ 2026-07-25 修的 P2: 这一句以前不分情况一律说"这个空间还没有全景节点",
+        # 于是客户端塞一个根本不存在的 nodeId 时, 一个明明有 2 张全景的空间会告诉宾客
+        # "还没有全景节点,请新人先传一张全景" —— 一句会原样显示在宾客手机上的谎话。
+        # 现在两种情况分开说, 上面那句只留给真的一个节点都没有的空间。
+        raise RuntimeError(f"这个空间里没有叫「{node_id}」的位置,换个位置再试一次")
 
     bank_embs, bank_nodes, bank_yaws = [], [], []
     for n in nodes:
@@ -980,6 +987,11 @@ def _task_unavailable_note(task_id, task, photo, kind):
     kind 只取 "missing" / "status"。照片仍然照常定位和分流,只是这次不能冒充完成
     那个任务。调用方会清掉 photo.taskId,再允许它按真实节点和方位顺手补上别的 open
     缺口,所以回执里必须保留 taskMismatch,前端才能把两件事同时说清楚。
+
+    ⚠️ 2026-07-25 第三轮收口: kind="status" 现在【只】给 closed(缺口已经补齐、
+    任务本身没了)。"任务已经被别人填过"不再走这里 —— 那不是错误,是婚礼现场的常态,
+    见 _task_extra_note。下面那句 else 只是防御性兜底(理论上到不了),口吻也一并改成
+    平铺直叙,不许再出现"不能重复领取悬赏"这种把宾客当贼的话。
     """
     landing = _photo_landing(photo)
     status = task.get("status") if task else None
@@ -989,7 +1001,7 @@ def _task_unavailable_note(task_id, task, photo, kind):
     elif status == "closed":
         msg = f"「{title}」对应的方向已经补齐了,不用再认领。{landing}。"
     else:
-        msg = f"「{title}」已经被认领了,不能重复领取悬赏。{landing}。"
+        msg = f"「{title}」现在不接受新的认领了。{landing}。"
     return {
         "taskId": task_id,
         "taskTitle": (task.get("title") or "") if task else "",
@@ -1000,8 +1012,63 @@ def _task_unavailable_note(task_id, task, photo, kind):
     }
 
 
-def apply_task_fill(space, photo):
-    """照片真进空间之后, 判定它完成了哪个任务。返回被填上的 task id, 没有就 None。
+def _task_extra_note(task, photo, batch_filled=None, mine=False):
+    """任务【已经被填过】之后又来一张照片时的如实说明。这不是 taskMismatch,宾客没做错事。
+
+    ⚠️ 2026-07-25 第三轮收口, 修的是上一轮自己修出来的 P0。上一轮把"任务已经 filled"
+    当成了【拒绝后续照片】的理由, 于是最常见的三种正常行为全被当成了作弊:
+      1. 宾客页自己写着"可以一次选好几张", 一次交 3 张给同一个任务时, 第 1 张把任务填掉,
+         后 2 张立刻撞上【刚刚由它们自己造成的】filled 状态, 回执给的是
+         "已经被认领了,不能重复领取悬赏"。一屏上同时出现"这个任务被你补上了 🎉"和
+         两句指控, 自相矛盾;
+      2. 两个宾客拍同一个方向 —— 婚礼现场同一个方向被两个人拍是常态, 不是攻击;
+      3. 心愿任务天生该收很多张, 却变成了先到先得, 第二个人被拒。
+    正确的模型: 状态只决定【悬赏发几份】, 不决定【照片收不收】, 更不该用指控的口吻说话。
+    照片照常收下、照常归位、照常说好话, 只是同一份悬赏不重复发。
+
+    kind 两取值, 前端可以用两种口吻渲染:
+      "same_batch"     同一次上传里的后续张(是宾客自己刚刚填上的)。一个字都不提悬赏 ——
+                       他没跟任何人抢, 提"不重复发"只会凭空制造一次挫败感;
+      "already_filled" 这个方向别人先补上了(mine=True 时是他自己上一次补的)。
+                       温和说明一句"这份悬赏之前发出去了", 让他知道为什么这张没加分。
+    字段形状刻意和 _task_unavailable_note / _mismatch_note 对齐(taskId / taskTitle /
+    kind / taskStatus / photoState / message), 前端一套渲染代码就能吃下三种。
+    """
+    tid = task.get("id")
+    title = task.get("title") or "这个任务"
+    wish = not _task_is_located(task)
+    same_batch = bool(batch_filled) and tid in batch_filled
+
+    if same_batch:
+        kind = "same_batch"
+        msg = ("这几张是同一次交的,都收下了,一起放进这份心愿里。" if wish
+               else "这几张是同一次交的,都收下了,一起放进这个方向。")
+    else:
+        kind = "already_filled"
+        if wish:
+            msg = (f"「{title}」你之前已经交过照片了,这张也收下了,一起放进空间。"
+                   if mine else
+                   f"「{title}」已经有人响应过了,你这张也收下了,一起放进空间。"
+                   "这份悬赏之前发出去了,不会再发第二份。")
+        elif mine:
+            msg = "这个方向你之前已经补上了,这张也收下了,一起放进空间。"
+        else:
+            msg = ("这个方向已经有人补上了,你这张也收下了,一起放进空间。"
+                   "这份悬赏之前发出去了,不会再发第二份。")
+    return {
+        "taskId": tid,
+        "taskTitle": task.get("title") or "",
+        "kind": kind,
+        "taskStatus": task.get("status", "open"),
+        "taskType": task.get("type"),
+        "bountyPaid": False,        # 这张没有再拿一份悬赏, 前端别显示加分动画
+        "photoState": photo.get("state"),
+        "message": msg,
+    }
+
+
+def apply_task_fill(space, photo, batch_filled=None):
+    """照片真进空间之后, 判定它完成了哪个任务。返回【这一张真的拿到了悬赏】的 task id。
 
     只有【已入选】的照片才算数 —— 待审的照片先不动任务状态, 等新人 approve 了再算,
     不然一张机器都拿不准的照片就能把悬赏关掉, 任务系统就废了。
@@ -1017,8 +1084,20 @@ def apply_task_fill(space, photo):
     ⚠️ 2026-07-25 第二轮收口: 上面那道闸只比了【方位】, 没比【节点】, 于是同一个 P0
     换个姿势就复活了 —— 从 n2 拍的照片照样能认领 n1 的任务(见 _task_accepts_photo)。
     闸门现在统一走 _task_accepts_photo(节点 + 方位一起校验), 心愿任务不受影响。
+
+    ⚠️ 2026-07-25 第三轮: 上一轮那道状态闸【修过头了】, 误伤了最常见的正常行为(一次交
+    好几张 / 两个宾客拍同一个方向 / 心愿任务收第二张), 复现和根因见 _task_extra_note。
+    现在的口径 ——
+      · "任务已经被填过"【不是】拒绝照片的理由: 照片照常收下、照常归位、照常记 taskId,
+        只是不重复发同一份悬赏, 回执走中性的 photo["taskNote"](不是指控式的 taskMismatch);
+      · 只有 closed(缺口已经被系统判定补齐、任务本身没了)才继续挡住认领;
+      · 心愿任务永远停在 open, 后来的照片继续收,但一条心愿只发一份悬赏。
+        contributor 是宾客自己填写的名字,按名字发多份会被改昵称无限刷分。
+    batch_filled 是【同一次上传里前面几张已经填掉的 task id 集合】, 只用来挑该说哪句话:
+    自己刚填上的和别人先填上的, 得用两种口吻。
     """
     photo.pop("taskMismatch", None)     # 每次重算, 别留上一轮的陈旧结论
+    photo.pop("taskNote", None)
     requested_task_id = photo.get("taskId")
     task = _find_task(space, requested_task_id) if requested_task_id else None
 
@@ -1029,10 +1108,10 @@ def apply_task_fill(space, photo):
             requested_task_id, None, photo, kind="missing")
         photo["taskId"] = None
 
-    # 已 filled / closed 的任务都不能再追加认领人。以前这里只在最后把 open 改 filled,
-    # 却从没挡住非 open 状态,结果重复上传会重复发整份悬赏,closed 卡也会被伪装成
-    # “已被某人认领”。legacy 任务没 status 时按 open 处理。
-    if task is not None and task.get("status", "open") != "open":
+    # closed = 这一段方位已经被别的照片铺满、系统自己把任务关掉了, 缺口不存在了,
+    # 再挂着"认领"就是骗人。这一条【必须留着】。filled 不在这里挡 —— 它是正常情况,
+    # 走下面的悬赏口径。legacy 任务没 status 时按 open 处理。
+    if task is not None and task.get("status", "open") == "closed":
         photo["taskMismatch"] = _task_unavailable_note(
             requested_task_id, task, photo, kind="status")
         photo["taskId"] = None
@@ -1065,11 +1144,51 @@ def apply_task_fill(space, photo):
 
     photo["taskId"] = task["id"]
     who = photo.get("contributor") or "匿名宾客"
-    if who not in task["filledBy"]:
+    wish = not _task_is_located(task)
+    status = task.get("status", "open")
+
+    # 心愿任务("我想要一张我妈的笑"这种)没有"填满"这回事: 新人开口要的就是很多张,
+    # 状态一律留在 open, 它才不会从任务墙的"还缺"里消失、让后来的人连按钮都看不到。
+    # 老数据里已经被填成 filled 的心愿任务, 下次有人交照片时顺手改回来。
+    if wish and status != "open":
+        task["status"] = status = "open"
+
+    # ---- 悬赏口径:一条任务只发一份,状态不决定后续照片收不收 ----
+    # gap 和 wish 的后续照片都照收照放,但 filledBy 只留一位获奖人。
+    # 心愿不能按 contributor 名字“每人一份”:名字来自无认证表单,同一个人改一次昵称
+    # 就会被当成新人再领一份。要做多人悬赏必须先有不可随手更换的身份凭据,当前没有。
+    credited = False
+    if not task["filledBy"] and status != "closed":
         task["filledBy"].append(who)
-    if task["status"] == "open":
+        credited = True
+    if not wish and status == "open":
         task["status"] = "filled"
+
+    if not credited:
+        # 照片已经归位了(taskId 就在上面写好了), 只是这一张没有再拿一份悬赏。
+        # 用中性的 taskNote 说明, 别用 taskMismatch —— 那个字段名本身就带着"你错了"。
+        photo["taskNote"] = _task_extra_note(
+            task, photo, batch_filled=batch_filled, mine=(who in task["filledBy"]))
+        return None
     return task["id"]
+
+
+def _overlapping_open_task(space, task):
+    """这一片方位是不是已经有【另一条 open 的 gap 任务】盯着了。有就返回那一条。
+
+    判据和 sync_gap_tasks 里发任务时的去重完全一致(同节点 + open 的 gap + 区间重叠),
+    一把尺子, 免得两处判断打架。
+    """
+    rng = task.get("yawRange")
+    if not rng or len(rng) != 2:
+        return None
+    for t in space.get("tasks", []):
+        if (t is task or t.get("nodeId") != task.get("nodeId")
+                or t.get("type") != "gap" or t.get("status") != "open"):
+            continue
+        if _ranges_overlap(rng, t.get("yawRange")):
+            return t
+    return None
 
 
 def _release_task_fill(space, photo):
@@ -1100,12 +1219,42 @@ def _release_task_fill(space, photo):
         name = p.get("contributor") or "匿名宾客"
         if name not in still:
             still.append(name)
-    task["filledBy"] = [w for w in task.get("filledBy", []) if w in still]
-    if not task["filledBy"] and task.get("status") in ("filled", "closed"):
+    # 原获奖人还有合法照片就继续保留。否则最早留下的合法后续照片接棒,
+    # 不能出现方向已经有人补上、悬赏却凭空蒸发的状态。
+    winner = next((w for w in task.get("filledBy", []) if w in still), None)
+    if winner is None and still:
+        winner = still[0]
+    task["filledBy"] = [winner] if winner else []
+
+    # 心愿永远继续收照片,但悬赏仍只有上面那一位获奖人。
+    if not _task_is_located(task):
         task["status"] = "open"
-        # 关闭理由是上一任状态留下的, 任务都重新开着了还挂着"已关闭"的说辞会穿帮
         task.pop("closedAt", None)
         task.pop("closedReason", None)
+        return task["id"]
+
+    if winner:
+        task["status"] = "filled"
+        task.pop("closedAt", None)
+        task.pop("closedReason", None)
+    elif task.get("status") in ("filled", "closed"):
+        # ⚠️ 2026-07-25 修的 P1: 退回 open 之前必须先去重。以前这里无条件退回,
+        # 而 sync_gap_tasks 的去重只在【新建】任务时做, 于是拒一张照片能造出两张重叠的
+        # 悬赏卡。实测: t1[300,59] 被填上 -> 系统按新的覆盖版图补发了 t10[276,325] ->
+        # 把那张照片拒掉 -> t1 原地退回 open, 此刻 t1 和 t10 区间重叠、各挂 +50,
+        # 而 find_coverage_gaps 只认得出一个缺口。两张卡的文案是"转向正前方"和
+        # "转向左前方", 人站在原地分不出这 30 度差别, 同一张照片能卖两次悬赏。
+        # 已经有别的 open 任务盯着这一片, 就把这条关掉(缺口没被吞掉, 那条还在广播)。
+        dup = _overlapping_open_task(space, task)
+        if dup is not None:
+            task["status"] = "closed"
+            task["closedAt"] = time.time()
+            task["closedReason"] = f"这一片已经有任务 {dup['id']} 盯着了,不重复发悬赏"
+        else:
+            task["status"] = "open"
+            # 关闭理由是上一任状态留下的, 任务都重新开着了还挂着"已关闭"的说辞会穿帮
+            task.pop("closedAt", None)
+            task.pop("closedReason", None)
     return task["id"]
 
 
@@ -1141,10 +1290,11 @@ def recompute_contributors(space):
         if p.get("state") in SELECTED_STATES:
             bump(p.get("contributor") or "匿名宾客", photos=1, points=BASE_POINTS)
 
+    # 悬赏按 filledBy 发,不按 status 发。心愿为了继续收照片会一直 open。
+    # 但一条任务只认第一位获奖人,也顺手防住历史数据里重复名字造成的多发。
     for t in space.get("tasks", []):
-        if t.get("status") in ("filled", "closed"):
-            for who in t.get("filledBy", []):
-                bump(who, points=int(t.get("bounty") or 0))
+        for who in (t.get("filledBy", [])[:1]):
+            bump(who, points=int(t.get("bounty") or 0))
 
     space["contributors"] = sorted(
         tally.values(), key=lambda c: (-c["points"], -c["photos"], c["name"])
@@ -1274,10 +1424,17 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
         t0 = time.time()
         # 点任务上传时,客户端传来的 nodeId 表示“任务希望你去哪里拍”,不是照片实际
         # 属于哪个节点。拿它限制 CLIP bank 会形成循环论证:先强制只搜任务节点,再拿
-        # 这个必然相同的结果做节点闸。凡是带 taskId 的上传一律全节点独立匹配。
-        # 自由投稿若明确选了节点,仍保留原来的定向匹配行为。
+        # 这个必然相同的结果做节点闸。
+        #
+        # 带 taskId 的认领必须全节点独立匹配,否则客户端把任务自己的 nodeId 一起传来,
+        # 就会先把照片硬塞进目标节点、再用这个必然相同的结果做节点闸,形成循环论证。
+        #
+        # 不带 taskId 的自由投稿保留 nodeId 这个旧契约:调用者明确选了房间时只在该房间
+        # 的 bank 里定位。把它也改成全节点会改变 margin 的比较集合,等效改了双判据行为,
+        # 没重新标定之前不能顺手扩大。
         match_node_id = None if task_id else node_id
-        placed = place_photos(sid, {"nodes": nodes_snapshot}, paths, node_id=match_node_id)
+        placed = place_photos(
+            sid, {"nodes": nodes_snapshot}, paths, node_id=match_node_id)
         clip_s = time.time() - t0
     except Exception:
         # 这时候还没往 space["photos"] 里写任何一条记录, 所以把文件删掉 = 编号也一起放回去
@@ -1292,6 +1449,11 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
     out = []
     with space_txn(sid) as space:
         touched_nodes = set()
+        # 这一次上传里已经被填上的 task id。宾客页自己写着"可以一次选好几张",
+        # 一次交 3 张给同一个任务是常态: 第 1 张把任务填上, 后面两张撞上的是
+        # 【它们自己刚造成的】filled 状态, 回执必须换一种口吻说(见 _task_extra_note),
+        # 不能拿"已经被认领了"去指控一个什么都没做错的人。
+        batch_filled = set()
         for pid, r in zip(pids, placed):
             conf = r["confidence"]
             margin = r.get("margin", 0.0)
@@ -1338,7 +1500,13 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
                 "uploadedAt": time.time(),
             }
             space["photos"].append(photo)
-            filled = apply_task_fill(space, photo)
+            rewarded = apply_task_fill(space, photo, batch_filled=batch_filled)
+            if rewarded:
+                batch_filled.add(rewarded)
+            rewarded_task = _find_task(space, rewarded) if rewarded else None
+            # taskFilled 保持老接口语义:只表示一个有方位的 gap 任务真的完成了。
+            # 心愿会一直 open,不能复用 taskFilled 再让前端说“任务被你补上了”。
+            filled = rewarded if rewarded_task and _task_is_located(rewarded_task) else None
             touched_nodes.add(r["nodeId"])
 
             out.append({
@@ -1350,9 +1518,19 @@ def upload_photos(sid, files, contributor, task_id=None, node_id=None):
                 "state": state,
                 "reason": reason,
                 "taskFilled": filled,
+                # 新字段只做加法:这张是否拿到一份任务悬赏。心愿首次响应时
+                # taskFilled 为 null、taskRewarded 为任务 id,老消费者不会误判任务完成。
+                "taskRewarded": rewarded,
+                "bountyPaid": bool(rewarded),
                 # 宾客点了某个任务, 但照片的方位对不上 -> 这里如实说明为什么没算完成。
                 # 老前端不认这个字段就当没看见(照片本身照常收下), 认的话可以直接念 message。
                 "taskMismatch": photo.get("taskMismatch"),
+                # 照片【归位了但没再拿一份悬赏】时的中性说明(同一次交的后续张 / 这个方向
+                # 别人先补上了 / 心愿任务他之前交过)。和 taskMismatch 是两件事:
+                # 那个是"对不上", 这个是"对上了, 只是悬赏不重复发", 口吻必须不一样。
+                # 老前端不认它就当没看见 —— 这时 taskFilled 是 null、taskMismatch 也是 null,
+                # 它会按普通入选照片渲染("已进入空间 ✅"), 不会说出自相矛盾的话。
+                "taskNote": photo.get("taskNote"),
                 "thumb": f"/spaces/{sid}/thumbs/{pid}.jpg",
             })
 

@@ -1070,23 +1070,41 @@ body.pov-on .mobile-hint { display: none !important; }
     };
     var povTmp = new THREE.Vector3();
 
-    // ---- 覆盖扇区：真实照片 yaw 按后端 ±20 度覆盖尺投到 12 个展示格 ----
-    var povSectorCounts = (function () {
-      var arr = [];
-      for (var i = 0; i < POV_SECTOR_N; i++) arr.push(0);
+    // ---- 覆盖判定：按你此刻真正朝着的方位连续算,不做扇区量化 ----
+    // ⚠️ 这里踩过一个会当着人脸说假话的坑,别改回去:
+    // 旧写法是把 360 度切成 12 格、拿**格子中点**去打 ±20 度的尺。格子中点离你实际朝向最远差 15 度,
+    // 和 20 度的尺一叠加就出事 —— 真实空间 s4 里,站在小明那张(yaw 15.1)的视角里转到方位 30 度,
+    // 他的照片还占着大半个屏幕、白框三条边都在画面里,标签却已经变成「这个方向没有人拍到」。
+    //
+    // 现在改成:直接拿你当前的方位角去问「有没有哪张照片拍到的那一块盖住了这里」。
+    // 尺子用**照片自己盖住的角宽**(假定 70 度视场的一半,也就是 ±35 度),
+    // 因为这样问出来的答案和你屏幕上看见的东西是同一件事:平面铺了 70 度,
+    // 方位落在这 70 度里,你就确实在看某个人拍到过的那一块。
+    //
+    // 这和后端 server/space.py 的 find_coverage_gaps(每张照片记 ±20 度、空白 >= 40 度才派任务)
+    // 是**两把不同的尺子,回答两个不同的问题**,不是谁抄错了谁:
+    //   后端问的是「这个方向缺得够不够多,值不值得派一条通缉令出去」
+    //   这里问的是「我现在眼前这一块,当时有没有人看着它」
+    // 改这里之前先想清楚你要回答哪一个。
+    var POV_SEEN_HALF_DEG = POV_ASSUMED_FOV_DEG / 2;
+    function povAngDist(a, b) {
+      var d = Math.abs(normDeg(a) - normDeg(b));
+      return d > 180 ? 360 - d : d;
+    }
+    // 返回 {total, others}。others 不含你此刻正站在其视角里的那一张 ——
+    // 旧版会把你脚下这张算进「也有人拍到 · N 张」,于是你身边明明没别人,它说有 1 张。
+    function povShootersAt(bearingDeg, selfPhoto) {
       var list = opts.photos || [];
-      for (var s = 0; s < POV_SECTOR_N; s++) {
-        var center = s * POV_SECTOR_DEG + POV_SECTOR_DEG / 2;
-        for (var j = 0; j < list.length; j++) {
-          var p = list[j];
-          if (!p || !p.src || typeof p.yaw !== "number") continue;
-          var delta = Math.abs(normDeg(p.yaw) - center);
-          if (delta > 180) delta = 360 - delta;
-          if (delta <= POV_COVERAGE_HALF_DEG) arr[s] += 1;
-        }
+      var total = 0, others = 0;
+      for (var j = 0; j < list.length; j++) {
+        var p = list[j];
+        if (!p || !p.src || typeof p.yaw !== "number") continue;
+        if (povAngDist(p.yaw, bearingDeg) > POV_SEEN_HALF_DEG) continue;
+        total += 1;
+        if (p !== selfPhoto) others += 1;
       }
-      return arr;
-    })();
+      return { total: total, others: others };
+    }
 
     function povSectorOf(yawDeg) {
       return Math.floor(normDeg(yawDeg) / POV_SECTOR_DEG) % POV_SECTOR_N;
@@ -1221,8 +1239,12 @@ body.pov-on .mobile-hint { display: none !important; }
       var tex = povMarkerTexture();
       var used = false;
       for (var s = 0; s < POV_SECTOR_N; s++) {
-        if (!povSectorCounts[s]) continue;
-        var yc = (s * POV_SECTOR_DEG + POV_SECTOR_DEG / 2) * Math.PI / 180;
+        // 挂点位置仍取扇区中点(系统只能定到这一格,画在格子中间才老实),
+        // 但"这一格有没有人拍过"用和 HUD 同一套连续判据,免得标记和标签互相打脸
+        var centerDeg = s * POV_SECTOR_DEG + POV_SECTOR_DEG / 2;
+        var hit = povShootersAt(centerDeg, null).total;
+        if (!hit) continue;
+        var yc = centerDeg * Math.PI / 180;
         var mat = new THREE.SpriteMaterial({
           map: tex, transparent: true, opacity: 0,
           depthTest: false, depthWrite: false   // 常规混合,理由见 povMarkerTexture 的注释
@@ -1234,7 +1256,7 @@ body.pov-on .mobile-hint { display: none !important; }
           EYE_HEIGHT - 0.32,   // 略低于视平线,读作"地平线上的一枚记号"
           pov.to.z - Math.cos(yc) * 2.9
         );
-        var k = Math.min(3, povSectorCounts[s]);
+        var k = Math.min(3, hit);
         sp.scale.set(0.30 + k * 0.05, 0.30 + k * 0.05, 1);
         scene.add(sp);
         pov.markers.push(sp);
@@ -1259,25 +1281,30 @@ body.pov-on .mobile-hint { display: none !important; }
       var rel = deg - normDeg(pov.photo ? pov.photo.yaw : 0);
       $("povBearing").textContent = "朝" + povBearingWord(rel) + " · 空间方位 " + deg + "°";
 
-      var sec = povSectorOf(deg);
-      if (sec === pov.lastSec) return;
-      pov.lastSec = sec;
-      var n = povSectorCounts[sec];
-      var homeSec = povSectorOf(pov.photo ? pov.photo.yaw : 0);
+      // 按你此刻真正朝着的方位连续算,不量化到扇区(旧写法拿格子中点判,会当着人脸说假话)
+      var self = pov.photo || null;
+      var seen = povShootersAt(deg, self);
+      var onSelf = !!(self && typeof self.yaw === "number" &&
+                      povAngDist(self.yaw, deg) <= POV_SEEN_HALF_DEG);
+      var key = (onSelf ? "s" : "") + seen.others;
+      if (key === pov.lastSec) return;
+      pov.lastSec = key;
       var cov = $("povCov");
-      if (sec === homeSec) {
+      if (onSelf) {
         // 措辞只说方向,不说"你正看着他拍的那一块":POV 里可以自由走动,
         // 走过头之后覆盖平面会被甩在身后,那句话当场就变成假话。方向是永远成立的。
-        cov.textContent = "他拍的就是这个方向";
+        cov.textContent = seen.others > 0
+          ? "他拍的就是这个方向 · 还有 " + seen.others + " 个人也拍了"
+          : "他拍的就是这个方向";
         cov.classList.remove("gap");
-      } else if (n > 0) {
-        cov.textContent = "这个方向也有人拍到 · " + n + " 张";
+      } else if (seen.others > 0) {
+        cov.textContent = "这个方向也有人拍到 · " + seen.others + " 张";
         cov.classList.remove("gap");
       } else {
         cov.textContent = "这个方向没有人拍到";
         cov.classList.add("gap");
       }
-      $("povGapVig").classList.toggle("on", n === 0 && sec !== homeSec);
+      $("povGapVig").classList.toggle("on", !onSelf && seen.others === 0);
     }
 
     function povEnter(sprite) {
@@ -1498,7 +1525,8 @@ body.pov-on .mobile-hint { display: none !important; }
             pitch = Math.asin(Math.max(-1, Math.min(1, v.clone().normalize().y)));
             return [+(normDeg(-yaw * 180 / Math.PI)).toFixed(1), +(pitch * 180 / Math.PI).toFixed(1)];
           },
-          sectors: povSectorCounts,
+          shootersAt: function (d) { return povShootersAt(d, pov.photo || null); },
+          seenHalfDeg: POV_SEEN_HALF_DEG,
           sectorDeg: POV_SECTOR_DEG,
           coverageHalfDeg: POV_COVERAGE_HALF_DEG,
           assumedFovDeg: POV_ASSUMED_FOV_DEG,

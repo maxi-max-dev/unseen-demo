@@ -175,6 +175,8 @@
   }
   .badge.gap{ background:rgba(255,255,255,.72); color:var(--ink-2); border-color:var(--card-line); }
   .badge.wish{ background:linear-gradient(95deg,#ffe3ea,#fff0dc); color:#c25a76; border-color:#ffd6e0; }
+  /* 房间药丸:只在多节点空间出现,跟在类型徽章后面,告诉宾客这条任务属于哪个房间 */
+  .badge.node{ background:rgba(58,37,48,.06); color:var(--ink-2); border-color:var(--card-line); margin-left:6px; }
   .card-title{ font-size:18px; font-weight:700; margin:0 0 6px; letter-spacing:.5px; }
   .card.wish .card-title{ font-family:"Kaiti SC","STKaiti","Songti SC",serif; font-size:20px; line-height:1.45; }
   .card-brief{ font-size:13px; color:var(--ink-2); line-height:1.7; margin:0; }
@@ -539,9 +541,14 @@
   }
 
   // 八方位口语化:让"yaw 210°"变成人话"左后方"
+  // ⚠️ 2026-07-25:必须和后端 server/space.py 的 DIRECTION_WORDS 逐字一致。
+  // 这里以前把 90° 写成"正右方"、270° 写成"正左方",而后端那两档叫"右侧 / 左侧" ——
+  // 一整圈里有 1/4 的方向前后端说法对不上:任务卡的方向药丸写"朝 76° 正右方",
+  // 同一张卡上后端生成的 brief 却写"站在原地转向右侧,拍那个方向",同一件事两个词。
+  // 分档口径也和后端一致(每 45° 一档,±22.5° 归到最近的那档),只是这里用环形距离算。
   var DIRS = [
-    [0, "正前方"], [45, "右前方"], [90, "正右方"], [135, "右后方"],
-    [180, "正后方"], [225, "左后方"], [270, "正左方"], [315, "左前方"]
+    [0, "正前方"], [45, "右前方"], [90, "右侧"], [135, "右后方"],
+    [180, "正后方"], [225, "左后方"], [270, "左侧"], [315, "左前方"]
   ];
   function dirWord(yaw) {
     if (yaw == null) return "";
@@ -552,6 +559,29 @@
       if (diff < bd) { bd = diff; best = d; }
     });
     return best[1];
+  }
+
+  // ---- 任务属于哪个房间 ----
+  // ⚠️ 2026-07-25 P1:空间有两个节点时,大厅的 t1 和偏厅的 t4 渲染出来的文字一模一样
+  // (都是「全景裁切 · 0° 正前方 / 缺这个角度 / 站在原地转向正前方 / +50 分」),
+  // 只有通缉令图颜色不同,卡上从头到尾没出现过房间名。宾客照着拍完,后端才说
+  // 「这张是在偏厅拍的,而这个任务要的是大厅那边」—— 他根本没被告知过要去哪个房间。
+  // 现在多节点空间的任务卡直接把房间名标出来。单节点空间不标,免得平添噪音。
+  function multiNode() { return (((state.space || {}).nodes) || []).length > 1; }
+  // nodeId -> 人能读的房间名。名字取 space.nodes[].name(建空间的人自己起的);
+  // 只给了 "n1" 这种内部编号就当没有名字(readableNode 会滤掉),不甩到宾客脸上。
+  function nodeNameOf(nodeId) {
+    if (!nodeId) return "";
+    var n = (((state.space || {}).nodes) || []).filter(function (x) {
+      return x && x.id === nodeId;
+    })[0];
+    return readableNode(firstStr(n && n.name, nodeId));
+  }
+  // 任务卡上的房间药丸。多节点 + 拿得到人能读的名字,两个条件都满足才出现。
+  function taskNodeBadge(t) {
+    if (!multiNode()) return "";
+    var nm = nodeNameOf(t && t.nodeId);
+    return nm ? '<span class="badge node">📍 ' + esc(nm) + "</span>" : "";
   }
 
   // 罗盘删了(Max 拍板)。任务卡上那个位置改成一句方向文字,例如「朝 210° 左后方」。
@@ -730,7 +760,7 @@
           '<div class="yawtag">全景裁切 · ' + Math.round(t.yaw || 0) + "° " + dirWord(t.yaw) + "</div>" +
         "</div>" +
         '<div class="card-body">' +
-          '<span class="badge gap">🧭 空间任务 · 系统发现的空洞</span>' +
+          '<span class="badge gap">🧭 空间任务 · 系统发现的空洞</span>' + taskNodeBadge(t) +
           '<h3 class="card-title">' + esc(t.title || "缺这个角度") + "</h3>" +
           '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
           '<div class="card-foot">' + taskDirWidget(t) + bounty + foot + "</div>" +
@@ -738,7 +768,7 @@
     }
     return '<div class="card wish' + doneCls + '">' +
       '<div class="card-body">' +
-        '<span class="badge wish">💌 心愿任务 · ' + owner() + "亲手写的</span>" +
+        '<span class="badge wish">💌 心愿任务 · ' + owner() + "亲手写的</span>" + taskNodeBadge(t) +
         '<h3 class="card-title"><span class="wish-quote">“</span>' + esc(t.title || "") + "</h3>" +
         '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
         '<div class="wish-from">— ' + esc(isWedding() ? state.space.couple : spaceName()) + " 写的</div>" +
@@ -937,6 +967,10 @@
       : task.type === "wish"
         ? "从相册里挑一张,能对上这份心愿就行。"
         : "随手拍的、相册里翻出来的都行,系统会自己认这是哪个方位。";
+    // 多节点空间:开拍之前先把房间说清楚。后端的节点校验是照着这个来的,
+    // 站错房间照片照收但不算完成这个任务,不能等交完了才让宾客知道有这回事。
+    var pickRoom = task.id ? nodeNameOf(task.nodeId) : "";
+    if (multiNode() && pickRoom) sub = "这个任务在「" + pickRoom + "」。" + sub;
     openSheet(
       '<div class="grab"></div>' +
       "<h3>" + esc(task.title) + "</h3>" +
@@ -1079,6 +1113,7 @@
                   /node|节点|位置|地点/i.test(kind);
     return {
       kind: kind,
+      taskId: firstStr(m.taskId, m.task_id),
       taskStatus: firstStr(m.taskStatus, m.status),
       gotDir: firstStr(m.photoDirection, m.gotDirection),
       wantDir: firstStr(m.wantDirection, m.taskDirection, m.expectedDirection),
@@ -1103,11 +1138,90 @@
     return /放进空间|进了空间|已在空间|已经在空间|进入空间/.test(msg) ? "" : msg;
   }
 
+  // ⚠️ 2026-07-25 P0:后端 7/25 那版对"任务已经被填过"的 message 是
+  // 「已经被认领了,不能重复领取悬赏」—— 指控口吻。可这一页自己就写着"可以一次选好几张",
+  // 一次交 3 张给同一个任务时,后 2 张撞上的正是【第 1 张自己刚造成的】filled 状态;
+  // 婚礼现场同一个方向被两个人拍也是常态,不是攻击。所以这句话一律不许照念。
+  // 后端正在改成中性说法;它改好之前先在这里挡下来,改好了自然不匹配、照念它的新话。
+  function blameSafe(msg) {
+    msg = String(msg || "");
+    return /不能重复领取|重复领取悬赏|已经被认领了|不许重复|抢先|来晚/.test(msg) ? "" : msg;
+  }
+
+  // 后端可能新增一个中性字段 taskNote,用来区分「同一次上传里的后续张」和「别人先补上的」。
+  // ⚠️ 它还没落地,所以这里【只当锦上添花读】:拿到就认,拿不到就按 filledHere 自己推,
+  // 两条路都通,少哪个都不许崩。字符串 / 对象两种形态都接。
+  function taskNoteOf(r) {
+    var m = r && (r.taskMismatch != null ? r.taskMismatch : r.task_mismatch);
+    var mo = (m && typeof m === "object") ? m : {};
+    var n = firstDef(r && r.taskNote, r && r.task_note, mo.taskNote, mo.note, mo.taskNoteKind);
+    if (n == null) return null;
+    // 只给一个词(比如 "same_batch")那是机器码,绝不能当人话贴到回执上;
+    // 给了一整句才当它是能直接念的中文。
+    if (typeof n === "string") {
+      return /^[\w.:-]{1,32}$/.test(n) ? { code: n, msg: "" } : { code: n, msg: n };
+    }
+    if (typeof n !== "object") return null;
+    return {
+      code: firstStr(n.code, n.kind, n.type, n.reason),
+      msg: firstStr(n.message, n.text, n.note)
+    };
+  }
+  // taskNote 说的是"这是同一次上传里的后续张"(悬赏已经发给自己前面那张了)
+  function noteSaysSelf(n) {
+    return !!(n && /same|self|dup|batch|extra|again|repeat|本次|同一次|同一批|后续|自己/i.test(n.code));
+  }
+  // taskNote 说的是"别人先补上的"
+  function noteSaysOther(n) {
+    return !!(n && /other|another|else|earlier|someone|别人|他人|先到|先补/i.test(n.code));
+  }
+
+  // 把 mismatch 归成四类。⚠️ 标题和下面的汇总读【同一份归类】,不许两处各判各的 ——
+  // 以前卡片走 mm.nodeBad 猜、汇总走 kind 数,同一批照片能被算成两种东西。
+  // 后端 kind 取值:yaw(方位不符) / node(位置不符) / status(任务已被填过) / missing(任务失效)。
+  // 老后端不给 kind 时退回 nodeBad 那套启发式,最后才落到方位。
+  function mismatchCat(mm) {
+    if (!mm) return "";
+    if (mm.kind === "missing") return "missing";
+    if (mm.kind === "status") return "status";
+    if (mm.kind === "node" || mm.nodeBad) return "node";
+    return "yaw";
+  }
+
   function sheetResults(results, thumbs, task) {
-    var rows = results.map(function (r, i) {
-      var head, sub;
+    // ⚠️ 2026-07-25 P0:一次上传的回执必须是【一段连贯的话】,不是几条互相打架的通知。
+    // 实测过的翻车现场:一次交 3 张给同一个任务,同一屏里同时出现
+    //   「你这张回到了 左侧 · 已进入空间 ✅」
+    //   「已经被认领了,不能重复领取悬赏」×2
+    //   「这个任务被你补上了 🎉」
+    // 根因是把"任务被填了"当成了拒绝后续照片的理由。正确的模型是:
+    //   状态只决定【悬赏发几份】,不决定【照片收不收】,更不该用指控口吻跟宾客说话。
+    //
+    // 这一批里"自己刚补上"的任务。第 2、3 张撞上的 filled 是【自己上一张造成的】,
+    // 不是被人抢了 —— 这种后续张按普通照片说话,一个字都不提悬赏、不提认领。
+    var filledHere = {};
+    results.forEach(function (r) {
+      if (r && r.taskFilled) filledHere[String(r.taskFilled)] = true;
+    });
+
+    // 每张先定性一次,卡片和汇总都读这一份结论
+    var views = results.map(function (r) {
       var mm = mismatchOf(r);
+      var note = taskNoteOf(r);
+      var mine = !!(mm && mismatchCat(mm) === "status" &&
+        (noteSaysSelf(note) ||
+          (!noteSaysOther(note) && filledHere[String(mm.taskId || task.id || "")])));
+      // 心愿任务天生就该收很多张("想要一张我妈的笑"不是先到先得),
+      // 所以心愿任务上的 status 也不当成问题:照收、照送到主人手上。
+      var wishExtra = !!(mm && mismatchCat(mm) === "status" && task.type === "wish");
+      // 定性成"这不是问题"的,直接当没有 mismatch,走下面普通照片那套说法
+      return { r: r, mm: (mine || wishExtra) ? null : mm, mine: mine };
+    });
+
+    var rows = views.map(function (v, i) {
+      var head, sub, r = v.r, mm = v.mm;
       if (mm) {
+        var cat = mismatchCat(mm);
         // 对不上就如实说,别假装认领成功。照片照收,任务照旧开着。
         // 后端给了方位词就用它的;没给才退回自己按 yaw 换算(老后端 / 简化返回)。
         var gy = mm.gotYaw != null ? mm.gotYaw : r.yaw;
@@ -1115,21 +1229,24 @@
                : (typeof task.yaw === "number" ? task.yaw : null);
         var gw = mm.gotDir || dirWord(gy);
         var ww = mm.wantDir || dirWord(wy);
-        if (mm.kind === "missing") {
+        if (cat === "missing") {
           head = "这个任务已经失效了";
           sub = msgSafe(mm.msg, r.state) ||
             (isSelected(r.state)
               ? "照片已经收下并放进空间里了,只是不能算完成这份失效的任务。"
               : "照片收下了,正在等" + owner() + "过目,只是不能算完成这份失效的任务。");
-        } else if (mm.kind === "status") {
+        } else if (cat === "status") {
+          // 走到这儿只剩一种情况:【别人先补上了】(自己这一批填的已经在 views 里被当成
+          // 正常照片了)。同一个方向被两个人拍是婚礼现场的常态,不是攻击 ——
+          // 照片照收、照归位、照说好话,只是这一份悬赏这次没赶上,不许指控。
           head = mm.taskStatus === "closed"
             ? "这个方向已经补齐了"
-            : "这个任务已经被认领了";
-          sub = msgSafe(mm.msg, r.state) ||
+            : "这个角度刚才已经有人补上了";
+          sub = msgSafe(blameSafe(mm.msg), r.state) ||
             (isSelected(r.state)
-              ? "照片已经收下并放进空间里了,这份悬赏不能重复领取。"
-              : "照片收下了,正在等" + owner() + "过目,这份悬赏不能重复领取。");
-        } else if (mm.nodeBad) {
+              ? "你这张照样收下了,已经回到它朝着的方向。"
+              : "你这张照样收下了,正在等" + owner() + "过目。");
+        } else if (cat === "node") {
           // 节点对不上 = 根本没站在任务要的那个位置。这时候再去比"朝哪边"是文不对题:
           // 换个地方站着,同一个方位词指的也不是同一片画面。
           // 只有拿到【人看得懂的名字】才报名字;后端只给了 n1/n2 这种内部编号时说通用话,
@@ -1142,19 +1259,21 @@
             ("照片我们收下了,只是没算完成这个任务,任务还开着。" +
              (wn ? "想拿这份悬赏,得走到" + wn + "再拍一张。" : ""));
         } else {
-          head = "这张朝的是 <b>" + esc(gw || "别的方向") + "</b>,和这个任务要的" +
-                 (ww ? esc(ww) : "方向") + "不一样";
+          // 方位不符。⚠️ 两个方位词一模一样时绝不能照模板念 ——
+          // 实测出过「这张朝的是右侧,和这个任务要的右侧不一样」这种荒唐话。
+          // 词一样只说明这次的问题不在方位上,退回一句不带方位的实话。
+          head = (gw && ww && gw !== ww)
+            ? "这张朝的是 <b>" + esc(gw) + "</b>,和这个任务要的" + esc(ww) + "不一样"
+            : "这张的方位和这个任务要的对不上";
           sub = msgSafe(mm.msg, r.state);
         }
         if (!sub) {
-          // 后端没给能念的话(或那句话跟状态打架被挡下了)才自己拼,口径跟状态走
+          // 上面 missing / status / node 三支都自带兜底,只有方位那一支可能落空:
+          // 后端没给能念的话(或那句话跟照片状态打架、被 msgSafe 挡下了)才自己拼,口径跟状态走。
           sub = (isSelected(r.state)
                   ? "照片我们收下了,已经回到它朝着的方向"
                   : "照片我们收下了,在等" + owner() + "过目") + ",这个任务还开着" +
-            (mm.nodeBad
-              ? (readableNode(mm.wantNode)
-                  ? ";想拿这份悬赏,得走到" + readableNode(mm.wantNode) + "再拍一张" : "")
-              : (ww ? ";想拿这份悬赏,站在原地转向" + ww + "再补一张" : ""));
+            (ww ? ";想拿这份悬赏,站在原地转向" + ww + "再补一张" : "");
         }
       } else if (r.state === "auto_ok" || r.state === "approved") {
         head = "你这张回到了 <b>" + esc(dirWord(r.yaw)) + "</b> · 已进入空间 ✅";
@@ -1194,25 +1313,40 @@
     // 任务算不算被补上也一样以后端 taskFilled 为准,方位对不上的那几张不算。
     // 方位对不上的时候后端会把这次认领撤掉,再看看这张照片是不是正好补上了【别的】缺口。
     // 所以"补上了"分两种:补上的是你点的那个任务,还是顺手补上了另一个。
-    var filled = results.some(function (r) { return r.taskFilled && !mismatchOf(r); });
-    var filledOther = results.some(function (r) { return r.taskFilled && mismatchOf(r); });
+    var filled = views.some(function (v) { return v.r.taskFilled && !v.mm; });
+    var filledOther = views.some(function (v) { return v.r.taskFilled && v.mm; });
     var okN = results.filter(function (r) { return isSelected(r.state); }).length;
     var waitN = results.filter(function (r) { return r.state === "needs_review"; }).length;
-    var mismatchN = results.filter(function (r) { return !!mismatchOf(r); }).length;
-    // 节点对不上和方位对不上要分开说,一句"方位不一样"盖不住"人站错地方了"
-    var nodeBadN = results.filter(function (r) {
-      var m = mismatchOf(r); return !!(m && m.nodeBad);
-    }).length;
-    var taskGoneN = results.filter(function (r) {
-      var m = mismatchOf(r);
-      return !!(m && (m.kind === "missing" || m.kind === "status"));
-    }).length;
+    // ⚠️ 汇总和上面的卡片必须读同一份归类(mismatchCat),不许各判各的 ——
+    // 以前卡片按 mm.nodeBad 猜、汇总按 kind 数,同一批照片会被算成两种东西。
+    // 被判成"这不是问题"的那几张(自己这一批填的 / 心愿任务的后续张)mm 已经是 null,
+    // 一条都不进下面这些计数,所以回执里不会再出现"补上了"和"不能领"并排的自相矛盾。
+    function catN(c) {
+      return views.filter(function (v) { return mismatchCat(v.mm) === c; }).length;
+    }
+    var nodeBadN = catN("node");   // 人站错房间了
+    var goneN = catN("missing");   // 任务本身失效了
+    var takenN = catN("status");   // 别人先补上了
+    var yawN = catN("yaw");        // 房间没错,朝向不对
     // 隔离/被拒 和 "状态还没定" 得分开说,不然上面那张卡写着"正在处理"、
     // 这里却说"先放一边了",又是一处自相矛盾
     var badN = results.filter(function (r) {
       return r.state === "quarantined" || r.state === "rejected";
     }).length;
     var otherN = results.length - okN - waitN - badN;
+
+    // 后端给的中性说明(taskNote):"同一次上传里的后续张"(same_batch)和
+    // "别人先补上的"(already_filled)都归它管,照片照收,只是不再重复发同一份悬赏。
+    // ⚠️ 它说的是【这一批照片共同的一件事】,所以只在汇总里说一次,不往每张卡上重复贴 ——
+    // 一屏里同一句话出现三遍就又变成互相打架的通知了。
+    // 逐张过一遍 msgSafe / blameSafe:哪张的状态跟这句话对不上,就不拿那张的话当准;
+    // 一句都没活下来就干脆不说。宁可少说,也不让回执替谁撒谎、替谁指控。
+    var noteLines = [];
+    views.forEach(function (v) {
+      var n = taskNoteOf(v.r);
+      var txt = n ? msgSafe(blameSafe(n.msg), v.r.state) : "";
+      if (txt && noteLines.indexOf(txt) < 0) noteLines.push(txt);
+    });
 
     var lines = [];
     if (okN) lines.push(okN + " 张已经回到它当时朝着的方向");
@@ -1232,11 +1366,12 @@
         (lines.length ? " · " + esc(lines.join(" · ")) : "") +
         // 对不上的单独起一行说"其中",不跟上面的张数并排,免得"1 张 · 1 张"被读成两张
         (nodeBadN ? "<br>其中 " + nodeBadN + " 张不是在这个任务要的位置拍的,任务还开着" : "") +
-        (taskGoneN ? "<br>其中 " + taskGoneN + " 张对应的任务已经不能认领,照片仍照常处理" : "") +
-        (mismatchN - nodeBadN - taskGoneN > 0
-          ? "<br>其中 " + (mismatchN - nodeBadN - taskGoneN) + " 张的方位和这个任务要的不一样,任务还开着" : "") +
+        (goneN ? "<br>其中 " + goneN + " 张对应的任务已经失效了,照片照常收下" : "") +
+        (takenN ? "<br>其中 " + takenN + " 张对应的方向刚才已经有人补上了,照片照常收下" : "") +
+        (yawN ? "<br>其中 " + yawN + " 张的方位和这个任务要的不一样,任务还开着" : "") +
         (filled ? "<br>这个任务被你补上了 🎉"
                 : (filledOther ? "<br>不过它顺手补上了另一个缺口 🎉" : "")) +
+        (noteLines.length ? "<br>" + esc(noteLines.join(" ")) : "") +
         '<div class="res-pts" id="resPoints">分数以榜单为准,正在跟后端对一下…</div>' +
       "</div>" +
       // ⚠️ 一张都没入选(全在待审队列里)的时候不能喊"看看它在空间里" ——
