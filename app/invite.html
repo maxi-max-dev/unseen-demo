@@ -76,6 +76,7 @@
   </div>
 
 </div>
+<script src="cloud.js"></script>
 <script src="scenes.js"></script>
 <script src="../vendor/qrcode.js"></script>
 <script>
@@ -108,7 +109,7 @@
 
   mainState.style.display = "";
 
-  var DEPLOY = "https://unseen-demo.vercel.app";
+  var DEPLOY = window.UNSEEN_CLOUD_ORIGIN || "https://unseen-demo.vercel.app";
 
   // 发布状态不能由前端猜。以前这里读 localStorage 里的 s.published,
   // 而 create.html 建空间时压根写不出这个值(那一刻确实还没发布),于是恒为 undefined,
@@ -117,9 +118,14 @@
   function localGuess(s) {
     return s.id === "s4" || s.kind === "cloud";
   }
-  var joinable = localGuess(scene);
+  var canonicalRequired = window.UNSEEN_IS_LOCAL_ORIGIN === true;
+  var joinable = localGuess(scene) && !canonicalRequired;
   var targetUrl = joinable ? DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id) : "";
-  var pending = !joinable;   // 云端内置之外的,一律先问后端
+  // 本机页也问一次后端。阿里云域名确定后,后端给出的 canonical join URL
+  // 才是唯一可信来源,否则本机 Studio 可能继续发旧的 Vercel 二维码。
+  var pending = !joinable;
+  var lookupUnavailable = false;
+  var notPublished = false;
 
   var chipEl = document.getElementById("sceneChip");
   var fallbackEl = document.getElementById("fallbackNote");
@@ -161,17 +167,19 @@
       return;
     }
     // 诚实空态:没有可扫的码就明说,链接一起禁掉,别让人复制一条打不开的地址
-    var phIco = pending ? "◌" : (honestFallback ? "🔍" : "⏳");
+    var phIco = pending ? "◌" : (honestFallback ? "🔍" : (lookupUnavailable ? "📡" : "⏳"));
     var phTxt = pending ? "正在确认这个空间的发布状态…"
       : (honestFallback ? "找不到这个空间,没法生成邀请码"
-                        : "这个空间还没发布,发布之后才会生成邀请码");
+        : (lookupUnavailable ? "暂时确认不了公网地址,请检查主办方后台"
+                             : "这个空间还没发布,发布之后才会生成邀请码"));
     qrBox.innerHTML = '<div class="qr-placeholder"><div class="ph-ico">' + phIco +
       "</div><div>" + phTxt + "</div></div>";
     qrUrlEl.style.display = "none";
     copyBtn.setAttribute("disabled", "disabled");
     cav.textContent = honestFallback
       ? "本机查不到这个空间,暂时没法生成邀请码"
-      : (pending ? "" : "先传一张全景并发布,回到这里就能拿到扫码入口");
+      : (lookupUnavailable ? "没有拿到可信的 HTTPS 地址,所以没有生成二维码"
+        : (pending ? "" : "先传一张全景并发布,回到这里就能拿到扫码入口"));
     cav.style.display = cav.textContent ? "" : "none";
   }
   renderQR();
@@ -184,6 +192,7 @@
     var giveUp = setTimeout(function () {
       if (ctrl) ctrl.abort();
       if (unknownLocally) honestFallback = true;   // 问不到又本地不认识,别装作认识
+      else lookupUnavailable = true;
       pending = false; renderChip(); renderQR();
     }, 3000);
     fetch(U.API + "/api/space/" + encodeURIComponent(scene.id), { signal: ctrl ? ctrl.signal : undefined })
@@ -196,21 +205,27 @@
           throw new Error("后端没有这个空间");
         }
         if (unknownLocally) scene.title = sp.title || scene.title;   // 后端知道它叫什么
-        if (!sp.published) throw new Error("未发布");
+        if (!sp.published) { notPublished = true; throw new Error("未发布"); }
         // 已发布:优先用后端自己生成的宾客链接(它知道自己的局域网 IP)
         return fetch(U.API + "/api/space/" + encodeURIComponent(scene.id) + "/joinurl")
           .then(function (r) { return r.ok ? r.json() : null; })
           .then(function (u) {
             var url = u && u.ok && (u.url || u.joinUrl || u.joinurl);
-            targetUrl = url || (sp.ossSpaceJson
-              ? DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id)
-              : U.API + "/server/join.html?space=" + encodeURIComponent(scene.id));
+            var publicUrl = /^https:\/\//.test(String(url || "")) ? url : "";
+            if (sp.ossSpaceJson && canonicalRequired && !publicUrl) {
+              throw new Error("公网地址不可用");
+            }
+            targetUrl = sp.ossSpaceJson
+              ? (publicUrl || DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id))
+              : (url || U.API + "/server/join.html?space=" + encodeURIComponent(scene.id));
+            if (publicUrl && window.UNSEEN_SET_CLOUD_ORIGIN) window.UNSEEN_SET_CLOUD_ORIGIN(publicUrl);
             joinable = true;
           });
       })
       .catch(function () {
         // 后端探不到(没起 / 断网)且本地也不认识它,只能说实话
         if (unknownLocally && !scene.title) honestFallback = true;
+        else if (!honestFallback && !notPublished) lookupUnavailable = true;
       })
       .then(function () { clearTimeout(giveUp); pending = false; renderChip(); renderQR(); });
   }

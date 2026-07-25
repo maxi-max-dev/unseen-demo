@@ -7,6 +7,7 @@ __pycache__/
 *.bak
 server/sessions/
 server/spaces/
+server/public_site_url.txt
 film/out/memory-film.mp4
 film/*/_frames/
 film/assets/flythrough.mp4

@@ -356,6 +356,7 @@
   <div id="toast"></div>
 
 <!-- 同目录的自包含二维码生成器(另一个工兵产出)。没有也不影响页面, 下面会优雅降级。 -->
+<script src="../app/cloud.js"></script>
 <script src="qr.js"></script>
 <script>
 (function () {
@@ -385,12 +386,26 @@
   }
 
   // 宾客页的【公开地址】。现场宾客的手机连不到这台电脑, 所以二维码绝不能是局域网 IP ——
-  // 页面托管在 GitHub Pages, 数据托管在阿里云 OSS(杭州, 和现场同城), 这台电脑只做后台计算。
-  // (OSS 国内地域会给默认域名加 Content-Disposition: attachment, 地址栏直开会变下载,
-  //  所以 HTML 只能放 Pages, 不能放 OSS。)
-  var CLOUD_JOIN_BASE = "https://unseen-demo.vercel.app/web/join.html";
-  var CLOUD_WALK_BASE = "https://unseen-demo.vercel.app/viewer/walk.html";
-  var CLOUD_SHOW_BASE = "https://unseen-demo.vercel.app/web/show.html";
+  // 页面可托管在 Vercel 或绑定了自定义域名的阿里云 OSS,数据仍在杭州 OSS。
+  // OSS 默认域名会强制下载 HTML,所以阿里云网页入口必须使用绑定域名。
+  // 地址来自 ../app/cloud.js,正式站会自动使用当前域名,不要在这里写死。
+  var CLOUD_ORIGIN = window.UNSEEN_CLOUD_ORIGIN || "https://unseen-demo.vercel.app";
+  var CLOUD_JOIN_BASE = CLOUD_ORIGIN + "/web/join.html";
+  var CLOUD_WALK_BASE = CLOUD_ORIGIN + "/viewer/walk.html";
+  var CLOUD_SHOW_BASE = CLOUD_ORIGIN + "/web/show.html";
+
+  function adoptCloudJoinUrl(value){
+    try {
+      var u = new URL(String(value || ""), location.href);
+      if (u.protocol !== "https:" || !/\/web\/join\.html$/.test(u.pathname)) return false;
+      CLOUD_ORIGIN = u.origin;
+      CLOUD_JOIN_BASE = CLOUD_ORIGIN + "/web/join.html";
+      CLOUD_WALK_BASE = CLOUD_ORIGIN + "/viewer/walk.html";
+      CLOUD_SHOW_BASE = CLOUD_ORIGIN + "/web/show.html";
+      if (window.UNSEEN_SET_CLOUD_ORIGIN) window.UNSEEN_SET_CLOUD_ORIGIN(CLOUD_ORIGIN);
+      return true;
+    } catch (e) { return false; }
+  }
 
   var S = {          // 页面状态
     space: null,     // space.json
@@ -472,6 +487,19 @@
       headers:{ "Content-Type":"application/json" },
       body: JSON.stringify(body || {})
     });
+  }
+  function refreshCanonicalJoinUrl(){
+    if (!SID) return Promise.resolve(null);
+    return api("/api/space/" + encodeURIComponent(SID) + "/joinurl")
+      .then(function(d){
+        if (!(d && d.ok && d.url)) return null;
+        if (S.cloudJson && !adoptCloudJoinUrl(d.url)) return null;
+        S.joinUrl = d.url;
+        // 云域名还影响“公开展览”和“3D 演示”链接,不能只重画二维码。
+        if (S.cloudJson) render(); else renderQr();
+        return d;
+      })
+      .catch(function(){ return null; });
   }
 
   // ================================================================ mock 假数据
@@ -1070,7 +1098,8 @@
         // 推云地址只允许"从没有到有", 不能被覆盖回去(局域网地址宾客手机连不到)
         if (sp.ossSpaceJson && !S.cloudJson){
           S.cloudJson = sp.ossSpaceJson;
-          S.joinUrl = cloudJoinUrl();
+          S.joinUrl = "";
+          refreshCanonicalJoinUrl();
         }
         render();
       })
@@ -1154,8 +1183,8 @@
         S.cloudState = all[1].state || {};
         if (S.cloudState.result && S.cloudState.result.spaceJson && !S.cloudJson){
           S.cloudJson = S.cloudState.result.spaceJson;
-          S.joinUrl = cloudJoinUrl();
-          renderQr();
+          S.joinUrl = "";
+          refreshCanonicalJoinUrl();
         }
       }
       paintSystem();
@@ -1763,7 +1792,8 @@
         // 推没推到云上, 以 space.json 里的 ossSpaceJson 为准。有它 = 宾客能从外网进,
         // 二维码才允许换成公开地址; 没它就老老实实继续用局域网地址。
         S.cloudJson = S.space.ossSpaceJson || "";
-        S.joinUrl = S.cloudJson ? cloudJoinUrl() : fallbackJoinUrl();
+        // 已上云空间在后端返回 canonical HTTPS 地址之前不画二维码。
+        S.joinUrl = S.cloudJson ? "" : fallbackJoinUrl();
         LIVE.sig = spaceSig(S.space);
         LIVE.at = Date.now();
         render();
@@ -1772,13 +1802,9 @@
         // 已经发布过的空间: 进页面就去看看机器验收报告出了没(可能是上一次发布留下的)
         if (S.space.published && S.space.reportAvailable) pollReport(false);
         else if (S.space.published) { REPORT.state = "none"; paintReport(); }
-        // 加入链接以后端为准, 拿到了再刷新二维码
-        return api("/api/space/" + encodeURIComponent(SID) + "/joinurl");
-      })
-      .then(function(d){
-        // 后端给的是这台电脑的局域网地址, 只在还没上云时才用它兜底;
-        // 已经上云了就不能被局域网地址覆盖回去, 宾客的手机连不到这台电脑。
-        if (!S.cloudJson && d && d.ok && d.url){ S.joinUrl = d.url; renderQr(); }
+        // 加入链接以后端为准。这个函数自己吞掉网络错误,不能因为二维码暂时
+        // 拿不到就把已经加载好的 Studio 整页替换成“后台不可用”。
+        return refreshCanonicalJoinUrl();
       })
       .catch(renderBootProblem);
   }

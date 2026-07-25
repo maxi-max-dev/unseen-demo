@@ -99,6 +99,7 @@
 
 </div>
 
+<script src="cloud.js"></script>
 <script src="scenes.js"></script>
 <script>
 (function () {
@@ -107,7 +108,7 @@
   var Q = new URLSearchParams(location.search);
   var SID = Q.get("s") || "";
   var OSS_BASE = "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com";
-  var CLOUD_JOIN_BASE = "https://unseen-demo.vercel.app/web/join.html";
+  var CLOUD_JOIN_BASE = (window.UNSEEN_CLOUD_ORIGIN || "https://unseen-demo.vercel.app") + "/web/join.html";
 
   function esc(s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
