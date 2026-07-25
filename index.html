@@ -163,11 +163,14 @@
     }
     return '<span class="u-chip">✎ 草稿 · 等全景</span>';
   }
-  // 照片数只写真数:后端此刻给的优先,其次场景自己存的,都没有就不显示
+  // 照片数只写真数:空间里真正可见的是 selectedCount(auto_ok + approved)。
+  // 后端没回或没给 selectedCount 就先不显示,不能退回含待审和拒绝的 photoCount,
+  // 也不能用 localStorage 里可能已经过期的 stats.photos。
   function photoText(s){
-    var info = s.kind === "backend" ? backendInfo[s.id] : null;
-    if (info && typeof info.photoCount === "number") {
-      return info.photoCount > 0 ? info.photoCount + " 张照片" : "还没有照片";
+    if (s.kind === "backend") {
+      var info = backendInfo[s.id];
+      if (!info || typeof info.selectedCount !== "number") return "";
+      return info.selectedCount > 0 ? info.selectedCount + " 张照片" : "还没有照片";
     }
     var n = s.stats && s.stats.photos;
     return (typeof n === "number" && n > 0) ? n + " 张照片" : "";

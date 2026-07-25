@@ -122,7 +122,7 @@
     return {
       id: x.id, kind: "backend", title: x.title || x.id,
       date: "", place: "", cover: "", junk: !!x._junk,
-      stats: (x.photoCount ? { photos: x.photoCount } : {}),
+      stats: {},
       links: { studio: U.PREFIX + "server/host.html?space=" + encodeURIComponent(x.id) }
     };
   }
@@ -233,12 +233,18 @@
   }
 
   // ---------------------------------------------------------------- meta 一排
-  function metaHtml(s) {
+  function metaHtml(s, live) {
     var chips = [];
     if (s.date) chips.push('<span class="u-chip">📅 ' + esc(s.date) + "</span>");
     if (s.place) chips.push('<span class="u-chip">📍 ' + esc(s.place) + "</span>");
-    if (s.stats && s.stats.photos) chips.push('<span class="u-chip">📷 ' + esc(s.stats.photos) + " 张照片</span>");
-    return chips.length ? '<div class="meta-row">' + chips.join("") + "</div>" : "";
+    // backend 场景只认这次详情接口给的 selectedCount。localStorage 的 stats.photos
+    // 会过期,photoCount 又含待审和拒绝,两者都不能拿来写首屏照片数。
+    var photos = s.kind === "backend"
+      ? (live && typeof live.selectedCount === "number" ? live.selectedCount : null)
+      : (s.stats && typeof s.stats.photos === "number" ? s.stats.photos : null);
+    if (photos !== null) chips.push('<span class="u-chip">📷 ' + esc(photos) + " 张照片</span>");
+    return '<div class="meta-row" id="sceneMeta"' + (chips.length ? "" : " hidden") + ">" +
+      chips.join("") + "</div>";
   }
 
   // ---------------------------------------------------------------- 玩法 2x2
@@ -558,7 +564,7 @@
     document.title = (s.title || s.id) + " · UNSEEN";
     document.getElementById("sceneTitle").textContent = s.title || s.id;
     document.getElementById("sceneBody").innerHTML =
-      heroHtml(s) + metaHtml(s) +
+      heroHtml(s) + metaHtml(s, live) +
       '<div id="nextStep">' + nextStepHtml(s, live) + "</div>" +
       playGridHtml(s) + momentSectionHtml(s) +
       taskSectionHtml(s) + inviteHtml(s) + deleteZoneHtml(s);
@@ -580,6 +586,8 @@
         clearTimeout(t);
         var live = j && j.ok && j.space;
         if (!live) return;
+        var meta = document.getElementById("sceneMeta");
+        if (meta) meta.outerHTML = metaHtml(s, live);
         var box = document.getElementById("nextStep");
         if (box) box.innerHTML = nextStepHtml(s, live);
         // 玩法入口按后端真状态重画:有全景就点亮走进空间,发布了就点亮交照片
