@@ -1594,8 +1594,12 @@
     return location.origin + "/server/join.html?space=" + encodeURIComponent(SID);
   }
 
+  function isHostOrigin(){
+    return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+  }
+
   function renderBackendUnavailable(detail){
-    var onHost = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
+    var onHost = isHostOrigin();
     var suffix = SID ? "?space=" + encodeURIComponent(SID) : "";
     var localUrl = "http://127.0.0.1:8777/server/host.html" + suffix;
     var body = onHost
@@ -1624,6 +1628,10 @@
   }
 
   function boot(){
+    if (!MOCK && !isHostOrigin()){
+      renderBackendUnavailable("");
+      return;
+    }
     if (!SID){
       if (MOCK){
         renderSpaceList([
