@@ -60,8 +60,8 @@ PUBLIC_URL_FILE = os.path.join(REPO_ROOT, "server", "public_url.txt")
 FFMPEG = "/opt/homebrew/bin/ffmpeg"
 CLOUD_JOIN_BASE = (
     os.environ.get("PSM_CLOUD_JOIN_BASE")
-    or "https://unseen-demo.vercel.app/web/join.html"
-).strip() or "https://unseen-demo.vercel.app/web/join.html"
+    or "https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/web/join.html"
+).strip() or "https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/web/join.html"
 
 if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
@@ -124,6 +124,11 @@ GAP_BOUNTY = 50          # 系统自动发的空间任务悬赏
 WISH_BOUNTY = 100        # 新人心愿任务默认悬赏
 THUMB_LONG_EDGE = 480    # 缩略图长边
 INBOX_POLICY_TTL_S = 48 * 3600
+PHOTO_RESERVATION_TTL_S = 15 * 60
+ROADSHOW_SPACE_ID = (
+    os.environ.get("PSM_ROADSHOW_SPACE_ID") or "s900003"
+).strip() or "s900003"
+ROADSHOW_MAX_PHOTOS = 50
 
 SELECTED_STATES = ("auto_ok", "approved")           # "已入选" = 真的出现在空间里
 PHOTO_STATES = ("auto_ok", "needs_review", "approved", "rejected", "quarantined")
@@ -135,6 +140,58 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 DIRECTION_WORDS = ["正前方", "右前方", "右侧", "右后方", "正后方", "左后方", "左侧", "左前方"]
 
 router = APIRouter(prefix="/api")
+
+
+class PhotoQuotaFull(RuntimeError):
+    """Raised before CLIP work when a limited event has no photo slots left."""
+
+
+def _normal_limits(raw):
+    """Return the optional hard limits without inventing limits for old spaces."""
+    out = {}
+    if not isinstance(raw, dict):
+        return out
+    for key in ("maxPhotos", "maxNodes"):
+        try:
+            value = int(raw.get(key))
+        except (TypeError, ValueError):
+            continue
+        if value > 0:
+            out[key] = value
+    return out
+
+
+def space_capacity(space):
+    limits = _normal_limits(space.get("limits"))
+    max_photos = limits.get("maxPhotos")
+    received = len(space.get("photos") or [])
+    remaining = max(0, max_photos - received) if max_photos is not None else None
+    return {
+        "maxPhotos": max_photos,
+        "received": received,
+        "remaining": remaining,
+        "full": bool(max_photos is not None and received >= max_photos),
+    }
+
+
+def _clean_photo_reservations(space, now=None):
+    """Discard only abandoned internal reservations; active ones protect quota."""
+    now = float(now if now is not None else time.time())
+    clean = []
+    for raw in space.get("_photoReservations") or []:
+        if not isinstance(raw, dict) or not raw.get("id"):
+            continue
+        try:
+            created_at = float(raw.get("at") or 0)
+        except (TypeError, ValueError):
+            created_at = 0
+        if created_at and now - created_at <= PHOTO_RESERVATION_TTL_S:
+            clean.append(raw)
+    if clean:
+        space["_photoReservations"] = clean
+    else:
+        space.pop("_photoReservations", None)
+    return clean
 
 
 def _request_is_trusted_host(request):
@@ -156,7 +213,7 @@ _TXN_LOCK_PATH = os.path.join(SPACES_DIR, ".space-txn.lock")
 _clip_state = {}    # {"model": SentenceTransformer}, 由 set_clip_model 注入或懒加载
 _model_lock = threading.Lock()    # 懒加载 CLIP 的锁, 见 get_clip_model
 _encode_lock = threading.Lock()   # CLIP 推理串行化的锁, 见 clip_encode ⚠️别去掉
-_crop_cache = {}    # {(sid, nid): (embs, yaws)} 全景裁切图的 CLIP 编码, 别每张照片重切 12 次
+_crop_cache = {}    # {(sid, nid, panorama): (embs, yaws)} 同节点换背景后绝不能复用旧 CLIP bank
 
 
 # ================================================================ CLIP 模型
@@ -429,6 +486,25 @@ def _cloud_publish_authorized(space):
     )
 
 
+def is_publicly_published_space(space):
+    """Whether local guest routes may expose this space.
+
+    Guest URLs contain a predictable ``sN`` id, so existence alone is never an
+    authorization boundary.  Only an explicitly public space with a completed
+    cloud publication may be read through the anonymous API/static bridge.
+    Draft edits block the bridge until the host publishes them, preventing the
+    local working copy from leaking ahead of the frozen public snapshot.
+    """
+    exhibition = _normal_exhibition(space.get("exhibition"))
+    return bool(
+        space.get("published")
+        and space.get("ossSpaceJson")
+        and exhibition["status"] == "published"
+        and not space.get("private")
+        and not space.get("_cloudPublishBlocked")
+    )
+
+
 def _mark_publish_dirty(space, require_publish=False):
     """标记公开快照已经落后,并递增并发发布使用的内容版本。
 
@@ -549,6 +625,11 @@ def set_collection_status(sid, status):
     if status not in ("open", "closed"):
         raise ValueError("收集状态只能是 open 或 closed")
     with space_txn(sid) as space:
+        capacity = space_capacity(space)
+        if status == "open" and not space.get("nodes"):
+            raise ValueError("主办方上传全景后才能开放照片投稿")
+        if status == "open" and capacity["full"]:
+            raise ValueError(f"本场已收满 {capacity['maxPhotos']} 张照片")
         collection = _normal_collection(space.get("collection"))
         collection["status"] = status
         collection["updatedAt"] = time.time()
@@ -642,6 +723,73 @@ def create_space(title, couple, date=None, place=None, cover=None, private=None)
         return sid
 
 
+def initialize_roadshow_space(sid=ROADSHOW_SPACE_ID):
+    """Create the one formal, deliberately empty roadshow space.
+
+    This is idempotent only for an existing roadshow space.  An occupied
+    non-roadshow id is never overwritten.
+    """
+    if not re.fullmatch(r"s\d+", sid or ""):
+        raise ValueError("正式路演空间 id 不合法")
+    with _LOCK:
+        os.makedirs(SPACES_DIR, exist_ok=True)
+        handle = open(_TXN_LOCK_PATH, "a+", encoding="utf-8")
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+            path = space_json_path(sid)
+            if os.path.exists(path):
+                existing = load_space(sid)
+                if not existing.get("roadshowMode"):
+                    raise RuntimeError(f"空间 {sid} 已被其他项目占用")
+                return copy.deepcopy(existing)
+            root = space_dir(sid)
+            for sub in ("", "nodes", "photos", "thumbs", "tasks"):
+                os.makedirs(os.path.join(root, sub), exist_ok=True)
+            now = time.time()
+            exhibition = {
+                "schema": EXHIBITION_SCHEMA,
+                "status": "draft",
+                "revision": 0,
+                "entryView": "walk",
+                "views": ["walk", "photos"],
+                "allowPov": True,
+                "contributorVisibility": "hidden",
+                "taskVisibility": "hidden",
+                "updatedAt": now,
+            }
+            created = {
+                "schema": SCHEMA,
+                "id": sid,
+                "title": "UNSEEN · 路演现场",
+                "couple": "",
+                "date": "",
+                "place": "",
+                "cover": "",
+                "private": False,
+                "roadshowMode": True,
+                "createdAt": now,
+                "published": False,
+                "publishDirty": False,
+                "publishRevision": 0,
+                "_cloudPublishBlocked": True,
+                "inboxGeneration": 1,
+                "inboxPrefixVersion": 2,
+                "_idHighWater": {"n": 0, "p": 0, "t": 0},
+                "limits": {"maxPhotos": ROADSHOW_MAX_PHOTOS, "maxNodes": 1},
+                "collection": {"status": "closed", "updatedAt": now},
+                "exhibition": exhibition,
+                "nodes": [],
+                "tasks": [],
+                "photos": [],
+                "contributors": [],
+            }
+            save_space(sid, created)
+            return copy.deepcopy(created)
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            handle.close()
+
+
 def list_spaces():
     with _LOCK:
         out = []
@@ -660,7 +808,10 @@ def list_spaces():
             light_cover = cover if (cover and not cover.startswith("data:")
                                     and len(cover) <= 512) else ""
             out.append({
-                "id": sp["id"],
+                # Directory id is the routing authority.  Imported/QA fixtures
+                # may contain a stale copied `id`; trusting it creates duplicate
+                # cards that open the wrong space.
+                "id": sid,
                 "title": sp.get("title", ""),
                 "couple": sp.get("couple", ""),
                 "photoCount": len(sp.get("photos", [])),
@@ -677,7 +828,11 @@ def list_spaces():
                 "cover": light_cover,
                 "hasCover": bool(cover),
                 "private": bool(sp.get("private", False)),
+                "createdAt": float(sp.get("createdAt") or 0),
             })
+        # Studio is an operational console: the space just created for the
+        # current event must be first, not buried beneath historical fixtures.
+        out.sort(key=lambda item: (item["createdAt"], item["id"]), reverse=True)
         return out
 
 
@@ -1073,21 +1228,29 @@ def _node_crop_bank(sid, node):
     """拿这个节点全景的 12 个方向裁切图的 CLIP 编码。
 
     性能关键: 全景切 12 张 + 编码大约要 1 秒多, 但它只跟全景有关、跟上传的照片无关,
-    所以按节点缓存(内存 + 磁盘 nodes/<nid>/crops.npz), 后面每张宾客照片只需编码它自己。
+    所以按“节点 + 当前全景路径”缓存。路演背景可以在保留 n1 的前提下换成版本化路径；
+    缓存键若只有 (sid,nid)，新背景会继续拿旧背景的 12 个方向做定位。
     """
-    key = (sid, node["id"])
+    panorama_rel = str(node.get("panorama") or "").replace("\\", "/").lstrip("/")
+    if (
+        not panorama_rel.startswith("nodes/")
+        or ".." in panorama_rel.split("/")
+        or not panorama_rel.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+    ):
+        raise RuntimeError("全景素材路径不合法")
+    key = (sid, node["id"], panorama_rel)
     if key in _crop_cache:
         return _crop_cache[key]
 
-    node_dir = os.path.join(space_dir(sid), "nodes", node["id"])
-    npz_path = os.path.join(node_dir, "crops.npz")
+    pano_path = os.path.join(space_dir(sid), panorama_rel.replace("/", os.sep))
+    asset_dir = os.path.dirname(pano_path)
+    npz_path = os.path.join(asset_dir, "crops.npz")
     if os.path.exists(npz_path):
         data = np.load(npz_path, allow_pickle=False)
         bank = (data["embeddings"], data["yaws"].astype(int))
         _crop_cache[key] = bank
         return bank
 
-    pano_path = os.path.join(space_dir(sid), node["panorama"].replace("/", os.sep))
     pano_np = np.asarray(Image.open(pano_path).convert("RGB"))
     crops = [
         Image.fromarray(equirect_to_perspective(
@@ -1098,11 +1261,18 @@ def _node_crop_bank(sid, node):
     embs = clip_encode(crops, batch_size=12)
     yaws = np.array(list(YAWS), dtype=np.int32)
 
-    os.makedirs(node_dir, exist_ok=True)
+    os.makedirs(asset_dir, exist_ok=True)
     np.savez(npz_path, embeddings=embs, yaws=yaws)
     bank = (embs, yaws.astype(int))
     _crop_cache[key] = bank
     return bank
+
+
+def _drop_node_crop_cache(sid, node_id):
+    """Forget every panorama version cached for one logical node."""
+    for key in list(_crop_cache):
+        if len(key) >= 2 and key[0] == sid and key[1] == node_id:
+            _crop_cache.pop(key, None)
 
 
 def place_photos(sid, space, photo_paths, node_id=None):
@@ -1660,6 +1830,12 @@ def recompute_contributors(space):
 
 def create_wish_task(sid, title, brief, bounty=None):
     """新人自己写的心愿任务: 没有 yaw / yawRange / 通缉令图, 纯情感驱动。"""
+    try:
+        reward = WISH_BOUNTY if bounty is None else int(bounty)
+    except (TypeError, ValueError):
+        raise ValueError("悬赏分数必须是 0 到 9999 的整数")
+    if not 0 <= reward <= 9999:
+        raise ValueError("悬赏分数必须是 0 到 9999 的整数")
     with space_txn(sid) as space:
         tid = _next_space_id(
             space, "t", [t["id"] for t in space.get("tasks", [])],
@@ -1674,7 +1850,7 @@ def create_wish_task(sid, title, brief, bounty=None):
             "yaw": None,
             "yawRange": None,
             "briefImage": None,
-            "bounty": int(bounty) if bounty is not None else WISH_BOUNTY,
+            "bounty": reward,
             "status": "open",
             "filledBy": [],
             "createdBy": "couple",
@@ -1686,7 +1862,10 @@ def create_wish_task(sid, title, brief, bounty=None):
 
 
 # ================================================================ 业务动作
-def add_node(sid, pano_bytes, filename, content_type, name, node_time):
+def add_node(
+    sid, pano_bytes, filename, content_type, name, node_time,
+    generate_gap_tasks=True,
+):
     """传全景 = 新开一个节点: 存 pano.jpg -> 跑 DAP 深度 -> 立刻算覆盖盲区发 gap 任务。
 
     返回 (nodeId, 新生成的 gap 任务列表, 各阶段耗时 dict)。
@@ -1694,11 +1873,30 @@ def add_node(sid, pano_bytes, filename, content_type, name, node_time):
     # 1) 只持久化编号高水位,不把半成品节点放进业务真值。全景落盘和 DAP 可能要
     # 十几秒,这期间上传工人、Viewer 和发布器都不该看到一个还没有 pano 的节点。
     with space_txn(sid) as space:
+        now = time.time()
+        node_reservations = []
+        for raw in space.get("_nodeReservations") or []:
+            if not isinstance(raw, dict) or not raw.get("id"):
+                continue
+            try:
+                at = float(raw.get("at") or 0)
+            except (TypeError, ValueError):
+                at = 0
+            if at and now - at <= PHOTO_RESERVATION_TTL_S:
+                node_reservations.append(raw)
+        limits = _normal_limits(space.get("limits"))
+        max_nodes = limits.get("maxNodes")
+        if max_nodes is not None and (
+            len(space.get("nodes") or []) + len(node_reservations) >= max_nodes
+        ):
+            raise RuntimeError(f"这个空间最多只能创建 {max_nodes} 个全景节点")
         nodes_root = os.path.join(space_dir(sid), "nodes")
         os.makedirs(nodes_root, exist_ok=True)
         nid = _next_space_id(
             space, "n", [n["id"] for n in space.get("nodes", [])], _listdir(nodes_root),
         )
+        node_reservations.append({"id": nid, "at": now})
+        space["_nodeReservations"] = node_reservations
         node_dir = os.path.join(nodes_root, nid)
         os.makedirs(node_dir, exist_ok=True)
     candidate = {
@@ -1731,6 +1929,16 @@ def add_node(sid, pano_bytes, filename, content_type, name, node_time):
 
         # 3) 回锁里补深度字段 + 算覆盖盲区发任务
         with space_txn(sid) as space:
+            reservations = [
+                raw for raw in (space.get("_nodeReservations") or [])
+                if isinstance(raw, dict)
+            ]
+            if not any(raw.get("id") == nid for raw in reservations):
+                raise RuntimeError("全景上传占位已经失效,请重新上传")
+            limits = _normal_limits(space.get("limits"))
+            max_nodes = limits.get("maxNodes")
+            if max_nodes is not None and len(space.get("nodes") or []) >= max_nodes:
+                raise RuntimeError(f"这个空间最多只能创建 {max_nodes} 个全景节点")
             if depth_ok:
                 candidate["depth"] = f"nodes/{nid}/depth.png"
                 candidate["depthJson"] = f"nodes/{nid}/depth.json"
@@ -1738,9 +1946,14 @@ def add_node(sid, pano_bytes, filename, content_type, name, node_time):
                 raise RuntimeError("节点编号发生冲突,请重新上传这张全景")
             space.setdefault("nodes", []).append(copy.deepcopy(candidate))
             t0 = time.time()
-            created = sync_gap_tasks(sid, space, nid)
+            created = sync_gap_tasks(sid, space, nid) if generate_gap_tasks else []
             timings["gap_s"] = round(time.time() - t0, 2)
             created = copy.deepcopy(created)
+            left = [raw for raw in reservations if raw.get("id") != nid]
+            if left:
+                space["_nodeReservations"] = left
+            else:
+                space.pop("_nodeReservations", None)
             _mark_publish_dirty(space, require_publish=True)
     except Exception:
         # 节点编号和目录是在重活之前占下来的。坏图片、错误画幅或切任务失败时
@@ -1750,6 +1963,14 @@ def add_node(sid, pano_bytes, filename, content_type, name, node_time):
         rollback_committed = False
         try:
             with space_txn(sid) as space:
+                reservations = [
+                    raw for raw in (space.get("_nodeReservations") or [])
+                    if not (isinstance(raw, dict) and raw.get("id") == nid)
+                ]
+                if reservations:
+                    space["_nodeReservations"] = reservations
+                else:
+                    space.pop("_nodeReservations", None)
                 rollback_changed = any(
                     n.get("id") == nid for n in space.get("nodes", [])
                 )
@@ -1844,7 +2065,7 @@ def add_node(sid, pano_bytes, filename, content_type, name, node_time):
                 flush=True,
             )
         finally:
-            _crop_cache.pop((sid, nid), None)
+            _drop_node_crop_cache(sid, nid)
             if rollback_committed:
                 try:
                     _sweep_pending_local_deletes(sid)
@@ -2084,7 +2305,7 @@ def delete_node(sid, node_id):
         cleanup_errors = _sweep_pending_local_deletes(sid)
     except Exception as cleanup_error:
         cleanup_errors = [f"本地旧文件待重试: {type(cleanup_error).__name__}"]
-    _crop_cache.pop((sid, node_id), None)
+    _drop_node_crop_cache(sid, node_id)
     if cleanup_errors:
         result["cleanupWarnings"] = cleanup_errors
     return result
@@ -2181,7 +2402,8 @@ def upload_photos(
     os.makedirs(photos_dir, exist_ok=True)
     os.makedirs(thumbs_dir, exist_ok=True)
 
-    # 1) 锁里只做两件快事: 拿节点快照 + 把 photo id 占住(建 0 字节占位文件防并发撞号)
+    # 1) 锁里拿节点快照、占 photo id，并持久化配额预留。后者让多个
+    # worker/请求同时跑 CLIP 时也不可能一起越过 maxPhotos。
     with space_txn(sid) as space:
         if inbox_key:
             if not _inbox_key_is_current(sid, space, inbox_key):
@@ -2194,6 +2416,15 @@ def upload_photos(
                 return [_existing_upload_result(sid, space, existing)]
             if inbox_key in set(space.get("_pendingCloudDeletes") or []):
                 raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
+        reservations = _clean_photo_reservations(space)
+        if inbox_key and any(r.get("inboxKey") == inbox_key for r in reservations):
+            raise RuntimeError("这张投稿正在处理中,请稍后再看")
+        limits = _normal_limits(space.get("limits"))
+        max_photos = limits.get("maxPhotos")
+        if max_photos is not None:
+            remaining = max_photos - len(space.get("photos") or []) - len(reservations)
+            if len(files) > remaining:
+                raise PhotoQuotaFull(f"本场已收满 {max_photos} 张照片")
         if _normal_collection(space.get("collection"))["status"] != "open":
             raise RuntimeError("这个空间已经暂停收集照片")
         if not space.get("nodes"):
@@ -2206,6 +2437,13 @@ def upload_photos(
             )
             open(os.path.join(photos_dir, pid + ".jpg"), "ab").close()
             pids.append(pid)
+        now = time.time()
+        reservations.extend({
+            "id": pid,
+            "inboxKey": inbox_key or "",
+            "at": now,
+        } for pid in pids)
+        space["_photoReservations"] = reservations
         nodes_snapshot = copy.deepcopy(space["nodes"])
 
     # 2) 锁外面干重活: 落盘 + 缩略图 + CLIP 编码
@@ -2240,6 +2478,19 @@ def upload_photos(
                          os.path.join(thumbs_dir, pid + ".jpg")):
                 if os.path.exists(junk):
                     os.remove(junk)
+        try:
+            with space_txn(sid) as latest:
+                own = set(pids)
+                left = [
+                    raw for raw in (latest.get("_photoReservations") or [])
+                    if not (isinstance(raw, dict) and raw.get("id") in own)
+                ]
+                if left:
+                    latest["_photoReservations"] = left
+                else:
+                    latest.pop("_photoReservations", None)
+        except Exception:
+            pass
         # CLIP 读全景时主办方可能刚好删了它的目录。那是拓扑变化,不是坏投稿。
         # 转成 worker 已认识的可重试错误,不能把宾客原件永久写进 failed 台账。
         try:
@@ -2261,32 +2512,76 @@ def upload_photos(
     # 3) 回锁里落记录 + 分流 + 任务判定 + 积分
     out = []
     with space_txn(sid) as space:
+        own_reservation_ids = set(pids)
+
+        def abort_commit(message, error_type=RuntimeError):
+            """Persist reservation release before aborting this transaction."""
+            left = [
+                raw for raw in (space.get("_photoReservations") or [])
+                if not (
+                    isinstance(raw, dict)
+                    and raw.get("id") in own_reservation_ids
+                )
+            ]
+            if left:
+                space["_photoReservations"] = left
+            else:
+                space.pop("_photoReservations", None)
+            # space_txn intentionally skips its automatic save when we raise.
+            # This explicit save happens while both the process and file locks
+            # are still held, so releasing a failed reservation stays atomic.
+            save_space(sid, space)
+            for pid in pids:
+                for junk in (os.path.join(photos_dir, pid + ".jpg"),
+                             os.path.join(thumbs_dir, pid + ".jpg")):
+                    if os.path.exists(junk):
+                        os.remove(junk)
+            raise error_type(message)
+
+        live_reservations = {
+            raw.get("id")
+            for raw in (space.get("_photoReservations") or [])
+            if isinstance(raw, dict)
+        }
+        if not own_reservation_ids.issubset(live_reservations):
+            abort_commit("照片处理占位已经失效,请重新投稿")
         if inbox_key:
             if not _inbox_key_is_current(sid, space, inbox_key):
-                for pid in pids:
-                    for junk in (os.path.join(photos_dir, pid + ".jpg"),
-                                 os.path.join(thumbs_dir, pid + ".jpg")):
-                        if os.path.exists(junk):
-                            os.remove(junk)
-                raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
+                abort_commit("这张投稿已经随原场景移除,不会重复入库")
             existing = next(
                 (p for p in space.get("photos", []) if p.get("inboxKey") == inbox_key),
                 None,
             )
             if existing is not None:
+                existing_result = _existing_upload_result(sid, space, existing)
+                left = [
+                    raw for raw in (space.get("_photoReservations") or [])
+                    if not (
+                        isinstance(raw, dict)
+                        and raw.get("id") in own_reservation_ids
+                    )
+                ]
+                if left:
+                    space["_photoReservations"] = left
+                else:
+                    space.pop("_photoReservations", None)
                 for pid in pids:
                     for junk in (os.path.join(photos_dir, pid + ".jpg"),
                                  os.path.join(thumbs_dir, pid + ".jpg")):
                         if os.path.exists(junk):
                             os.remove(junk)
-                return [_existing_upload_result(sid, space, existing)]
+                return [existing_result]
             if inbox_key in set(space.get("_pendingCloudDeletes") or []):
-                for pid in pids:
-                    for junk in (os.path.join(photos_dir, pid + ".jpg"),
-                                 os.path.join(thumbs_dir, pid + ".jpg")):
-                        if os.path.exists(junk):
-                            os.remove(junk)
-                raise RuntimeError("这张投稿已经随原场景移除,不会重复入库")
+                abort_commit("这张投稿已经随原场景移除,不会重复入库")
+        limits = _normal_limits(space.get("limits"))
+        max_photos = limits.get("maxPhotos")
+        if (
+            max_photos is not None
+            and len(space.get("photos") or []) + len(pids) > max_photos
+        ):
+            abort_commit(f"本场已收满 {max_photos} 张照片", PhotoQuotaFull)
+        if _normal_collection(space.get("collection"))["status"] != "open":
+            abort_commit("这个空间已经暂停收集照片")
         # CLIP 在锁外跑的时候主办方可能正好移除了场景。提交前必须在同一把
         # 事务锁里重验,否则照片会在 DELETE 完成后又写回一个已不存在的 nodeId。
         live_node_ids = {n.get("id") for n in space.get("nodes", [])}
@@ -2294,12 +2589,7 @@ def upload_photos(
             r.get("nodeId") for r in placed if r.get("nodeId") not in live_node_ids
         }
         if missing_node_ids:
-            for pid in pids:
-                for junk in (os.path.join(photos_dir, pid + ".jpg"),
-                             os.path.join(thumbs_dir, pid + ".jpg")):
-                    if os.path.exists(junk):
-                        os.remove(junk)
-            raise RuntimeError("全景场景刚刚被移除,照片没有丢,请重新选择场景再上传")
+            abort_commit("全景场景刚刚被移除,照片没有丢,请重新选择场景再上传")
 
         touched_nodes = set()
         # 这一次上传里已经被填上的 task id。宾客页自己写着"可以一次选好几张",
@@ -2393,16 +2683,71 @@ def upload_photos(
             })
 
         recompute_contributors(space)
-        for nid in touched_nodes:
-            sync_gap_tasks(sid, space, nid)
+        if not space.get("roadshowMode"):
+            for nid in touched_nodes:
+                sync_gap_tasks(sid, space, nid)
+        left = [
+            raw for raw in (space.get("_photoReservations") or [])
+            if not (
+                isinstance(raw, dict)
+                and raw.get("id") in own_reservation_ids
+            )
+        ]
+        if left:
+            space["_photoReservations"] = left
+        else:
+            space.pop("_photoReservations", None)
+        capacity = space_capacity(space)
+        if capacity["full"]:
+            collection = _normal_collection(space.get("collection"))
+            collection["status"] = "closed"
+            collection["updatedAt"] = time.time()
+            space["collection"] = collection
         _mark_publish_dirty(space)
 
     print(f"== [space {sid}] {len(files)} 张照片, CLIP 定位耗时 {clip_s:.2f}s ==", flush=True)
     return out
 
 
+def record_quota_full_receipt(sid, inbox_key, contributor=""):
+    """Persist a public-safe terminal receipt without adding a sixth photo."""
+    inbox_key = _normal_inbox_key(sid, inbox_key)
+    if not inbox_key:
+        return False
+    with space_txn(sid) as space:
+        receipts = [
+            raw for raw in (space.get("_quotaReceipts") or [])
+            if isinstance(raw, dict) and raw.get("inboxKey")
+        ]
+        if any(raw.get("inboxKey") == inbox_key for raw in receipts):
+            return False
+        receipts.append({
+            "inboxKey": inbox_key,
+            "state": "quota_full",
+            "contributor": (contributor or "").strip() or "匿名宾客",
+            "uploadedAt": time.time(),
+        })
+        # A bounded receipt list is enough for live feedback and cannot grow
+        # forever if expired upload policies keep receiving late objects.
+        space["_quotaReceipts"] = receipts[-100:]
+        _mark_publish_dirty(space)
+        return True
+
+
 def review_photos(sid, decisions):
-    """新人批量审核。decisions = [{photoId, action: approve|reject}]。
+    """新人批量审核。
+
+    decisions = [{
+      photoId,
+      action: approve|reject,
+      yaw?: 0..360,
+      pitch?: -75..75,
+      nodeId?: string,
+    }]
+
+    yaw / pitch / nodeId 是 Studio 的人工定位兜底。只要人工改过方向，
+    就清空自动 confidence / margin，并明确记录 localizationMethod=manual；
+    不能让人工填写的角度继续挂着一组看似由算法产出的置信度。
 
     approve 之后要做三件事: 补任务完成判定、补积分、**重算覆盖盲区**
     —— 因为照片入选了, 原来的缺口可能被补上, 也可能因为覆盖版图变了而露出新的缺口。
@@ -2414,24 +2759,72 @@ def review_photos(sid, decisions):
     updated = 0
     with space_txn(sid) as space:
         by_id = {p["id"]: p for p in space.get("photos", [])}
+        valid_nodes = {n.get("id") for n in space.get("nodes", []) if n.get("id")}
         touched_nodes = set()
         for d in decisions or []:
             p = by_id.get(d.get("photoId"))
             if p is None:
                 continue
             action = d.get("action")
+            # action 必须在任何人工定位或任务变更之前验证。否则恶意/损坏的
+            # action=noop + yaw 会改写真值，却因 updated 仍为 0 而不标 publishDirty。
+            if action not in ("approve", "reject"):
+                raise ValueError("审核动作只支持 approve 或 reject")
+            was_selected = p.get("state") in SELECTED_STATES
+
+            manual_location = any(key in d for key in ("yaw", "pitch", "nodeId"))
+            if manual_location:
+                # 已公开照片改方位前，先撤销它对旧任务的支撑；新方位校验通过后再重新授奖。
+                # 否则同一张照片会同时占着旧方向的悬赏，又出现在新方向。
+                if was_selected:
+                    _release_task_fill(space, p)
+                previous_node = p.get("nodeId")
+                node_id = d.get("nodeId", previous_node)
+                if node_id not in valid_nodes:
+                    raise ValueError("请选择这个空间里已有的全景场景")
+                try:
+                    yaw = float(d.get("yaw", p.get("yaw")))
+                    pitch = float(d.get("pitch", p.get("pitch") or 0))
+                except (TypeError, ValueError):
+                    raise ValueError("方向角度格式不正确")
+                if not math.isfinite(yaw) or not math.isfinite(pitch):
+                    raise ValueError("方向角度格式不正确")
+                if not -75 <= pitch <= 75:
+                    raise ValueError("上下方向需要在 -75° 到 75° 之间")
+                p["nodeId"] = node_id
+                p["yaw"] = yaw % 360.0
+                p["pitch"] = pitch
+                p["confidence"] = None
+                p["margin"] = None
+                p["localizationMethod"] = "manual"
+                p["manualAdjustedAt"] = time.time()
+                if previous_node:
+                    touched_nodes.add(previous_node)
+                touched_nodes.add(node_id)
+
             if action == "approve":
                 p["state"] = "approved"
-                p["reason"] = "新人手动通过"
-                apply_task_fill(space, p)
+                p["reason"] = (
+                    "主办方已人工确认方向并通过"
+                    if manual_location else "主办方手动通过"
+                )
+                if manual_location or not was_selected:
+                    rewarded = apply_task_fill(space, p)
+                    p["taskRewarded"] = rewarded
+                    p["bountyPaid"] = bool(rewarded)
+                elif p.get("bountyPaid"):
+                    # 已入选照片只是重复点“通过”时保留原悬赏，清掉旧版本误写的
+                    # “已经被别人填过”提示，避免公开回执自相矛盾。
+                    p.pop("taskNote", None)
             elif action == "reject":
                 p["state"] = "rejected"
-                p["reason"] = "新人手动拒绝"
+                p["reason"] = "主办方手动拒绝"
                 # 状态先改再退任务: _release_task_fill 按"还入选着的照片"反推 filledBy,
                 # 这张自己得先不是入选状态(它另外也会被按对象身份跳过, 两道保险)。
                 _release_task_fill(space, p)
-            else:
-                continue
+                p["taskRewarded"] = None
+                p["bountyPaid"] = False
+                p.pop("taskNote", None)
             updated += 1
             if p.get("nodeId"):
                 touched_nodes.add(p["nodeId"])
@@ -2465,6 +2858,9 @@ def get_space(sid, role="host"):
     """role=guest 只返回已入选的照片(宾客看不到别人被拒的/待审的);
     role=host 全返回, 外加一份统计, 前端拿它显示"本次自动处理 12 张, 需要你看的只有 2 张"。"""
     with space_txn(sid, write=False) as space:
+        if role == "guest" and not is_publicly_published_space(space):
+            # Do not reveal whether a predictable draft/private space id exists.
+            raise FileNotFoundError("找不到这个空间,链接可能已经过期了")
         data = copy.deepcopy(space)
     # 详情接口给全:cover 就算是几十 KB 的 dataURL 也原样返回(列表接口才省)。
     # 这里只补在返回的副本上, 不回写磁盘, 老空间的 space.json 一个字节都不动。
@@ -2472,6 +2868,8 @@ def get_space(sid, role="host"):
         data.setdefault(k, dflt)
     data["collection"] = _normal_collection(data.get("collection"))
     data["exhibition"] = _normal_exhibition(data.get("exhibition"))
+    data["limits"] = _normal_limits(data.get("limits"))
+    data["capacity"] = space_capacity(data)
     data["hasCover"] = bool(data.get("cover"))
     report_revision = None
     report_path = os.path.join(space_dir(sid), "report.json")
@@ -2509,6 +2907,9 @@ def get_space(sid, role="host"):
     data.pop("_cloudPublishBlocked", None)
     data.pop("_publishedResourceKeys", None)
     data.pop("_idHighWater", None)
+    data.pop("_photoReservations", None)
+    data.pop("_nodeReservations", None)
+    data.pop("_quotaReceipts", None)
     if role == "guest":
         data["photos"] = [p for p in data["photos"] if p.get("state") in SELECTED_STATES]
         # 完整 inboxKey 编进了投稿昵称和任务,而且能拼出 OSS 原图直链。云公开版只
@@ -2567,7 +2968,13 @@ def publish_space(sid):
                 )
             )
         )
-        if not has_nodes and not is_cloud_takedown:
+        is_empty_roadshow = bool(
+            not has_nodes
+            and space.get("roadshowMode")
+            and _normal_collection(space.get("collection"))["status"] == "closed"
+            and _normal_limits(space.get("limits")).get("maxNodes") == 1
+        )
+        if not has_nodes and not is_cloud_takedown and not is_empty_roadshow:
             raise ValueError("还没有全景场景,先上传一张 2 比 1 的 360 图片再发布")
         if is_cloud_takedown:
             # 已公开空间删掉最后一个节点时仍要允许发布一份空快照,否则公网会永久
@@ -2601,11 +3008,18 @@ SELF_URL = os.environ.get("PSM_SELF_URL", "http://127.0.0.1:8777")
 _verify_state = {}   # sid -> "running" | "done" | "error: ...", 只给日志和排查用
 _verify_locks = {}
 _verify_locks_guard = threading.Lock()
+_roadshow_activation_locks = {}
+_roadshow_activation_locks_guard = threading.Lock()
 
 
 def _verify_lock(sid):
     with _verify_locks_guard:
         return _verify_locks.setdefault(sid, threading.Lock())
+
+
+def _roadshow_activation_lock(sid):
+    with _roadshow_activation_locks_guard:
+        return _roadshow_activation_locks.setdefault(sid, threading.Lock())
 
 
 def _cleanup_verify_artifacts(sid):
@@ -2845,15 +3259,19 @@ def public_base():
 
 
 def guest_url(sid):
-    """尚未上云的空间使用本机宾客页。宾客扫码直接进 H5,不注册不装 app。"""
-    return f"{public_base()}/server/join.html?space={sid}"
+    """Legacy helper retained for old callers; anonymous LAN upload is disabled."""
+    return ""
 
 
 def canonical_guest_url(sid, space):
-    """同一个空间只给一种入口:已上云走云宾客页,否则走本机宾客页。"""
-    if space.get("ossSpaceJson"):
+    """Return only the real cloud participant entry.
+
+    A draft has neither a safe anonymous upload contract nor a working guest
+    page, so it must not receive a QR/link until cloud publication completes.
+    """
+    if is_publicly_published_space(space):
         return f"{CLOUD_JOIN_BASE}?s={quote(str(sid), safe='')}"
-    return guest_url(sid)
+    raise ValueError("公开展览还没就绪,请先发布最新空间")
 
 
 # ================================================================ HTTP 路由
@@ -2898,6 +3316,73 @@ def _fail_user(e, fallback, tag):
     return _fail(msg if _guest_safe(msg) else fallback)
 
 
+def activate_roadshow_panorama(
+    sid, raw, filename, content_type, name="路演现场", node_time="",
+):
+    """Install the single host panorama, then publish locally and to OSS."""
+    if sid != ROADSHOW_SPACE_ID:
+        raise PermissionError("这个接口只用于正式路演空间")
+    if not content_type or not content_type.lower().startswith("image/"):
+        raise ValueError("这里只接受一张 2 比 1 的全景图片")
+    if not raw:
+        raise ValueError("没有收到全景图片")
+    if len(raw) > 40 * 1024 * 1024:
+        raise ValueError("全景图片不能超过 40MB")
+    try:
+        import io
+        with Image.open(io.BytesIO(raw)) as probe:
+            width, height = probe.size
+            probe.verify()
+    except (UnidentifiedImageError, OSError, ValueError):
+        raise ValueError("这张图片打不开,请换一张有效的全景图片")
+    if width < 1024 or height < 512:
+        raise ValueError("全景图片至少需要 1024×512 像素")
+    if width * height > 80_000_000:
+        raise ValueError("全景图片尺寸过大,请压缩后再上传")
+    if not height or abs(float(width) / float(height) - 2.0) > 0.05:
+        raise ValueError(f"全景图需要是 2 比 1 的 360 图片,这张是 {width}×{height}")
+
+    with _roadshow_activation_lock(sid):
+        with space_txn(sid) as current:
+            if not current.get("roadshowMode"):
+                raise PermissionError("这个空间不是路演空间")
+            limits = _normal_limits(current.get("limits"))
+            if limits.get("maxNodes") != 1:
+                raise RuntimeError("路演空间节点限制配置不正确")
+            if limits.get("maxPhotos") != ROADSHOW_MAX_PHOTOS:
+                raise RuntimeError("路演空间照片配额配置不正确")
+            if current.get("nodes") or current.get("_nodeReservations"):
+                raise FileExistsError("正式路演空间已经有一张全景,不能再次上传")
+            collection = _normal_collection(current.get("collection"))
+            collection["status"] = "closed"
+            collection["updatedAt"] = time.time()
+            current["collection"] = collection
+        nid, _tasks, timings = add_node(
+            sid, raw, filename, content_type, name, node_time,
+            generate_gap_tasks=False,
+        )
+        with space_txn(sid) as current:
+            if len(current.get("nodes") or []) != 1:
+                raise RuntimeError("全景激活后节点数量不正确")
+            current["tasks"] = []
+            current["contributors"] = []
+            collection = _normal_collection(current.get("collection"))
+            collection["status"] = "closed"
+            collection["updatedAt"] = time.time()
+            current["collection"] = collection
+        view_url = publish_space(sid)
+        kick_publish_verify(sid)
+        cloud_started = kick_publish_cloud(sid)
+        return {
+            "nodeId": nid,
+            "timings": timings,
+            "viewUrl": view_url,
+            "collection": {"status": "closed"},
+            "cloudStarted": cloud_started,
+            "cloudState": _cloud_get(sid),
+        }
+
+
 @router.post("/space")
 def api_create_space(payload: dict = Body(default={})):
     try:
@@ -2927,7 +3412,8 @@ def api_get_space(sid: str, role: str = "host"):
     try:
         return {"ok": True, "space": get_space(sid, role)}
     except FileNotFoundError as e:
-        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "读空间")
+        print(f"== [space] 读空间未找到: {e} ==", flush=True)
+        return _fail("找不到这个空间,链接可能已经过期了", code=404)
     except Exception as e:
         return _fail_user(e, "空间读不出来,刷新一下页面再试", "读空间")
 
@@ -2977,6 +3463,50 @@ def api_add_node(
         return _fail(str(e))
     except Exception as e:
         return _fail_user(e, "这张全景没能处理,换一张再试试", "传全景")
+
+
+@router.post("/space/{sid}/roadshow/activate")
+def api_activate_roadshow(
+    sid: str,
+    request: Request,
+    panorama: UploadFile = File(...),
+):
+    if not _request_is_trusted_host(request):
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "error": "主办方口令无效"},
+        )
+    try:
+        result = activate_roadshow_panorama(
+            sid,
+            panorama.file.read(),
+            panorama.filename,
+            panorama.content_type,
+        )
+        return {"ok": True, **result}
+    except FileExistsError as e:
+        return JSONResponse(
+            status_code=409,
+            content={"ok": False, "error": str(e)},
+        )
+    except PermissionError:
+        return JSONResponse(
+            status_code=404,
+            content={"ok": False, "error": "找不到这个路演空间"},
+        )
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "激活路演空间")
+    except ValueError as e:
+        return _fail(str(e))
+    except RuntimeError as e:
+        if "最多只能创建" in str(e) or "已经有一张全景" in str(e):
+            return JSONResponse(
+                status_code=409,
+                content={"ok": False, "error": str(e)},
+            )
+        return _fail_user(e, "这张全景没能处理,请重试", "激活路演空间")
+    except Exception as e:
+        return _fail_user(e, "这张全景没能处理,请重试", "激活路演空间")
 
 
 @router.delete("/space/{sid}/node/{node_id}")
@@ -3219,19 +3749,37 @@ def worker_status(sid):
         with open(path, encoding="utf-8") as f:
             hb = json.load(f)
         age = time.time() - float(hb.get("at") or 0)
-        return {"running": age < 60, "ageS": round(age, 1),
-                "pid": hb.get("pid"), "note": hb.get("note") or ""}
+        pid = hb.get("pid")
+        alive = False
+        if isinstance(pid, int) and pid > 0:
+            try:
+                os.kill(pid, 0)
+                alive = True
+            except PermissionError:
+                alive = True
+            except (ProcessLookupError, OSError):
+                alive = False
+        return {
+            "running": age < 60 and alive,
+            "ageS": round(age, 1),
+            "pid": pid if alive else None,
+            "note": (hb.get("note") or "") if alive else "上次工人已经退出",
+        }
     except Exception:
         return {"running": False, "ageS": None, "pid": None, "note": ""}
 
 
 def start_worker(sid):
-    """给 Studio 一个真正的一键开工入口。标准输出丢弃, 避免云配置落进日志。"""
+    """给 Studio 一个真正的一键开工入口；返回成功前必须看到进程心跳。"""
     with space_txn(sid, write=False):
         pass
     current = worker_status(sid)
     if current["running"]:
         return False, current.get("pid")
+
+    # 在派生进程前先验证凭据可读，避免子进程秒退而 Studio 仍显示“启动成功”。
+    from server import oss
+    oss.load_conf()
 
     python = os.path.join(REPO_ROOT, ".venv", "bin", "python")
     if not os.path.exists(python):
@@ -3249,7 +3797,27 @@ def start_worker(sid):
             start_new_session=True,
         )
         _worker_processes[sid] = proc
-        return True, proc.pid
+
+    deadline = time.time() + 5
+    while time.time() < deadline:
+        status = worker_status(sid)
+        if status["running"]:
+            return True, proc.pid
+        code = proc.poll()
+        if code is not None:
+            with _worker_lock:
+                _worker_processes.pop(sid, None)
+            raise RuntimeError(f"处理工人启动后立即退出(exit {code})")
+        time.sleep(0.1)
+    proc.terminate()
+    try:
+        proc.wait(timeout=2)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait(timeout=2)
+    with _worker_lock:
+        _worker_processes.pop(sid, None)
+    raise RuntimeError("处理工人已启动，但 5 秒内没有写入心跳")
 
 
 @router.get("/space/{sid}/worker-status")

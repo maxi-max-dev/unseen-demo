@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>UNSEEN · 他们请你交一张照片</title>
+<title>UNSEEN · 一起补全现场</title>
 <!--
   公开版宾客页(云版)。和 server/join.html 的区别只有一个:这一页【一个后端接口都不调】。
     读 = fetch(<OSS基址>/spaces/<sid>/space.json)
@@ -126,6 +126,8 @@
   }
   .head-in{ max-width:460px; margin:0 auto; padding:12px 18px 0; }
   .head-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .head-brand{ display:flex; align-items:center; gap:10px; min-width:0; }
+  .join-back{ flex:none; }
   .head-names{ font-family:"Songti SC","STSong",serif; font-size:17px; font-weight:600; letter-spacing:1px; }
   .head-names .heart{ color:var(--red); font-size:12px; margin:0 5px; }
   .head-me{
@@ -408,39 +410,56 @@
   .toast.on{ opacity:1; transform:translate(-50%,0); }
 
   footer{ text-align:center; font-size:10.5px; color:#b8b0a4; padding:26px 0 6px; letter-spacing:.5px; }
+  .roadshow-only{ display:none; }
+  .welcome-back{
+    position:absolute;
+    top:calc(16px + env(safe-area-inset-top,0px));
+    left:18px;
+  }
+  body.roadshow-mode .full-only{ display:none; }
+  body.roadshow-mode .tabs{ display:none; }
+  body.roadshow-mode header{ padding-bottom:10px; }
+  body.roadshow-mode #viewMine{ display:block!important; margin-top:28px; }
+  body.roadshow-mode #viewMine .stats{ display:none; }
+  body.roadshow-mode .roadshow-only{ display:block; }
+  body.roadshow-mode .bottom a{ background:linear-gradient(105deg,#df557f,#ffb47e); }
+  body.roadshow-mode footer{ letter-spacing:.02em; }
 
   @media (max-width:340px){
     .names{ font-size:28px; } .card-title{ font-size:16.5px; }
   }
 </style>
+<link rel="stylesheet" href="../app/product-ui.css">
 </head>
 <body>
 
 <!-- ==================== 开场:一屏只干一件事,填个昵称 ==================== -->
 <div id="welcome" class="off">
+  <a class="welcome-back u-product-back" id="welcomeBack" href="../portal.html"
+     aria-label="返回产品主页">‹</a>
   <div style="max-width:400px;margin:0 auto;width:100%">
     <div class="kicker">U N S E E N <span>· 看见没被看见的</span></div>
     <h1 class="names" id="wNames">正在读取邀请</h1>
     <div class="subdate" id="wDate">&nbsp;</div>
 
-    <div class="invite-line">他们请你交一张照片</div>
+    <div class="invite-line" id="inviteLine">一起补全这个现场</div>
     <!-- ⚠️ 不许写"放回它被拍下的位置"。系统只把照片定到 30 度的扇区(方向),定不到位置,
          写"位置"就是当场承诺一件做不到的事。全站统一口径:回到它当时朝着的方向。 -->
-    <p class="invite-sub">那一天散在每个人手机里。<br>你交的这张,会回到它当时朝着的方向。</p>
+    <p class="invite-sub" id="inviteSub">那一天散在每个人手机里。<br>你交的这张,会回到它当时朝着的方向。</p>
 
     <div class="proof" id="wProof" style="display:none">
       <span class="faces" id="wFaces"></span>
       <!-- ⚠️ 这两个数来自 contributors,而 contributors 只统计已入选的照片(见 renderWelcome)。
            所以只能说"放进空间的",不能说"交了多少张",待审的宾客压根不在这份数据里。 -->
-      <span>已有 <b id="wPeople">0</b> 位宾客的 <b id="wPhotos">0</b> 张照片放进了空间</span>
+      <span>已有 <b id="wPeople">0</b> 位参与者的 <b id="wPhotos">0</b> 张照片放进了空间</span>
     </div>
 
     <div class="nick-box">
-      <div class="nick-label">照片上写谁的名字?<span class="opt">可以不填</span></div>
-      <input type="text" id="nickInput" maxlength="12" placeholder="比如:新郎表弟 小明" autocomplete="off">
+      <div class="nick-label" id="nickLabel">照片上写谁的名字?<span class="opt">可以不填</span></div>
+      <input type="text" id="nickInput" maxlength="12" placeholder="比如：小明" autocomplete="off">
       <button class="btn-main" id="nickGo">好了,带我去看看 →</button>
       <button class="btn-skip" id="nickSkip">先不写名字,直接看看</button>
-      <div class="tiny">不用注册、不用装 app,名字只存在你这台手机里</div>
+      <div class="tiny" id="nickNote">不用注册、不用装 app；名字会随入选照片显示，也可以不填</div>
     </div>
   </div>
 </div>
@@ -449,8 +468,12 @@
 <header>
   <div class="head-in">
     <div class="head-row">
-      <div class="head-names" id="hNames">UNSEEN</div>
-      <div class="head-me" id="hMe" style="visibility:hidden"><span>你好,</span><b id="hNick">匿名宾客</b></div>
+      <div class="head-brand">
+        <a class="join-back u-product-back" id="joinBack" href="../portal.html"
+           aria-label="返回上一页">‹</a>
+        <div class="head-names" id="hNames">UNSEEN</div>
+      </div>
+      <div class="head-me" id="hMe" style="visibility:hidden"><span>你好,</span><b id="hNick">匿名参与者</b></div>
     </div>
     <div class="tabs">
       <button class="tab on" data-view="tasks" id="tabTasks">任务墙<span class="dot" id="tabCount">0</span></button>
@@ -482,15 +505,22 @@
   </div>
 
   <div id="viewMine" style="display:none">
+    <div class="sect roadshow-only">
+      <h2>处理状态</h2>
+      <p>这里只显示这台设备刚刚上传的真实结果</p>
+    </div>
     <div class="stats">
       <div class="stat"><b id="stPhotos">0</b><span>张照片</span></div>
-      <div class="stat hi"><b id="stPoints">0</b><span>分</span></div>
+      <div class="stat hi"><b id="stPoints">0</b><span>张入选</span></div>
       <div class="stat"><b id="stDirs">0</b><span>个方位</span></div>
     </div>
     <div id="mineList"></div>
   </div>
 
-  <footer>照片直传杭州机房 · 现场同城 · AdventureX 2026</footer>
+  <footer>
+    <span class="full-only">照片直传云端 · AdventureX 2026</span>
+    <span class="roadshow-only">照片直传云端 · AI 结果自动更新</span>
+  </footer>
 </main>
 
 <div class="bottom"><a id="btnWalk" href="#">🚶 进空间看看 <span style="font-size:12px">→</span></a></div>
@@ -506,14 +536,27 @@
   // ================================================================ 基础
   var Q = new URLSearchParams(location.search);
   // 二维码里带的是 ?s=<空间id>&b=<OSS基址>。b 省略就用默认桶,方便手打链接。
-  var SID = Q.get("s") || Q.get("space") || "s1";
+  var SID = Q.get("s") || Q.get("space") || "";
   var BASE = (Q.get("b") || "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com").replace(/\/+$/, "");
-  var MOCK = Q.get("mock") === "1";
-  var FORCE = Q.get("screen") || "";      // 截图/演示用:强制停在某个界面
-  var NICK_KEY = "psm_nick";
-  var ANON_NICK = "匿名宾客";       // 不填名字直接进来时用的兜底身份
+  var LOCAL_TOOLS = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(location.hostname);
+  var MOCK = LOCAL_TOOLS && Q.get("mock") === "1";
+  var FORCE = LOCAL_TOOLS ? (Q.get("screen") || "") : ""; // 仅本机截图验收使用
+  var ROADSHOW = Q.get("roadshow") === "1";
+  document.body.classList.toggle("roadshow-mode", ROADSHOW);
+  function backTarget(){
+    var raw = Q.get("back");
+    if (raw && !/^(https?:)?\/\//.test(raw)) {
+      return "../" + raw.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+    }
+    return "../portal.html";
+  }
+  $("joinBack").href = backTarget();
+  $("welcomeBack").href = backTarget();
+  var NICK_KEY = ROADSHOW ? ("psm_roadshow_nick_" + SID) : "psm_nick";
+  var ANON_NICK = "匿名参与者";       // 不填名字直接进来时用的兜底身份
   // 假数据模式单独存一份,别把演示记录混进真实空间的账本里
-  var MINE_KEY = "psm_mine_" + SID + (MOCK ? "_mock" : "");
+  // 路演的极简回执和完整任务版分开保存，避免旧任务标题、积分叙事混进现场状态卡。
+  var MINE_KEY = "psm_mine_" + SID + (MOCK ? "_mock" : "") + (ROADSHOW ? "_roadshow" : "");
 
   // 轮询:传完不是终点,Mac 上的工人算完才会写回 space.json
   var POLL_EVERY_MS = 5000;
@@ -528,11 +571,28 @@
   function uid() { return Math.random().toString(36).slice(2, 8); }
   function sleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 
-  var state = { space: null, nick: "", task: null, files: [], view: "tasks", poller: null };
+  var state = {
+    space: null, nick: "", task: null, files: [], previewUrls: [],
+    view: "tasks", poller: null, pollGeneration: 0
+  };
+  var roadshowSyncTimer = null;
+  var roadshowSyncBusy = false;
+  var roadshowGateTimer = null;
+  var roadshowGateBusy = false;
+
+  // 在 OSS 返回之前也不能露出完整任务版的旧骨架。路演页先给一个中性的真实加载态；
+  // 即使空间读取失败，底部入口仍然能打开只读大屏，不会停在 href="#"。
+  if (ROADSHOW) {
+    $("wallTitle").textContent = "正在连接共同空间";
+    $("wallSub").textContent = "读取现场上传通道与公开状态…";
+    $("taskList").innerHTML = '<div class="loading-note">正在读取真实空间状态…</div>';
+    $("btnWalk").innerHTML = '进入共同空间 <span style="font-size:12px">→</span>';
+    $("btnWalk").href = walkUrl();
+  }
 
   // "陈屹 & 林沐" -> "陈屹 ♥ 林沐"。注意必须先切再转义,先转义的话 & 会变成 &amp; 再被切坏
   function coupleHtml(couple) {
-    return String(couple || "两位新人").split("&").map(function (s) {
+    return String(couple || "活动现场").split("&").map(function (s) {
       return esc(s.trim());
     }).join(' <span class="heart">♥</span> ');
   }
@@ -585,7 +645,7 @@
   };
   function publicName(name) {
     var n = String(name || "").trim();
-    if (!n || TEST_NAMES[n] || n.indexOf("并发") === 0) return "匿名宾客";
+    if (!n || TEST_NAMES[n] || n.indexOf("并发") === 0) return "匿名参与者";
     return n;
   }
 
@@ -603,6 +663,7 @@
   // 加时间戳是给轮询用的:OSS 会把 space.json 缓存住,不打掉的话永远读到旧的一份。
   function loadSpace() {
     if (MOCK) return sleep(120).then(function () { return MOCK_SPACE; });
+    if (!SID) return Promise.reject(new Error("二维码无效：缺少空间编号"));
     var url = BASE + "/spaces/" + encodeURIComponent(SID) + "/space.json?t=" + Date.now();
     // 现场网可能烂到请求永远挂着。20 秒还没回来就当它死了, 让人看到一句人话而不是一直转圈。
     var ctrl = window.AbortController ? new AbortController() : null;
@@ -615,7 +676,7 @@
       return r.json();
     }).catch(function (e) {
       clearTimeout(timer);
-      throw new Error(killed ? "网太慢,20 秒都没读到这个空间" : (e.message || "连不上杭州机房"));
+      throw new Error(killed ? "网太慢,20 秒都没读到这个空间" : (e.message || "连不上云端空间"));
     });
   }
 
@@ -623,7 +684,52 @@
   // 关键的一步:照片【不经过任何服务器】,浏览器拿着 space.json 里那段策略直接 POST 进 OSS。
   // 策略本身限死了前缀、大小和有效期,所以放在公开页面里是安全的 —— 页面里没有、也不需要密钥。
   function collectionOpen(sp) {
+    if (ROADSHOW) return !!(sp && sp.collection && sp.collection.status === "open");
     return !(sp && sp.collection && sp.collection.status === "closed");
+  }
+
+  function capacityOf(sp) {
+    var raw = (sp && sp.capacity) || {};
+    var limits = (sp && sp.limits) || {};
+    var max = Number(raw.maxPhotos != null ? raw.maxPhotos : limits.maxPhotos);
+    if (!isFinite(max) || max <= 0) max = ROADSHOW ? 50 : 0;
+    var received = Number(raw.received);
+    if (!isFinite(received) || received < 0) received = ((sp && sp.photos) || []).length;
+    var remaining = Number(raw.remaining);
+    if (!isFinite(remaining)) remaining = max ? Math.max(0, max - received) : 0;
+    if (max) remaining = Math.max(0, Math.min(max, remaining));
+    return {
+      max: max,
+      received: received,
+      remaining: remaining,
+      full: raw.full === true || !!(max && (received >= max || remaining <= 0))
+    };
+  }
+
+  function roadshowGate(sp) {
+    var cap = capacityOf(sp);
+    if (!sp || !Array.isArray(sp.nodes) || !sp.nodes.length) {
+      return {
+        state: "preparing", capacity: cap,
+        message: "空间正在准备中，主办方上传全景后开放投稿"
+      };
+    }
+    // 最后一个名额进入空间的同一事务会关闭 collection；先判 full，避免误报成“暂停”。
+    if (cap.full) {
+      return {
+        state: "full",
+        capacity: cap,
+        message: "本场已收满" + cap.max + "张"
+      };
+    }
+    if (!collectionOpen(sp)) {
+      return { state: "closed", capacity: cap, message: "照片上传尚未开放" };
+    }
+    var up = (sp && (sp.upload || sp.post || sp.direct)) || null;
+    if (!up || up.enabled === false || !up.policy) {
+      return { state: "closed", capacity: cap, message: "照片上传尚未开放" };
+    }
+    return { state: "open", capacity: cap, message: "上传一张现场照片" };
   }
 
   function policyOf(sp) {
@@ -681,6 +787,12 @@
     }
     return loadSpace().then(function (sp) {
       if (!sp || sp.id !== SID) throw uploadContextError("空间数据已经更新,请重新进入");
+      if (ROADSHOW) {
+        state.space = sp;
+        renderTasks();
+        var gate = roadshowGate(sp);
+        if (gate.state !== "open") throw uploadContextError(gate.message);
+      }
       var liveTask = validateLiveTask(sp, task);
       var pol = policyOf(sp);
       if (!pol) {
@@ -753,17 +865,25 @@
       };
       xhr.onerror = function () { reject(tagged("NETWORK")); };
       xhr.ontimeout = function () { reject(tagged("TIMEOUT")); };
+      xhr.onabort = function () { reject(tagged("ABORT")); };
       xhr.send(fd);
     });
   }
   function tagged(kind) { var e = new Error(kind); e.kind = kind; return e; }
+  function permanent(message) {
+    var e = new Error(message);
+    e.kind = "PERMANENT";
+    e.permanent = true;
+    return e;
+  }
 
   // 值得重试的:网断了、超时、429、5xx。403(策略过期)/400 这类重试一百次也一样,直接判死。
   function retryable(err) {
     if (!err) return false;
-    if (err.kind === "NETWORK" || err.kind === "TIMEOUT") return true;
+    if (err.permanent || err.kind === "PERMANENT") return false;
+    if (err.kind === "NETWORK" || err.kind === "TIMEOUT" || err.kind === "ABORT") return true;
     var s = err.status;
-    if (!s) return true;
+    if (!s) return false;
     return s === 408 || s === 429 || s >= 500;
   }
 
@@ -905,8 +1025,9 @@
         finally { loaded.revoke(); }
       });
     }).catch(function () {
-      // 解不开(HEIC 在 Chrome/Firefox 上就解不开)就原样传上去,让 Mac 那边转
-      return { blob: file, width: 0, height: 0, compressed: false };
+      // 后端当前只处理标准 JPEG。不可解码的 HEIC/损坏图片不能伪装成 .jpg 上传，
+      // 否则用户会一直等一个永远不会成功的结果。
+      throw permanent("这张图片格式暂不支持，请先截图或转成 JPG 后再上传");
     });
   }
 
@@ -1015,14 +1136,44 @@
     try { return JSON.parse(localStorage.getItem(MINE_KEY) || "[]"); } catch (e) { return []; }
   }
   function saveMine(list) {
-    try { localStorage.setItem(MINE_KEY, JSON.stringify(list.slice(-24))); } catch (e) { /* 存满了就算了 */ }
+    try {
+      localStorage.setItem(MINE_KEY, JSON.stringify(list.slice(-24)));
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+  function rememberUploaded(rec) {
+    // OSS 已收到后立即、幂等地落一张轻量回执。不能等整批传完：iOS 在后续
+    // 照片上传时切后台，随时可能杀掉页面；那时 exact-only 匹配将无法找回它。
+    var mine = loadMine();
+    var receipt = {
+      shortId: rec.shortId, key: rec.key, photoId: null, yaw: null,
+      state: "uploaded", reason: ROADSHOW
+        ? "已上传，等待 AI 处理"
+        : "AI 正在定位方向",
+      thumb: rec.thumb || "", taskTitle: rec.taskTitle || "",
+      at: rec.at || Date.now()
+    };
+    var hit = false;
+    mine.forEach(function (item, i) {
+      if (item.shortId === receipt.shortId) {
+        mine[i] = Object.assign({}, item, receipt);
+        hit = true;
+      }
+    });
+    if (!hit) mine.push(receipt);
+    return saveMine(mine);
   }
   function patchMine(shortId, patch) {
     var list = loadMine(), hit = false;
     list.forEach(function (m) {
       if (m.shortId === shortId) { Object.keys(patch).forEach(function (k) { m[k] = patch[k]; }); hit = true; }
     });
-    if (hit) saveMine(list);
+    if (hit) {
+      saveMine(list);
+      if (ROADSHOW) renderMine();
+    }
   }
 
   // 缩到 120px 存 localStorage,原图 dataURL 会把配额撑爆
@@ -1048,8 +1199,20 @@
   // ================================================================ 渲染:开场
   function renderWelcome() {
     var sp = state.space || {};
-    $("wNames").innerHTML = coupleHtml(sp.couple);
-    $("wDate").textContent = (sp.title || "").split("·").pop().trim() || "";
+    if (ROADSHOW) {
+      $("wNames").textContent = "加入共同空间";
+      $("wDate").textContent = sp.title || "UNSEEN 路演现场";
+      $("inviteLine").textContent = "先留下一个称呼";
+      $("inviteSub").innerHTML = "上传一张你此刻看到的现场照片。<br>处理完成后，它会回到共同空间里的对应方向。";
+      $("nickLabel").innerHTML = '照片旁边显示什么名字?<span class="opt">可以不填</span>';
+      $("nickGo").textContent = "进入并上传照片 →";
+      $("nickSkip").textContent = "匿名进入";
+      $("nickNote").textContent = "无需注册；名字只会随入选照片显示";
+      $("wProof").style.display = "none";
+    } else {
+      $("wNames").innerHTML = coupleHtml(sp.couple);
+      $("wDate").textContent = (sp.title || "").split("·").pop().trim() || "";
+    }
 
     var people = (sp.contributors || []).length;
     var photos = (sp.contributors || []).reduce(function (a, c) { return a + (c.photos || 0); }, 0);
@@ -1058,7 +1221,7 @@
     //    被判 needs_review 还在等新人确认的宾客根本不在 contributors 里,连一行都没有。
     //    所以这两个数天生偏低,页面上那句话只能说"放进了空间",说"已经有多少人交了"就是假的。
     //    真想报"交过的总人数"得后端另发一个字段,这一页自己无论怎么算都算不出来。
-    if (people > 0) {
+    if (!ROADSHOW && people > 0) {
       $("wProof").style.display = "inline-flex";
       $("wPeople").textContent = people;
       $("wPhotos").textContent = photos;
@@ -1074,15 +1237,23 @@
     var done = t.status !== "open";
     var paused = !collectionOpen(state.space);
     var who = (t.filledBy || []).map(publicName).join("、");
+    // 心愿任务会长期保持 open 以继续收照片；奖励是否还能领取必须看后端
+    // 的独立真值，不能再从 status 猜。旧快照没有 bountyAvailable 时才回退
+    // 到 filledBy，避免已有人获奖后仍展示“+50 分”。
+    var rewardAvailable = t.bountyAvailable != null
+      ? t.bountyAvailable === true
+      : !(t.filledBy || []).length;
     var foot = paused
       ? '<div class="claimed">照片收集已结束</div>'
       : done
-      ? '<div class="claimed">✅ 已被 ' + esc(who || "宾客") + " 认领</div>"
+      ? '<div class="claimed">✅ 已被 ' + esc(who || "参与者") + " 认领</div>"
       // 这里故意不挂 u-btn:theme.css 的 .u-btn 带 padding:15px 22px + width:100%,
       // 漏进这颗行内小按钮就会把文字挤成一列。.btn-take 自己样式是全的。
       : '<button class="btn-take" data-task="' + esc(t.id) + '">' +
-        (t.type === "gap" ? "我去拍这张" : "我有这张") + "</button>";
-    var bounty = '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>";
+        (t.type === "gap" ? "我去拍这张" : (rewardAvailable ? "我有这张" : "继续投稿")) + "</button>";
+    var bounty = rewardAvailable
+      ? '<div class="bounty">+' + (t.bounty || 0) + "<i>分</i></div>"
+      : '<div class="claimed">奖励已发放</div>';
 
     if (t.type === "gap") {
       return '<div class="card gap u-card' + (done ? " done" : "") + '">' +
@@ -1095,10 +1266,10 @@
     }
     return '<div class="card wish u-card' + (done ? " done" : "") + '">' +
       '<div class="card-body">' +
-        '<span class="badge wish">💌 心愿任务 · 新人亲手写的</span>' +
+        '<span class="badge wish">💌 现场任务 · 主办方发布</span>' +
         '<h3 class="card-title"><span class="wish-quote">“</span>' + esc(t.title || "") + "</h3>" +
         '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
-        '<div class="wish-from">来自 ' + esc((state.space && state.space.couple) || "新人") + "</div>" +
+        '<div class="wish-from">来自 ' + esc((state.space && state.space.couple) || "主办方") + "</div>" +
         '<div class="card-foot">' + bounty + foot + "</div>" +
       "</div></div>";
   }
@@ -1133,22 +1304,42 @@
     var open = tasks.filter(function (t) { return t.status === "open"; });
     var done = tasks.filter(function (t) { return t.status !== "open"; });
     var paused = !collectionOpen(state.space);
+    if (ROADSHOW) {
+      var gate = roadshowGate(state.space);
+      var cap = gate.capacity;
+      var remainingLine = "剩余 " + cap.remaining + "/" + cap.max + " 个投稿名额";
+      $("tabCount").textContent = "0";
+      $("wallTitle").textContent = gate.message;
+      $("wallSub").textContent = remainingLine + (gate.state === "open"
+        ? " · AI 方向识别已连接"
+        : " · 你仍然可以进入共同空间查看现场");
+      $("taskList").innerHTML = gate.state === "open"
+        ? '<button class="free-upload" type="button" data-free-upload>' +
+            '<span class="ico">📷</span><span><b>直接上传照片</b>' +
+            '<span>每次只选择一张 · ' + esc(remainingLine) +
+            '</span></span><span class="go">›</span></button>'
+        : '<div class="empty"><span class="big">' +
+            (gate.state === "preparing" ? "◎" : gate.state === "full" ? "✓" : "Ⅱ") +
+            "</span>" + esc(gate.message) + "<br>" + esc(remainingLine) + "</div>";
+      renderMine();
+      return;
+    }
     if (paused) {
       $("tabCount").textContent = "0";
       $("wallTitle").textContent = "照片收集已结束";
       $("wallSub").textContent = "你仍然可以查看自己的贡献,也可以进入展览";
     } else {
     $("tabCount").textContent = open.length;
-    $("wallTitle").textContent = open.length ? "还缺这 " + open.length + " 张" : "全都补齐了";
+    $("wallTitle").textContent = open.length ? "今天的拍摄清单" : "全部任务已完成";
     $("wallSub").textContent = open.length
-      ? "挑一个去拍,或者从相册里翻一张出来"
+      ? "挑一个主题去拍,或者直接交一张现场照片"
       : "所有任务都被认领了,进空间看看吧";
     }
 
     var html = paused ? "" :
       '<button class="free-upload" type="button" data-free-upload>' +
         '<span class="ico">📷</span><span><b>直接交照片</b>' +
-        '<span>不认领任务也可以,机器会自己判断它朝着哪个方向</span></span>' +
+        '<span>不认领任务也可以，AI 会自动定位照片方向</span></span>' +
         '<span class="go">›</span></button>';
     html += open.map(taskCard).join("");
     if (done.length) {
@@ -1157,54 +1348,50 @@
     }
     $("taskList").innerHTML = html || (paused
       ? '<div class="empty"><span class="big">🌙</span>这次照片收集已经结束<br>你仍然可以查看自己的贡献和展览</div>'
-      : '<div class="empty"><span class="big">🎐</span>新人还没发任务<br>过一会儿再来看看</div>');
+      : '<div class="empty"><span class="big">🎐</span>主办方还没发布任务<br>过一会儿再来看看</div>');
   }
 
   // ================================================================ 渲染:我的贡献
   function renderMine() {
     var mine = loadMine(), sp = state.space || {};
     var byId = {};
-    (sp.photos || []).forEach(function (p) { byId[p.id] = p; });
+    // 已入选在 photos；待审、拒绝、隔离只会出现在 pending。两边都要合并，
+    // 否则主办方审核后，本机仍会永久显示旧的“待确认”状态。
+    (sp.photos || []).concat(sp.pending || []).forEach(function (p) { byId[p.id] = p; });
 
-    // 服务端记着我交过、但这台手机的账本里没有的(换了设备 / 清了缓存)也得显示出来,
-    // 否则会出现"上面写着 3 张、下面说你还没交"这种自相矛盾
-    var seen = {};
-    mine.forEach(function (m) { if (m.photoId) seen[m.photoId] = 1; });
-    var fromServer = (sp.photos || []).filter(function (p) {
-      return p.contributor === state.nick && !seen[p.id];
-    }).map(function (p) {
-      return { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason,
-               thumb: assetUrl(p.thumb || p.src), taskTitle: "" };
-    });
-
-    var merged = fromServer.concat(mine).map(function (m) {
+    // “我的贡献”只认本机上传账本和回执里的随机短 id。昵称是公开署名，不是身份；
+    // 多位匿名参与者或同名参与者同时扫码时，绝不能按昵称把别人的照片认成自己的。
+    var merged = mine.map(function (m) {
       var s = m.photoId ? byId[m.photoId] : null;
       return {
         photoId: m.photoId,
         thumb: (s && assetUrl(s.thumb || s.src)) || m.thumb,
-        yaw: s ? s.yaw : m.yaw,
+        yaw: s && s.yaw != null ? s.yaw : m.yaw,
         state: s ? photoState(s) : m.state,
-        reason: s ? s.reason : m.reason,
+        reason: s
+          ? ((s.taskNote && s.taskNote.message) || s.note || s.reason || m.reason)
+          : m.reason,
         taskTitle: m.taskTitle
       };
     });
 
-    var me = (sp.contributors || []).filter(function (c) { return c.name === state.nick; })[0];
     var dirs = {};
     merged.forEach(function (m) { if (m.yaw != null) dirs[dirWord(m.yaw)] = 1; });
 
     // 张数就用下面这张列表的长度:它已经把服务端认的和本机记的并过一遍了。
     // 用 contributors 里的数字会出现"上面写 3 张、下面列了 4 条"这种当场露馅的矛盾。
     $("stPhotos").textContent = merged.length;
-    // 分只认贡献榜上的真数字。以前榜上查无此人时会按"每张非拒绝的 10 分"自己乘一个出来,
-    // 那是和回执同一个假分:后端只给已入选的照片算分,还在等新人确认的那些榜上就是 0。
-    // 编出来的数会和榜、和空间里那面墙对不上,当场露馅。榜上没有就写 0,让下面每一行的状态自己说话。
-    $("stPoints").textContent = me ? (me.points || 0) : 0;
+    // 同名参与者无法从公开贡献榜安全拆分积分；这里展示本机可核验的入选张数。
+    $("stPoints").textContent = merged.filter(function (m) {
+      return m.state === "auto_ok" || m.state === "approved";
+    }).length;
     $("stDirs").textContent = Object.keys(dirs).length;
 
     if (!merged.length) {
       $("mineList").innerHTML =
-        '<div class="empty"><span class="big">📷</span>你还没交照片<br>去任务墙挑一个,一分钟的事</div>';
+        '<div class="empty"><span class="big">📷</span>' + (ROADSHOW
+          ? "你还没有上传现场照片"
+          : "你还没交照片<br>去任务墙挑一个,一分钟的事") + "</div>";
       return;
     }
     $("mineList").innerHTML = merged.slice().reverse().map(function (m) {
@@ -1213,12 +1400,14 @@
       // 待确认那份回执按隐私红线不带 yaw,以前会掉进"送给新人"那一档,
       // 交了张补空洞的照片却被告知送人了,是假话。
       var dir = m.yaw != null ? esc(dirWord(m.yaw)) + " · " + Math.round(m.yaw) + "°"
-              : m.state === "uploaded" ? "机器正在认方位…"
-              : m.state === "needs_review" ? "方位等新人确认"
-              : "送给新人";
-      return '<div class="mine-row">' +
+              : m.state === "uploaded" ? "AI 正在定位照片方向…"
+              : m.state === "needs_review" ? "方位等主办方确认"
+              : m.state === "quota_full" ? "投稿到达时名额已经收满"
+              : "送达主办方";
+      return '<div class="mine-row u-ai-card" data-ai-state="' + aiStateFor(m.state) + '">' +
         '<img src="' + esc(m.thumb || "") + '" alt="">' +
         '<div class="mine-meta">' +
+          '<div class="u-ai-head"><span class="u-ai-orb"></span>AI 方向识别</div>' +
           '<div class="mine-dir">' + dir + "</div>" +
           '<div class="mine-sub">' + esc(m.taskTitle || m.reason || "") + "</div>" +
         "</div>" +
@@ -1242,13 +1431,21 @@
 
   function stateLabel(s) {
     if (s === "auto_ok") return { cls: "ok", txt: "已进空间" };
-    if (s === "approved") return { cls: "ok", txt: "新人通过" };
-    if (s === "needs_review") return { cls: "wait", txt: "等新人确认" };
+    if (s === "approved") return { cls: "ok", txt: "主办方通过" };
+    if (s === "needs_review") return { cls: "wait", txt: "等主办方确认" };
     if (s === "rejected") return { cls: "no", txt: "没被选上" };
     if (s === "quarantined") return { cls: "no", txt: "放错地方了" };
     if (s === "scene_updated") return { cls: "no", txt: "场景已更新" };
-    if (s === "uploaded") return { cls: "wait", txt: "机器算着呢" };
-    return { cls: "wait", txt: "处理中" };
+    if (s === "quota_full") return { cls: "no", txt: "名额已满" };
+    if (s === "uploaded") return { cls: "wait", txt: "AI 正在定位" };
+    return { cls: "wait", txt: "AI 处理中" };
+  }
+
+  function aiStateFor(s) {
+    if (s === "auto_ok" || s === "approved") return "success";
+    if (s === "needs_review") return "review";
+    if (s === "uploaded" || !s) return "processing";
+    return "error";
   }
 
   // ================================================================ 上传抽屉
@@ -1260,14 +1457,24 @@
   function closeSheet() {
     $("sheet").classList.remove("on");
     $("mask").classList.remove("on");
+    state.previewUrls.forEach(function (url) { URL.revokeObjectURL(url); });
+    state.previewUrls = [];
     state.files = []; state.task = null;
     stopPoll();
+    // 抽屉可以关，真实回执不能停。路演主页面继续在后台认领这台设备的上传结果。
+    if (ROADSHOW) scheduleRoadshowSync(0);
   }
 
   function sheetPick(task) {
-    if (!collectionOpen(state.space)) {
-      toast("主办方已经结束照片收集");
-      return;
+    if (ROADSHOW) {
+      var gate = roadshowGate(state.space);
+      if (gate.state !== "open") {
+        toast(gate.message);
+        return;
+      }
+    } else if (!collectionOpen(state.space)) {
+        toast("主办方已经结束照片收集");
+        return;
     }
     state.task = task; state.files = [];
     var isGap = task.type === "gap";
@@ -1276,13 +1483,16 @@
       '<div class="grab"></div>' +
       "<h3>" + esc(task.title) + "</h3>" +
       '<p class="sh-sub">' + (isFree
-        ? "从相册里挑一张或几张,机器会自己判断它们朝着哪个方向。"
+        ? (ROADSHOW
+          ? "从相册里挑一张或现场拍一张，AI 会自动定位它朝着的方向。"
+          : "从相册里挑一张或几张，AI 会自动定位它们朝着的方向。")
         : isGap
         ? "拍好了直接选,或者从相册里翻一张 " + dirWord(task.yaw) + " 的照片。"
         : "从相册里挑一张,能对上这份心愿就行。") + "</p>" +
-      '<div class="picker"><input type="file" id="fInput" accept="image/jpeg,image/png,image/webp" multiple>' +
+      '<div class="picker"><input type="file" id="fInput" accept="image/*"' +
+        (ROADSHOW ? "" : " multiple") + '>' +
         '<div class="pi">📷</div><div class="pt">拍一张 / 从相册选</div>' +
-        '<div class="ps">可以一次选好几张</div></div>' +
+        '<div class="ps">' + (ROADSHOW ? "每次选择一张照片" : "可以一次选好几张") + '</div></div>' +
       '<div class="picks" id="picks"></div>' +
       '<button class="btn-main" id="btnSend" disabled>传上去</button>' +
       '<button class="btn-ghost" id="btnCancel">先不传</button>'
@@ -1290,9 +1500,13 @@
 
     $("fInput").addEventListener("change", function (e) {
       var fs = e.target.files || [];
+      var hitLimit = false;
+      // 路演每次选择都替换上一张，不能通过重复打开相册把多张累积进同一批。
+      if (ROADSHOW) state.files = [];
       for (var i = 0; i < fs.length; i++) {
         var f = fs[i];
         if (f.type && f.type.indexOf("image/") !== 0) continue;
+        if (state.files.length >= (ROADSHOW ? 1 : 5)) { hitLimit = true; break; }
         // 选好几次的时候会累加,同一张别加两遍 —— 现场流量很贵,传重了纯属浪费
         var key = [f.name, f.size, f.lastModified].join("|");
         if (state.files.some(function (x) {
@@ -1300,9 +1514,14 @@
         })) continue;
         state.files.push(f);
       }
+      state.previewUrls.forEach(function (url) { URL.revokeObjectURL(url); });
+      state.previewUrls = [];
       $("picks").innerHTML = state.files.map(function (f) {
-        return '<img src="' + URL.createObjectURL(f) + '" alt="">';
+        var url = URL.createObjectURL(f);
+        state.previewUrls.push(url);
+        return '<img src="' + url + '" alt="">';
       }).join("");
+      if (hitLimit) toast(ROADSHOW ? "每次只能选择 1 张照片" : "一次最多传 5 张，传完可以继续");
       $("btnSend").disabled = state.files.length === 0;
       $("btnSend").textContent = "传上去(" + state.files.length + " 张)";
     });
@@ -1314,29 +1533,36 @@
     openSheet(
       '<div class="grab"></div>' +
       '<div class="prog-wrap">' +
-        "<h3>正在传去杭州机房…</h3>" +
+        "<h3>" + (ROADSHOW ? "正在准备上传…" : "正在上传到云端…") + "</h3>" +
         '<div class="bar"><i id="barFill"></i></div>' +
-        '<div class="prog-txt" id="progTxt">先把 ' + n + ' 张压小一点</div>' +
+        '<div class="prog-txt" id="progTxt">' + (ROADSHOW
+          ? "正在压缩照片；上传开始后才显示真实字节进度"
+          : "先把 " + n + " 张压小一点") + "</div>" +
       "</div>"
     );
   }
 
   // ---------------------------------------------------------------- 上传主流程
   function doUpload() {
-    var chosenTask = state.task, files = state.files.slice();
+    var chosenTask = state.task, files = state.files.slice(0, ROADSHOW ? 1 : state.files.length);
     if (!files.length) return;
 
     sheetProgress(files.length);
     var checking = $("progTxt");
-    if (checking) checking.textContent = "先确认场景和任务还是最新的";
+    if (checking) checking.textContent = ROADSHOW
+      ? "正在确认现场上传通道"
+      : "先确认场景和任务还是最新的";
 
     freshUploadContext(chosenTask).then(function (ctx) {
       var task = ctx.task, pol = ctx.policy;
       var total = files.length, sentUnits = 0;
       function bump(frac) {
-        // 压缩算 30%、上传算 70%,进度条不会先冲到头再干等
+        // 路演模式只显示 XHR 的真实上传字节比例；压缩/Worker 都只显示阶段文字。
+        // 完整任务版保留原有批量文件综合进度。
         var el = $("barFill");
-        if (el) el.style.width = Math.min(99, Math.round((sentUnits + frac) / total * 100)) + "%";
+        if (el) el.style.width = Math.min(ROADSHOW ? 100 : 99, Math.round(
+          (ROADSHOW ? frac : (sentUnits + frac) / total) * 100
+        )) + "%";
       }
 
       var recs = [];
@@ -1346,61 +1572,87 @@
         chain = chain.then(function () {
           var el = $("progTxt");
           if (el) el.textContent = "第 " + (i + 1) + "/" + total + " 张:压缩中";
-          return Promise.all([compressImage(file), shrink(file)]).then(function (r) {
-            var out = r[0], thumb = r[1];
-            sentUnits += 0.3; bump(0);
-            var el2 = $("progTxt");
-            if (el2) el2.textContent = "第 " + (i + 1) + "/" + total + " 张:上传中(" +
-              Math.round(out.blob.size / 1024) + "KB)";
+          var rec = null, compressed = false;
+          return compressImage(file).then(function (out) {
+            compressed = true;
+            if (pol.maxSize && out.blob.size > pol.maxSize) {
+              throw permanent("图片压缩后仍超过上传限制，请先裁剪或截图后再上传");
+            }
+            // 从已经压小的 JPEG 生成缩略图，避免手机同时解码两份高分辨率原图。
+            return shrink(out.blob).then(function (thumb) {
+              if (!ROADSHOW) sentUnits += 0.3;
+              bump(0);
+              var el2 = $("progTxt");
+              if (el2) el2.textContent = "第 " + (i + 1) + "/" + total + " 张:上传中(" +
+                Math.round(out.blob.size / 1024) + "KB)";
 
-            var shortId = uid();
-            var key = buildKey(MOCK ? "spaces/mock/inbox/" : pol.keyPrefix, shortId, state.nick, task.id);
-            var rec = {
-              id: shortId, sid: SID, shortId: shortId, key: key, blob: out.blob,
-              nick: state.nick, taskId: task.id || "", taskTitle: task.title || "",
-              thumb: thumb, at: Date.now()
-            };
+              var shortId = uid();
+              var key = buildKey(MOCK ? "spaces/mock/inbox/" : pol.keyPrefix, shortId, state.nick, task.id);
+              rec = {
+                id: shortId, sid: SID, shortId: shortId, key: key, blob: out.blob,
+                nick: state.nick, taskId: task.id || "", taskTitle: task.title || "",
+                thumb: thumb, at: Date.now()
+              };
 
-            var sender = MOCK ? mockPost(function (p) { bump(0.7 * p); })
-                              : postWithRetry(pol, key, out.blob, function (p) { bump(0.7 * p); });
-            return sender.then(function (status) {
-              sentUnits += 0.7; bump(0);
-              rec.status = status;
-              recs.push(rec);
-              // 传成功就从"待重传"里划掉(重传路径会用到)
-              return dbDel(shortId);
-            }).catch(function (err) {
-              sentUnits += 0.7; bump(0);
-              // 传不上去的存进 IndexedDB,恢复网络自动接着传
-              rec.error = err.message || "传不上去";
-              return dbPut(rec).then(function () { recs.push(rec); });
+              // 先写本机待重传队列，再开始网络请求。页面或 Safari 被系统中断时仍有恢复依据。
+              var cached = MOCK ? Promise.resolve("mock") : dbPut(rec);
+              return cached.then(function (saved) {
+                rec.cached = saved != null;
+                return MOCK ? mockPost(function (p) { bump(ROADSHOW ? p : 0.7 * p); })
+                            : postWithRetry(pol, key, out.blob, function (p) {
+                                bump(ROADSHOW ? p : 0.7 * p);
+                              });
+              }).then(function (status) {
+                if (ROADSHOW) bump(1);
+                else { sentUnits += 0.7; bump(0); }
+                rec.status = status;
+                recs.push(rec);
+                // 先把精确回执落进 localStorage，再从待重传队列删除。若浏览器
+                // 拒绝 localStorage，宁可暂留 IDB，也不能把成功投稿的身份丢掉。
+                var remembered = rememberUploaded(rec);
+                if (ROADSHOW) scheduleRoadshowSync(1500);
+                return remembered ? dbDel(shortId) : Promise.resolve();
+              });
             });
+          }).catch(function (err) {
+            if (!ROADSHOW) {
+              sentUnits += compressed ? 0.7 : 1;
+              bump(0);
+            }
+            if (!rec) {
+              rec = {
+                id: uid(), sid: SID, shortId: "", fileName: file.name || "图片",
+                error: err.message || "无法处理这张图片", permanent: true
+              };
+            } else {
+              rec.error = err.message || "传不上去";
+              rec.retryable = retryable(err);
+              rec.queued = rec.retryable && rec.cached;
+              rec.permanent = !rec.retryable;
+              if (rec.permanent && rec.cached) {
+                return dbDel(rec.id).then(function () { recs.push(rec); });
+              }
+            }
+            recs.push(rec);
           });
         });
       });
 
       return chain.then(function () {
         var okRecs = recs.filter(function (r) { return !r.error; });
-        var bad = recs.length - okRecs.length;
+        var queued = recs.filter(function (r) { return r.error && r.queued; }).length;
+        var failed = recs.filter(function (r) { return r.error && !r.queued; });
 
-        // 记进本地小账本(状态先是 uploaded,轮询到结果再改)
-        var mine = loadMine();
-        okRecs.forEach(function (r) {
-          mine.push({
-            shortId: r.shortId, key: r.key, photoId: null, yaw: null,
-            state: "uploaded", reason: "机器正在算方位",
-            thumb: r.thumb, taskTitle: r.taskTitle, at: r.at
-          });
-        });
-        saveMine(mine);
+        // 每一张 OSS 成功时已经即时保存回执；批尾只负责刷新界面。
         refreshRedo();
 
         if (!okRecs.length) {
           closeSheet();
-          toast("这几张都没传上去,网好一点会自动重传");
+          if (queued) toast("网络上传失败，照片已保存在本机，联网后会自动重传");
+          else toast((failed[0] && failed[0].error) || "这些图片暂时无法上传");
           return;
         }
-        sheetWaiting(okRecs, task, bad);
+        sheetWaiting(okRecs, task, queued, failed.length);
       });
     }).catch(function (e) {
       closeSheet();
@@ -1411,27 +1663,31 @@
   // ---------------------------------------------------------------- 等结果那一屏
   // 上传完不是终点:照片要等 Mac 上的工人算完才会出现在空间里。
   // 这一屏就是那段等待 —— 不能让人对着转圈不知道在等什么。
-  function sheetWaiting(recs, task, badCount) {
+  function sheetWaiting(recs, task, queuedCount, failedCount) {
     var rows = recs.map(function (r, i) {
-      return '<div class="res pending in" data-sid="' + esc(r.shortId) + '">' +
+      return '<div class="res pending in u-ai-card" data-ai-state="processing" data-sid="' + esc(r.shortId) + '">' +
         '<img src="' + esc(r.thumb || "") + '" alt="">' +
         '<div class="res-main">' +
-          '<div class="res-t">已收到,机器正在把它放回空间…</div>' +
-          '<div class="res-s">照片已经到杭州机房了</div>' +
+          '<div class="u-ai-head"><span class="u-ai-orb"></span>AI 方向识别</div>' +
+          '<div class="res-t">照片已收到，AI 正在定位方向…</div>' +
+          '<div class="res-s">识别结果会自动更新在这里</div>' +
         "</div></div>";
     }).join("");
 
     openSheet(
       '<div class="grab"></div>' +
       "<h3>收到了,一共 " + recs.length + " 张</h3>" +
-      '<p class="sh-sub">照片已经躺在杭州机房里了。<br>' +
-      "现在是机器在认它拍的是哪个方向,一般十几秒到一分钟。" +
-      (badCount ? "<br>另有 " + badCount + " 张没传上去,网好一点会自动重传。" : "") + "</p>" +
+      '<p class="sh-sub">' + (ROADSHOW
+        ? "照片已经直传云端。<br>AI 正在定位照片方向，处理结果会自动更新。"
+        : "照片已经直传云端。<br>AI 正在定位它拍摄时朝着的方向。") +
+      (queuedCount ? "<br>另有 " + queuedCount + " 张已保存在本机，联网后自动重传。" : "") +
+      (failedCount ? "<br>另有 " + failedCount + " 张格式不支持或超过限制，请截图后重试。" : "") + "</p>" +
       '<div class="waitbar" id="waitBar"><i></i></div>' +
       rows +
       '<div class="res-sum" id="resSum"></div>' +
-      '<button class="btn-main" id="btnGoWalk">先去空间里逛逛 →</button>' +
-      '<button class="btn-ghost" id="btnMore">再传几张</button>'
+      '<button class="btn-main" id="btnGoWalk">' +
+        (ROADSHOW ? "进入共同空间 →" : "先去空间里逛逛 →") + '</button>' +
+      '<button class="btn-ghost" id="btnMore">' + (ROADSHOW ? "再传一张" : "再传几张") + "</button>"
     );
     $("btnGoWalk").addEventListener("click", function () { location.href = walkUrl(); });
     $("btnMore").addEventListener("click", function () { closeSheet(); sheetPick(task); });
@@ -1448,56 +1704,48 @@
     var ps = ((sp && sp.photos) || []).concat((sp && sp.pending) || []);
     for (var i = 0; i < ps.length; i++) {
       var p = ps[i];
-      var hay = [p.id, p.src, p.thumb, p.key, p.inboxKey, p.origin, p.source].join("|");
-      if (hay.indexOf(shortId) >= 0) return p;
+      var ref = String(p.inboxKey || "");
+      if (ref === shortId || ref.slice(-(shortId.length + 1)) === "_" + shortId) return p;
     }
     return null;
   }
 
-  // 第二招(兜底):工人会把 inbox/<...短id...>.jpg 改名成 photos/p7.jpg,
-  // 改完短 id 就没了,第一招必然落空。这时只能认"我传完之后新冒出来的、而且署我名字的那几张"。
-  // 实测 s4 就是这么改名的,没这招的话宾客永远只看得到"机器还在算"。
-  function freshOfMine(sp, preIds, claimed, sinceMs) {
-    return ((sp && sp.photos) || []).filter(function (p) {
-      if (claimed[p.id] || p.contributor !== state.nick) return false;
-      if (!preIds[p.id]) return true;            // 空间里以前没这条 = 就是新的
-      // id 撞车也得认得出来:工人给的 id 不保证全局唯一(自验时真撞出过两条 p10),
-      // 所以再看一眼上传时间,比我按下"传上去"还新的就算我的。留 1 分钟容忍两边表不准。
-      var ts = Number(p.uploadedAt) || 0;
-      if (ts && ts < 1e12) ts *= 1000;           // 秒级时间戳换成毫秒
-      return !!sinceMs && ts >= sinceMs - 60000;
-    });
-  }
-
   function startPoll(recs, task) {
     stopPoll();
+    var generation = state.pollGeneration;
     var t0 = Date.now(), left = {};
     recs.forEach(function (r) { left[r.shortId] = r; });
-    // 传之前先记下空间里已经有哪些照片,兜底认领要靠这份快照分辨新旧
-    var preIds = {};
-    ((state.space && state.space.photos) || []).forEach(function (p) { preIds[p.id] = 1; });
 
     function resolveOne(sid, p) {
       settleRow(sid, p, task);
-      patchMine(sid, { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason });
+      patchMine(sid, {
+        photoId: p.id || null,
+        yaw: p.yaw,
+        state: photoState(p),
+        reason: p.note || p.reason
+      });
       // 把认到的那条挂回 rec 上,结算悬赏时直接用,不能再按短 id 找一遍
       //(工人改过名之后短 id 就没了,再找必然落空,悬赏会算成 10 分)
       if (left[sid]) left[sid].resolved = p;
       delete left[sid];
     }
 
+    function schedule(ms) {
+      if (generation !== state.pollGeneration) return;
+      state.poller = setTimeout(tick, ms);
+    }
+
     function tick() {
+      state.poller = null;
+      if (generation !== state.pollGeneration) return;
       loadSpace().then(function (sp) {
+        if (generation !== state.pollGeneration) return;
         state.space = sp;
         var claimed = {};   // 同一条服务端照片别被两张认领,先到先得
         Object.keys(left).forEach(function (sid) {
           var p = findMine(sp, sid);
-          if (p && !claimed[p.id]) { claimed[p.id] = 1; resolveOne(sid, p); }
-        });
-        var fresh = freshOfMine(sp, preIds, claimed, t0);
-        Object.keys(left).forEach(function (sid) {
-          var p = fresh.shift();
-          if (p) { claimed[p.id] = 1; resolveOne(sid, p); }
+          var claimKey = p && String(p.id || p.inboxKey || sid);
+          if (p && !claimed[claimKey]) { claimed[claimKey] = 1; resolveOne(sid, p); }
         });
         // 极小概率下，主办方会在本页刷新 policy 之后、OSS POST 完成之前删场景。
         // OSS 仍可能回 2xx，但新公开快照已经切了收件箱代际。这里把尚未出结果
@@ -1509,16 +1757,28 @@
           if (task && task.id) {
             try { validateLiveTask(sp, task); } catch (e) { taskInvalid = true; }
           }
-          if (!currentPrefix || rec.key.indexOf(currentPrefix) !== 0 || taskInvalid) {
+          // 路演最后一个名额入库会立即关掉 policy；超额对象的 quota_full 回执可能在下一次
+          // 发布才出现。此时“没有 policy”表示名额关闭，不代表刚 POST 的对象换了场景。
+          var prefixInvalid = currentPrefix
+            ? rec.key.indexOf(currentPrefix) !== 0
+            : !ROADSHOW;
+          if (prefixInvalid || taskInvalid) {
             var el = rowEl(sid);
             if (el) {
               el.classList.remove("pending");
-              el.querySelector(".res-t").textContent = "场景或任务刚刚更新了";
-              el.querySelector(".res-s").textContent = "这张没有进入新场景,请回到任务墙重新选择";
+              el.setAttribute("data-ai-state","error");
+              el.querySelector(".res-t").textContent = ROADSHOW
+                ? "共同空间刚刚更新了"
+                : "场景或任务刚刚更新了";
+              el.querySelector(".res-s").textContent = ROADSHOW
+                ? "这张没有进入新场景，请重新上传"
+                : "这张没有进入新场景,请回到任务墙重新选择";
             }
             patchMine(sid, {
               state: "scene_updated",
-              reason: "场景或任务已经更新,请重新选择"
+              reason: ROADSHOW
+                ? "共同空间已经更新，请重新上传"
+                : "场景或任务已经更新,请重新选择"
             });
             rec.sceneUpdated = true;
             delete left[sid];
@@ -1526,17 +1786,20 @@
         });
         renderTasks();
         if (!Object.keys(left).length) { stopPoll(); finishSum(recs, task); return; }
-        if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); }
+        if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); return; }
+        schedule(POLL_EVERY_MS);
       }).catch(function () {
+        if (generation !== state.pollGeneration) return;
         // 轮询失败不吭声,下一轮再来;真超时了自然会走 timeoutRows
-        if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); }
+        if (Date.now() - t0 > POLL_MAX_MS) { stopPoll(); timeoutRows(left); return; }
+        schedule(POLL_EVERY_MS);
       });
     }
-    state.poller = setInterval(tick, POLL_EVERY_MS);
-    setTimeout(tick, 1500);   // 先来一发快的,万一工人手快呢
+    schedule(1500);   // 先来一发快的,万一工人手快呢
   }
   function stopPoll() {
-    if (state.poller) { clearInterval(state.poller); state.poller = null; }
+    state.pollGeneration++;
+    if (state.poller) { clearTimeout(state.poller); state.poller = null; }
   }
 
   function rowEl(shortId) {
@@ -1550,10 +1813,11 @@
     var head, sub, st = photoState(p);   // 云版 photos[] 不带 state, 见 photoState()
     if (st === "auto_ok" || st === "approved") {
       head = "你这张放在了 <b>" + esc(dirWord(p.yaw)) + "</b> · 已进入空间 ✅";
-      sub = "匹配度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "未测") +
-            " · " + Math.round(p.yaw || 0) + "°";
+      sub = (p.taskNote && p.taskNote.message) ||
+            ("匹配度 " + (p.confidence != null ? Number(p.confidence).toFixed(2) : "未测") +
+             " · " + Math.round(p.yaw || 0) + "°");
     } else if (st === "needs_review") {
-      head = "机器拿不准,已交给新人确认 ⏳";
+      head = "AI 需要主办方确认 ⏳";
       // note 是后端在 pending 回执里给的人话(publish.py),云版拿得到的只有它;
       // reason 是本机账本/假数据里的字段。都没有时的兜底不许再猜是哪一项没达标,
       // 只说这一步之后会怎样,这也是"没通过就不算分"这件事唯一说得清的地方。
@@ -1562,19 +1826,23 @@
       head = "这张看着不像这个场地,先放一边了";
       sub = p.note || p.reason || "自检环自动隔离";
     } else if (st === "rejected") {
-      head = "新人这次没选上它";
+      head = "主办方这次没有选入";
       sub = p.note || p.reason || "";
+    } else if (st === "quota_full") {
+      head = "这张到达时，本场 " + capacityOf(state.space).max + " 个名额已经收满";
+      sub = p.note || p.reason || "没有进入处理队列，也不会公开";
     } else {
       head = "已收到,正在处理";
       sub = p.note || p.reason || "";
     }
-    // 心愿任务由新人亲自看,所以正常路径改成"送到手上"的说法。
-    // 但已经被隔离/被新人否掉的那两种不能套这句,结论都出来了还说"已送到"是自欺。
-    if (task && task.type === "wish" && st !== "quarantined" && st !== "rejected") {
-      head = "已经送到新人手上 💌";
-      sub = p.note || p.reason || "心愿任务由新人亲自看";
+    // 现场任务由主办方亲自看；被隔离/拒绝的照片不能误报为已经送达。
+    if (task && task.type === "wish" &&
+        st !== "quarantined" && st !== "rejected" && st !== "quota_full") {
+      head = "已经送达主办方 💌";
+      sub = (p.taskNote && p.taskNote.message) || p.note || p.reason || "现场任务由主办方确认";
     }
     el.classList.remove("pending");
+    el.setAttribute("data-ai-state",aiStateFor(st));
     el.querySelector(".res-t").innerHTML = head;
     el.querySelector(".res-s").textContent = sub;
   }
@@ -1585,12 +1853,22 @@
       var el = rowEl(sid);
       if (!el) return;
       el.classList.remove("pending");
-      el.querySelector(".res-t").textContent = "机器还在算,待会儿再看一眼";
-      el.querySelector(".res-s").textContent = "云端已收到上传请求,处理结果还没返回";
+      el.setAttribute("data-ai-state","processing");
+      el.querySelector(".res-t").textContent = ROADSHOW
+        ? "已上传，处理结果还没返回"
+        : "AI 还在定位，稍后再看一眼";
+      el.querySelector(".res-s").textContent = ROADSHOW
+        ? "页面会继续等待 AI 识别结果"
+        : "云端已收到上传请求,处理结果还没返回";
     });
     var w = $("waitBar"); if (w) w.style.display = "none";
     var s = $("resSum");
-    if (s) { s.innerHTML = "结果会自己出现在「我的贡献」里"; s.classList.add("in"); }
+    if (s) {
+      s.innerHTML = ROADSHOW
+        ? "结果会继续更新在下方「处理状态」中"
+        : "结果会自己出现在「我的贡献」里";
+      s.classList.add("in");
+    }
   }
 
   // 回执最下面那句总结。
@@ -1602,31 +1880,43 @@
   //    现在只说两种能被验证的事:① 每张照片的真实去向 ② 贡献榜上此刻真实记着多少分。
   //    第二项直接读 space.json 里的 contributors,这一页自己一个数都不算;榜上查无此人就明说还没上榜。
   function sumHtml(recs, task) {
-    var into = 0, wait = 0, out = 0, changed = 0, filled = false, missYaw = null;
+    var into = 0, wait = 0, out = 0, changed = 0, quotaFull = 0;
+    var filled = false, mismatch = false, missYaw = null;
     recs.forEach(function (r) {
       if (r.sceneUpdated) { changed++; return; }
       var p = r.resolved, st = photoState(p);   // 云版 photos[] 不带 state, 见 photoState()
       if (st === "auto_ok" || st === "approved") {
         into++;
-        if (task && p.taskId === task.id) filled = true;
-        else if (missYaw == null && p.yaw != null) missYaw = p.yaw;   // 进了空间却没记在这个任务头上
-      } else if (st === "rejected" || st === "quarantined") { out++; }
+        if (p && p.bountyPaid === true) filled = true;
+        if (task && p.taskId !== task.id) {
+          mismatch = true;
+          if (missYaw == null && p.yaw != null) missYaw = p.yaw;
+        }
+      } else if (st === "quota_full") { quotaFull++; }
+      else if (st === "rejected" || st === "quarantined") { out++; }
       else { wait++; }
     });
     var parts = [];
     if (into) parts.push(into + " 张已经进空间");
-    if (wait) parts.push(wait + " 张等新人确认");
+    if (wait) parts.push(wait + " 张等主办方确认");
     if (out) parts.push(out + " 张没被收进空间");
+    if (quotaFull) parts.push(quotaFull + " 张到达时名额已满");
     if (changed) parts.push(changed + " 张需要按新场景重新选择");
     var html = parts.join(" · ") || "都收到了";
-    if (filled) html += "<br>这个任务被你补上了 🎉";
+    // Worker 可能会把自由上传自动归入某个开放任务并发放 bounty；这是后端真值，
+    // 但路演界面承诺不展示任务/积分叙事，所以这里只保留照片的真实去向。
+    if (ROADSHOW) {
+      if (wait) html += "<br>主办方确认后才会进入公开空间";
+      return html;
+    }
+    if (filled) html += "<br>系统已确认：你完成了这项任务 🎉";
     // 照片进了空间、却没被记在这个任务头上 = 后端校验过方位对不上,把 taskId 清掉了
     //(server/space.py apply_task_fill,7/25 修的那条 P0)。这时任务照旧开着、悬赏一分没发。
     // 以前这里一个字都不说,宾客点的是"我去拍这张 +50 分",看到「✅ 已进入空间」就当悬赏到手了,
     // 回头看任务墙还开着才发现 —— 这和报假分是同一种谎,只是换成了沉默。
     // 本机自己就能判:选中的照片带的 taskId 不是他点的那个,就是没认领上。
     // 云版 space.json 不带 taskMismatch 字段,所以理由只按方位说,不编后端没给的话。
-    else if (into && task && task.type === "gap") {
+    else if (into && mismatch && task && task.type === "gap") {
       var live = ((state.space && state.space.tasks) || []).filter(function (t) {
         return t.id === task.id;
       })[0];
@@ -1639,24 +1929,20 @@
           : "照片的方位和它要的对不上") +
         ((!live || live.status === "open") ? ",任务还开着" : "");
     }
-    // 榜上的分只报 space.json 里真有的那个,而且它是总分不是这次的增量,措辞照实写
-    var me = ((state.space && state.space.contributors) || []).filter(function (c) {
-      return c.name === state.nick;
-    })[0];
-    if (me) html += "<br>贡献榜上现在记着你 <b>" + (me.points || 0) + "</b> 分";
-    else if (wait) html += "<br>还没上贡献榜,新人确认过才算分";
+    if (wait) html += "<br>主办方确认后才会计入公开空间";
     return html;
   }
 
   function finishSum(recs, task) {
     // 全算完了就把那根还在跑的等待条收掉,别让人以为还有东西没好
     var w = $("waitBar"); if (w) w.style.display = "none";
-    var b = $("btnGoWalk"); if (b) b.textContent = "看看它在空间里 →";
+    var b = $("btnGoWalk"); if (b) b.textContent = ROADSHOW
+      ? "进入共同空间 →" : "看看它在空间里 →";
     var s = $("resSum");
     if (!s) return;
     s.innerHTML = sumHtml(recs, task);
     s.classList.add("in");
-    if (state.view === "mine") renderMine();
+    if (ROADSHOW || state.view === "mine") renderMine();
   }
 
   // ================================================================ 待重传
@@ -1680,7 +1966,7 @@
       return dbAll().then(function (all) {
       if (!all.length) { if (!silent) toast("没有要重传的"); return; }
       if (!silent) toast("重新传 " + all.length + " 张…");
-      var chain = Promise.resolve(), ok = 0, expiredScene = 0, expiredTask = 0;
+      var chain = Promise.resolve(), ok = 0, expiredScene = 0, expiredTask = 0, invalid = 0;
       all.forEach(function (rec) {
         chain = chain.then(function () {
           // 前缀变化代表主办方已经撤下旧场景并换了收件箱代际。旧场景的离线
@@ -1697,27 +1983,39 @@
               return;
             }
           }
+          if (pol.maxSize && rec.blob.size > pol.maxSize) {
+            invalid++;
+            return dbDel(rec.id);
+          }
           var key = rec.key;
           return postWithRetry(pol, key, rec.blob, null).then(function () {
             ok++;
-            var mine = loadMine();
-            mine.push({
-              shortId: rec.shortId, key: key, photoId: null, yaw: null,
-              state: "uploaded", reason: "机器正在算方位",
-              thumb: rec.thumb, taskTitle: rec.taskTitle, at: Date.now()
-            });
-            saveMine(mine);
-            return dbDel(rec.id);
-          }).catch(function () { /* 还是不行就留着,下次网好再说 */ });
+            rec.key = key;
+            rec.at = rec.at || Date.now();
+            var remembered = rememberUploaded(rec);
+            if (ROADSHOW) scheduleRoadshowSync(1500);
+            return remembered ? dbDel(rec.id) : Promise.resolve();
+          }).catch(function (err) {
+            if (!retryable(err)) {
+              invalid++;
+              return dbDel(rec.id);
+            }
+            // 网络类错误才留在队列里，下次联网继续。
+          });
         });
       });
       return chain.then(function () {
         refreshRedo();
         if (expiredScene || expiredTask) {
-          toast("场景或任务已经更新," + (expiredScene + expiredTask) + " 张照片仍保存在手机里,请重新选择");
-        } else if (ok) toast("补传成功 " + ok + " 张,机器正在算");
+          toast(ROADSHOW
+            ? "共同空间已经更新，" + (expiredScene + expiredTask) + " 张照片仍保存在手机里，请重新上传"
+            : "场景或任务已经更新," + (expiredScene + expiredTask) + " 张照片仍保存在手机里,请重新选择");
+        } else if (ok) toast(ROADSHOW
+          ? "补传成功 " + ok + " 张，等待 AI 处理"
+          : "补传成功 " + ok + " 张，AI 正在定位");
+        else if (invalid) toast(invalid + " 张图片格式或大小不符合要求，请重新选择");
         else if (!silent) toast("网还是不行,等会儿自动再试");
-        if (state.view === "mine") renderMine();
+        if (ROADSHOW || state.view === "mine") renderMine();
       });
       });
     }).catch(function (e) {
@@ -1727,6 +2025,15 @@
 
   // ================================================================ 视图切换
   function walkUrl() {
+    if (ROADSHOW && !Q.get("walk")) {
+      var live = "show.html?s=" + encodeURIComponent(SID) +
+        "&live=1&b=" + encodeURIComponent(BASE);
+      var roadshowBack = Q.get("back") || "roadshow.html";
+      if (!/^(https?:)?\/\//.test(roadshowBack)) {
+        live += "&back=" + encodeURIComponent(roadshowBack.replace(/^(\.\.\/)+/,"").replace(/^\//,""));
+      }
+      return live;
+    }
     // walk.html 和这一页一起躺在 GitHub Pages 上,基址一路带过去
     var u = Q.get("walk") || "../viewer/walk.html";
     var back = "web/join.html?s=" + encodeURIComponent(SID) +
@@ -1749,41 +2056,122 @@
   // 切到「我的贡献」顺手拉一次最新的 space.json:
   // 补传成功的那几张不在轮询窗口里,不拉一次的话会一直卡在"机器算着呢"。
   function syncMine() {
-    loadSpace().then(function (sp) {
+    return loadSpace().then(function (sp) {
       if (!sp || !sp.id) return;
       state.space = sp;
-      // 把本机账本里还没有结论的那些对一遍答案(同样是先认短 id、认不到再按"新增+署我名"兜底)
+      // 把本机账本里还没有结论的记录按随机短 id 与公开回执精确对齐。
       var mine = loadMine(), claimed = {};
+      var byId = {};
+      (sp.photos || []).concat(sp.pending || []).forEach(function (p) { byId[p.id] = p; });
       mine.forEach(function (m) { if (m.photoId) claimed[m.photoId] = 1; });
+      // 已经认领过 photoId 的记录也要随主办方审核结果刷新。只按精确 id，
+      // 不按昵称或时间猜，匿名/同名参与者仍不会串号。
+      mine.forEach(function (m) {
+        var p = m.photoId ? byId[m.photoId] : null;
+        if (!p) return;
+        if (p.yaw != null) m.yaw = p.yaw;
+        m.state = photoState(p);
+        m.reason = (p.taskNote && p.taskNote.message) || p.note || p.reason || m.reason;
+      });
       var pending = mine.filter(function (m) { return !m.photoId && m.shortId; });
       pending.forEach(function (m) {
         var p = findMine(sp, m.shortId);
-        if (p && !claimed[p.id]) {
-          claimed[p.id] = 1; m.matched = p;
-          patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason });
+        var claimKey = p && String(p.id || p.inboxKey || m.shortId);
+        if (p && !claimed[claimKey]) {
+          claimed[claimKey] = 1; m.matched = p;
+          m.photoId = p.id || null;
+          if (p.yaw != null) m.yaw = p.yaw;
+          m.state = photoState(p);
+          m.reason = (p.taskNote && p.taskNote.message) || p.note || p.reason || m.reason;
         }
       });
-      // 已被认走的既算"旧"也算"已占";时间线用本机账本里最早那条待认领的上传时刻
-      var since = Math.min.apply(null, pending.map(function (m) { return m.at || Date.now(); }));
-      var fresh = freshOfMine(sp, claimed, claimed, since);
-      pending.forEach(function (m) {
-        if (m.matched) return;
-        var p = fresh.shift();
-        if (!p) return;
-        claimed[p.id] = 1;
-        patchMine(m.shortId, { photoId: p.id, yaw: p.yaw, state: photoState(p), reason: p.reason });
-      });
-      if (state.view === "mine") renderMine();
+      saveMine(mine);
+      if (ROADSHOW || state.view === "mine") renderMine();
       renderTasks();
     }).catch(function () { /* 拉不到就用旧的,别打扰宾客 */ });
   }
 
+  function roadshowNeedsSync() {
+    if (!ROADSHOW) return false;
+    return loadMine().some(function (m) {
+      if (!m) return false;
+      if (m.state === "uploaded" || m.state === "needs_review") return true;
+      return !m.photoId &&
+        ["rejected","quarantined","scene_updated","quota_full"].indexOf(m.state) < 0;
+    });
+  }
+
+  function scheduleRoadshowSync(delay) {
+    if (!ROADSHOW) return;
+    if (roadshowSyncTimer) {
+      clearTimeout(roadshowSyncTimer);
+      roadshowSyncTimer = null;
+    }
+    if (!roadshowNeedsSync()) return;
+    roadshowSyncTimer = setTimeout(runRoadshowSync, delay == null ? POLL_EVERY_MS : delay);
+  }
+
+  function runRoadshowSync() {
+    roadshowSyncTimer = null;
+    if (!roadshowNeedsSync()) return;
+    if (roadshowSyncBusy) {
+      scheduleRoadshowSync(POLL_EVERY_MS);
+      return;
+    }
+    roadshowSyncBusy = true;
+    syncMine().then(function () {
+      roadshowSyncBusy = false;
+      scheduleRoadshowSync(POLL_EVERY_MS);
+    }, function () {
+      roadshowSyncBusy = false;
+      scheduleRoadshowSync(POLL_EVERY_MS);
+    });
+  }
+
+  // 与“我的上传结果”轮询分开：即使这台设备没有投稿，也要让准备中/暂停/满额
+  // 状态随公开 space.json 更新。结果已是 quota_full 等终态时，回执轮询会停止；
+  // 这里只刷新全场 gate，不把终态重新变成等待。
+  function scheduleRoadshowGateRefresh(delay) {
+    if (!ROADSHOW) return;
+    if (roadshowGateTimer) clearTimeout(roadshowGateTimer);
+    roadshowGateTimer = setTimeout(runRoadshowGateRefresh,
+      delay == null ? POLL_EVERY_MS : delay);
+  }
+
+  function runRoadshowGateRefresh() {
+    roadshowGateTimer = null;
+    if (roadshowGateBusy) {
+      scheduleRoadshowGateRefresh(POLL_EVERY_MS);
+      return;
+    }
+    roadshowGateBusy = true;
+    loadSpace().then(function (sp) {
+      if (sp && sp.id === SID) {
+        state.space = sp;
+        renderTasks();
+      }
+    }).catch(function () {
+      // 保留上一帧；下一轮继续。没有新快照时绝不把上传入口猜成开放。
+    }).then(function () {
+      roadshowGateBusy = false;
+      scheduleRoadshowGateRefresh(POLL_EVERY_MS);
+    }, function () {
+      roadshowGateBusy = false;
+      scheduleRoadshowGateRefresh(POLL_EVERY_MS);
+    });
+  }
+
   function bootMain() {
     var sp = state.space || {};
-    $("hNames").innerHTML = coupleHtml(sp.couple);
+    if (ROADSHOW) $("hNames").textContent = sp.title || "UNSEEN 路演现场";
+    else $("hNames").innerHTML = coupleHtml(sp.couple);
     $("hNick").textContent = state.nick;
     $("hMe").style.visibility = "visible";
     $("btnWalk").href = walkUrl();
+    if (ROADSHOW) {
+      $("btnWalk").innerHTML = '进入共同空间 <span style="font-size:12px">→</span>';
+      $("viewMine").style.display = "block";
+    }
     renderTasks();
   }
 
@@ -1795,7 +2183,12 @@
     try { localStorage.setItem(NICK_KEY, v); } catch (e) { /* 隐私模式下存不了也能用 */ }
     $("welcome").classList.add("off");
     bootMain();
-    toast("好的 " + v + ",挑一个任务吧");
+    if (ROADSHOW) {
+      var gate = roadshowGate(state.space);
+      toast(gate.state === "open" ? ("好的 " + v + "，现在可以上传现场照片") : gate.message);
+    } else {
+      toast("好的 " + v + ",挑一个任务吧");
+    }
   }
   $("nickInput").addEventListener("keydown", function (e) {
     if (e.key === "Enter") enterAs(this.value);
@@ -1809,7 +2202,11 @@
   document.addEventListener("click", function (e) {
     var free = e.target.closest && e.target.closest("[data-free-upload]");
     if (free) {
-      sheetPick({ id:"", type:"free", title:"自由投稿", brief:"把你想留下的照片交给他们" });
+      sheetPick({
+        id:"", type:"free",
+        title:ROADSHOW ? "上传现场照片" : "自由投稿",
+        brief:ROADSHOW ? "照片会由现场电脑处理" : "把你想留下的照片交给他们"
+      });
       return;
     }
     var t = e.target.closest && e.target.closest("[data-task]");
@@ -1844,17 +2241,28 @@
     if (FORCE && FORCE !== "welcome" && !state.nick) state.nick = "小明";
     if (MOCK) mockSeedMine();
 
-    var needNick = !state.nick || FORCE === "welcome";
+    var bootGate = ROADSHOW ? roadshowGate(sp) : null;
+    var needNick = (!state.nick || FORCE === "welcome") &&
+      !(ROADSHOW && bootGate.state !== "open");
+    if (ROADSHOW && !needNick && !state.nick) state.nick = ANON_NICK;
     $("welcome").classList.toggle("off", !needNick);
     if (state.nick && state.nick !== ANON_NICK) $("nickInput").value = state.nick;
     bootMain();                 // 背景先渲染好,关掉开场就是完整页面
+    if (ROADSHOW) {
+      // 路演没有“我的贡献”标签，进来就恢复本机回执；仍有未完成项时持续读取，
+      // 不依赖上传抽屉是否保持打开。
+      syncMine().then(function () { scheduleRoadshowSync(POLL_EVERY_MS); });
+      scheduleRoadshowGateRefresh(POLL_EVERY_MS);
+    }
 
     refreshRedo().then(function (all) {
       if (all.length && navigator.onLine) retryPending(true);   // 上次没传完的,进来就接着传
     });
 
     if (FORCE === "mine") setView("mine");
-    if (FORCE === "upload") sheetPick(state.space.tasks[0]);
+    if (FORCE === "upload") sheetPick(ROADSHOW
+      ? { id:"", type:"free", title:"上传现场照片", brief:"照片会由现场电脑处理" }
+      : state.space.tasks[0]);
     if (FORCE === "waiting") mockShowWaiting();
     if (FORCE === "result") mockShowResult();
   }).catch(function (e) {
@@ -1862,6 +2270,10 @@
     $("hNames").textContent = "UNSEEN";
     $("hMe").style.display = "none";
     $("welcome").classList.add("off");
+    if (ROADSHOW) {
+      $("wallTitle").textContent = "共同空间暂时没连上";
+      $("wallSub").textContent = "没有拿到上传通道，当前不会假装可以上传";
+    }
     $("taskList").innerHTML = '<div class="empty"><span class="big">🥀</span>' +
       esc(e.message || "加载失败") + "<br>换个网,或者把二维码再扫一次" +
       '<br><br><button class="btn-ghost" style="max-width:200px;margin:0 auto" ' +
@@ -1933,10 +2345,10 @@
           reason: "匹配度 0.91、辨识度 0.088,两项都达标,自动入选",
           thumb: posterPlaceholder(213), taskTitle: "缺这个角度 · 舞台右前方", at: 1 },
         { shortId: "d2", photoId: "d2", yaw: 118.9, state: "needs_review",
-          reason: "辨识度 0.031 偏低,交给新人裁决",
+          reason: "辨识度 0.031 偏低,交给主办方裁决",
           thumb: posterPlaceholder(119), taskTitle: "自由投稿", at: 2 },
         { shortId: "d3", photoId: null, yaw: null, state: "uploaded",
-          reason: "机器正在算方位", thumb: posterPlaceholder(47), taskTitle: "缺这个角度 · 入口花门", at: 3 }
+          reason: "AI 正在定位方向", thumb: posterPlaceholder(47), taskTitle: "缺这个角度 · 入口花门", at: 3 }
       ]);
     }
     var mine = loadMine(), name = state.nick || "小明";
@@ -1959,7 +2371,7 @@
     setTimeout(function () {
       // 一进一待:这才是现场最常见的组合,也正是"报分会露馅"的那一种
       var p1 = { id: "x1", yaw: 213.4, confidence: 0.9142, state: "auto_ok", taskId: "t1" };
-      var p2 = { id: "x2", state: "needs_review", note: "已收到,等新人确认" };
+      var p2 = { id: "x2", state: "needs_review", note: "已收到，等待主办方确认" };
       settleRow("w1", p1, MOCK_SPACE.tasks[0]);
       settleRow("w2", p2, MOCK_SPACE.tasks[0]);
       var w = $("waitBar"); if (w) w.style.display = "none";

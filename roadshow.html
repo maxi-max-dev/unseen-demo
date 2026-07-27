@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fff8f5">
+  <meta name="description" content="UNSEEN 路演现场：上传一张照片，让它回到共同空间。">
+  <title>UNSEEN · 路演现场</title>
+  <link rel="stylesheet" href="app/theme.css">
+  <style>
+    *{ box-sizing:border-box; }
+    html{ scroll-behavior:smooth; }
+    body{ margin:0; }
+    .roadshow{
+      position:relative;
+      z-index:1;
+      min-height:100svh;
+      display:grid;
+      grid-template-rows:auto 1fr auto;
+      width:min(100% - 36px,980px);
+      margin:0 auto;
+      padding:22px 0 max(24px,env(safe-area-inset-bottom,0px));
+    }
+    .roadshow-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:18px;
+    }
+    .roadshow-logo{
+      color:var(--ink);
+      text-decoration:none;
+      font-size:15px;
+      font-weight:850;
+      letter-spacing:.38em;
+    }
+    .roadshow-logo i{ color:var(--pink); font-style:normal; }
+    .full-system{
+      color:var(--ink-2);
+      text-decoration:none;
+      font-size:12px;
+      font-weight:700;
+    }
+    .full-system:hover{ color:var(--pink); }
+    .roadshow-main{
+      display:grid;
+      place-items:center;
+      padding:56px 0;
+      text-align:center;
+    }
+    .roadshow-copy{ width:min(100%,850px); }
+    .roadshow-copy h1{
+      margin:0 auto;
+      color:var(--ink);
+      font-family:"Songti SC","STSong","Noto Serif SC",serif;
+      font-size:clamp(42px,7.3vw,86px);
+      line-height:1.13;
+      letter-spacing:-.045em;
+      text-wrap:balance;
+    }
+    .roadshow-copy h1 span{
+      display:block;
+      margin-top:.08em;
+      color:transparent;
+      background:linear-gradient(100deg,#d94f79 5%,#f28b76 55%,#e7a45e 96%);
+      -webkit-background-clip:text;
+      background-clip:text;
+    }
+    .roadshow-actions{
+      display:flex;
+      justify-content:center;
+      flex-wrap:wrap;
+      gap:12px;
+      margin-top:42px;
+    }
+    .roadshow-actions a{
+      min-width:220px;
+      min-height:56px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:0 24px;
+      border-radius:999px;
+      text-decoration:none;
+      font-size:15px;
+      font-weight:800;
+      transition:transform .18s ease,box-shadow .18s ease;
+    }
+    .roadshow-actions a:hover{ transform:translateY(-2px); }
+    .roadshow-actions a[aria-disabled="true"]{
+      pointer-events:none;
+      cursor:not-allowed;
+      transform:none;
+      opacity:.48;
+      box-shadow:none;
+    }
+    .upload-cta{
+      color:#fff;
+      background:var(--grad);
+      box-shadow:0 16px 34px rgba(225,89,127,.28);
+    }
+    .space-cta{
+      color:var(--ink);
+      border:1px solid var(--card-line);
+      background:rgba(255,255,255,.76);
+      box-shadow:var(--shadow);
+    }
+    .roadshow-state{
+      width:min(100%,500px);
+      min-height:44px;
+      margin:20px auto 0;
+      padding:14px 16px;
+      border-radius:18px;
+      background:rgba(255,255,255,.64);
+      text-align:left;
+      color:var(--ink-2);
+      font-size:13px;
+      line-height:1.65;
+    }
+    .roadshow-state b{
+      display:block;
+      color:var(--ink);
+      font-size:14px;
+    }
+    .roadshow-state span{
+      color:var(--ink-3);
+      font-size:11px;
+      font-variant-numeric:tabular-nums;
+    }
+    .roadshow-foot{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:34px;
+      color:var(--ink-3);
+      font-size:10.5px;
+      letter-spacing:.08em;
+    }
+    .truth{
+      position:relative;
+      z-index:1;
+      width:min(100% - 36px,760px);
+      margin:0 auto;
+      padding:28px 0 48px;
+      color:var(--ink-3);
+      text-align:center;
+      font-size:12px;
+      line-height:1.8;
+    }
+    @media(max-width:560px){
+      .roadshow{ width:min(100% - 28px,980px); padding-top:18px; }
+      .roadshow-main{ padding:44px 0; }
+      .roadshow-copy h1{ font-size:clamp(38px,12vw,58px); }
+      .roadshow-actions{ display:grid; margin-top:34px; }
+      .roadshow-actions a{ width:100%; min-width:0; }
+      .roadshow-foot{ font-size:9.5px; }
+    }
+  </style>
+  <link rel="stylesheet" href="app/product-ui.css">
+</head>
+<body class="u-body">
+  <div class="u-bokeh" aria-hidden="true"></div>
+  <main class="roadshow">
+    <header class="roadshow-head">
+      <a class="roadshow-logo" href="roadshow.html">U N S E E N<i>.</i></a>
+      <a class="full-system" href="portal.html#roles">完整系统 →</a>
+    </header>
+
+    <section class="roadshow-main" aria-labelledby="roadshowClaim">
+      <div class="roadshow-copy">
+        <h1 id="roadshowClaim">相册记住了照片，<span>却忘了照片发生在哪里。</span></h1>
+        <div class="roadshow-actions">
+          <a class="upload-cta" id="roadshowUpload" aria-disabled="true">上传一张现场照片</a>
+          <a class="space-cta"
+             href="web/show.html?s=s900003&amp;live=1&amp;back=roadshow.html">进入共同空间</a>
+        </div>
+        <div class="roadshow-state u-ai-card" id="roadshowState"
+             data-ai-state="processing" role="status" aria-live="polite">
+          <div class="u-ai-head"><span class="u-ai-orb"></span>UNSEEN · 现场状态</div>
+          <b>正在读取现场状态</b>
+          <span>上传入口会在确认空间可用后开放</span>
+        </div>
+      </div>
+    </section>
+
+    <footer class="roadshow-foot">UNSEEN · 让散落的视角回到同一个现场</footer>
+  </main>
+
+  <aside class="truth" aria-label="当前技术说明">
+    当前演示由本机 CLIP 在 12 个方向候选中完成匹配；没有调用外接多模态视觉大模型。
+  </aside>
+  <script>
+    (function(){
+      "use strict";
+      var SID = "s900003";
+      var BASE = "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com";
+      var upload = document.getElementById("roadshowUpload");
+      var status = document.getElementById("roadshowState");
+      var uploadHref = "web/join.html?s=" + encodeURIComponent(SID) +
+        "&roadshow=1&back=roadshow.html";
+      var busy = false;
+
+      function capacityOf(sp){
+        var raw = (sp && sp.capacity) || {};
+        var limits = (sp && sp.limits) || {};
+        var max = Number(raw.maxPhotos != null ? raw.maxPhotos : limits.maxPhotos);
+        if (!isFinite(max) || max <= 0) max = 50;
+        var received = Number(raw.received);
+        if (!isFinite(received) || received < 0) received = ((sp && sp.photos) || []).length;
+        var remaining = Number(raw.remaining);
+        if (!isFinite(remaining)) remaining = Math.max(0,max - received);
+        remaining = Math.max(0,Math.min(max,remaining));
+        return {
+          max:max,
+          received:received,
+          remaining:remaining,
+          full:raw.full === true || received >= max || remaining <= 0
+        };
+      }
+      function collectionOpen(sp){
+        return !!(sp && sp.collection && sp.collection.status === "open");
+      }
+      function uploadEnabled(sp){
+        var up = sp && (sp.upload || sp.post || sp.direct);
+        return !!(up && up.enabled !== false && up.policy);
+      }
+      function setUploadEnabled(enabled){
+        upload.setAttribute("aria-disabled",enabled ? "false" : "true");
+        if (enabled) upload.setAttribute("href",uploadHref);
+        else upload.removeAttribute("href");
+      }
+      function showState(title,cap,enabled,tone){
+        setUploadEnabled(enabled);
+        status.setAttribute("data-ai-state",tone || (enabled ? "success" : "review"));
+        status.innerHTML =
+          '<div class="u-ai-head"><span class="u-ai-orb"></span>UNSEEN · 现场状态</div>' +
+          "<b>" + title + "</b><span>剩余 " +
+          cap.remaining + "/" + cap.max + " 个投稿名额</span>";
+      }
+      function render(sp){
+        var cap = capacityOf(sp);
+        if (!sp || !Array.isArray(sp.nodes) || !sp.nodes.length) {
+          showState("等待主办方创建空间",cap,false,"review");
+          return;
+        }
+        // 最后一个名额入库时会同时关闭 collection，所以满额必须先于 closed 判断。
+        if (cap.full) {
+          showState("本场已收满 " + cap.max + " 张",cap,false,"review");
+          return;
+        }
+        if (!collectionOpen(sp) || !uploadEnabled(sp)) {
+          showState("照片上传尚未开放",cap,false,"review");
+          return;
+        }
+        showState("现场照片上传已开放",cap,true,"success");
+      }
+      function load(){
+        if (busy) return;
+        busy = true;
+        var ctrl = window.AbortController ? new AbortController() : null;
+        var timer = setTimeout(function(){ if (ctrl) ctrl.abort(); },12000);
+        fetch(BASE + "/spaces/" + encodeURIComponent(SID) + "/space.json?t=" + Date.now(),{
+          cache:"no-store",
+          signal:ctrl ? ctrl.signal : undefined
+        }).then(function(r){
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        }).then(render).catch(function(){
+          setUploadEnabled(false);
+          status.setAttribute("data-ai-state","error");
+          status.innerHTML =
+            '<div class="u-ai-head"><span class="u-ai-orb"></span>UNSEEN · 现场状态</div>' +
+            "<b>现场状态暂时不可用</b>" +
+            "<span>没有确认上传通道，当前不会开放投稿</span>";
+        }).then(function(){
+          clearTimeout(timer);
+          busy = false;
+        },function(){
+          clearTimeout(timer);
+          busy = false;
+        });
+      }
+      upload.addEventListener("click",function(e){
+        if (upload.getAttribute("aria-disabled") !== "false") e.preventDefault();
+      });
+      load();
+      setInterval(load,5000);
+    })();
+  </script>
+</body>
+</html>

@@ -31,6 +31,37 @@
     .fact{ padding:14px 10px; text-align:center; }
     .fact b{ display:block; font-size:23px; line-height:1.2; font-variant-numeric:tabular-nums; }
     .fact span{ font-size:11px; color:var(--ink-2); }
+    .flow-card{ margin-top:12px; padding:17px 18px; }
+    .flow-head{ display:flex; align-items:baseline; justify-content:space-between; gap:10px; margin-bottom:12px; }
+    .flow-head b{ font-size:14px; }
+    .flow-head span{ color:var(--ink-3); font-size:11px; }
+    .flow-steps{ list-style:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:18px; margin:0; padding:0; }
+    .flow-step{ position:relative; min-width:0; padding:12px; border:1px solid var(--card-line);
+      border-radius:16px; background:rgba(255,255,255,.62); }
+    .flow-step:not(:last-child):after{ content:"→"; position:absolute; right:-15px; top:50%;
+      width:12px; color:#c9899c; font-weight:900; text-align:center; transform:translateY(-50%); }
+    .flow-step b{ display:block; font-size:13px; }
+    .flow-step strong{ display:block; margin-top:2px; color:#c2536f; font-size:20px;
+      font-variant-numeric:tabular-nums; }
+    .flow-step span{ display:block; margin-top:1px; color:var(--ink-3); font-size:10px; line-height:1.45; }
+    .disclosure{ margin-top:12px; padding:15px 17px; display:flex; align-items:flex-start; gap:11px;
+      border-color:rgba(205,143,93,.34); background:rgba(255,249,235,.78); }
+    .disclosure-mark{ flex:none; width:30px; height:30px; display:grid; place-items:center;
+      border-radius:50%; background:#fff1d7; color:#a56e39; font-weight:900; }
+    .disclosure b{ display:block; margin-bottom:2px; font-size:12px; }
+    .disclosure p{ margin:0; color:var(--ink-2); font-size:11px; line-height:1.65; }
+    .real-compare{ position:relative; overflow:hidden; min-height:210px; margin-top:12px; padding:22px;
+      display:flex; align-items:flex-end; color:#fff; background:#433b3a; }
+    .real-compare img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+    .real-compare:after{ content:""; position:absolute; inset:0;
+      background:linear-gradient(90deg,rgba(31,27,26,.88),rgba(31,27,26,.45) 58%,rgba(31,27,26,.08)); }
+    .real-compare-copy{ position:relative; z-index:1; max-width:470px; }
+    .real-compare-copy small{ display:block; margin-bottom:5px; color:#f7d5b4; font-weight:800;
+      letter-spacing:.16em; }
+    .real-compare-copy h3{ margin:0 0 5px; font-size:22px; }
+    .real-compare-copy p{ margin:0 0 15px; color:rgba(255,255,255,.76); font-size:12px; line-height:1.65; }
+    .real-compare-copy .u-btn{ width:auto; min-height:42px; background:#fff; color:#4d403d; box-shadow:none; }
     .view-nav{ display:flex; gap:8px; overflow:auto; padding:4px 2px 8px; scrollbar-width:none; }
     .view-nav::-webkit-scrollbar{ display:none; }
     .view-nav a{ flex:none; min-height:44px; display:inline-flex; align-items:center; gap:6px;
@@ -55,6 +86,28 @@
     .walk-copy h3{ margin:0 0 6px; font-size:25px; }
     .walk-copy p{ margin:0 0 18px; color:rgba(255,255,255,.72); font-size:13px; }
     .walk-copy .u-btn{ width:auto; min-height:46px; background:#fff; color:#6b4655; box-shadow:none; }
+    .node-preview-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:10px; }
+    .node-preview{ min-width:0; overflow:hidden; color:var(--ink); text-decoration:none;
+      transition:transform .16s ease,box-shadow .16s ease; }
+    .node-preview:active{ transform:scale(.985); }
+    .node-preview-media{ position:relative; aspect-ratio:16/10; overflow:hidden;
+      background:linear-gradient(145deg,#5a4652,#ad7286); }
+    .node-preview-media img{ position:absolute; inset:0; z-index:1; width:100%; height:100%;
+      object-fit:cover; display:block; }
+    .node-preview-fallback{ position:absolute; inset:0; display:grid; place-items:center;
+      color:rgba(255,255,255,.82); font-size:34px; }
+    .node-preview-shade{ position:absolute; inset:0; z-index:2;
+      background:linear-gradient(180deg,transparent 38%,rgba(40,27,34,.72)); }
+    .node-preview-index{ position:absolute; z-index:3; left:10px; top:10px; min-width:26px;
+      height:26px; padding:0 8px; display:grid; place-items:center; border-radius:999px;
+      background:rgba(255,255,255,.88); color:#8a566a; font-size:10px; font-weight:850; }
+    .node-preview-open{ position:absolute; z-index:3; right:10px; bottom:9px; color:#fff;
+      font-size:11px; font-weight:750; }
+    .node-preview-copy{ display:flex; justify-content:space-between; align-items:center; gap:8px;
+      padding:11px 12px 12px; }
+    .node-preview-copy b{ display:block; min-width:0; overflow:hidden; text-overflow:ellipsis;
+      white-space:nowrap; font-size:13px; }
+    .node-preview-copy span{ flex:none; color:var(--ink-3); font-size:10px; white-space:nowrap; }
     .photo-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; }
     .photo{ position:relative; overflow:hidden; aspect-ratio:1/1.12; background:rgba(255,255,255,.55); }
     .photo img{ width:100%; height:100%; object-fit:cover; display:block; }
@@ -62,6 +115,14 @@
       gap:8px; padding:7px 9px; border-radius:12px; background:rgba(50,38,44,.72); color:#fff;
       backdrop-filter:blur(8px); font-size:11px; }
     .photo-cap span:last-child{ color:rgba(255,255,255,.68); white-space:nowrap; }
+    .live-dot{ width:7px; height:7px; border-radius:50%; background:#57b98a;
+      box-shadow:0 0 0 5px rgba(87,185,138,.13); }
+    .photo.live-focus{ animation:liveFocus 3.8s ease both; }
+    @keyframes liveFocus{
+      0%,100%{ transform:none; box-shadow:var(--shadow); }
+      12%,72%{ transform:translateY(-4px) scale(1.025);
+        box-shadow:0 20px 50px rgba(223,85,127,.30),0 0 0 4px rgba(242,115,155,.20); }
+    }
     .task-list,.people{ display:grid; gap:9px; }
     .task-row{ padding:15px 16px; display:grid; grid-template-columns:38px minmax(0,1fr) auto;
       align-items:center; gap:11px; }
@@ -79,6 +140,35 @@
     .empty{ padding:30px 18px; text-align:center; color:var(--ink-2); }
     .empty .big{ display:block; margin-bottom:6px; font-size:30px; }
     .load-card{ margin-top:28px; padding:42px 20px; text-align:center; }
+    .live-empty{
+      min-height:min(62vh,520px);
+      margin-top:28px;
+      padding:46px 24px;
+      display:grid;
+      place-items:center;
+      text-align:center;
+      background:rgba(255,255,255,.82);
+    }
+    .live-empty-mark{
+      width:62px;
+      height:62px;
+      margin:0 auto 18px;
+      display:grid;
+      place-items:center;
+      border-radius:50%;
+      color:#c45d7a;
+      background:var(--grad-soft);
+      font-size:27px;
+    }
+    .live-empty h2{ margin:0; font-size:clamp(25px,5vw,38px); }
+    .live-empty p{ margin:10px 0 0; color:var(--ink-2); font-size:13px; line-height:1.75; }
+    .live-empty small{
+      display:block;
+      margin-top:18px;
+      color:var(--ink-3);
+      font-size:11px;
+      font-variant-numeric:tabular-nums;
+    }
     .spinner{ width:28px; height:28px; margin:0 auto 14px; border:3px solid #ffe3e9;
       border-top-color:var(--pink); border-radius:50%; animation:spin .8s linear infinite; }
     @keyframes spin{ to{ transform:rotate(360deg); } }
@@ -88,23 +178,37 @@
     @media(min-width:720px){
       .hero{ min-height:410px; padding:42px; }
       .facts{ max-width:520px; }
+      .node-preview-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; }
       .photo-grid{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
       .people{ grid-template-columns:repeat(3,minmax(0,1fr)); }
       .task-list{ grid-template-columns:repeat(2,minmax(0,1fr)); }
     }
+    @media(max-width:420px){
+      .flow-card{ padding:15px 13px; }
+      .flow-head{ align-items:flex-start; flex-direction:column; }
+      .flow-steps{ grid-template-columns:1fr; gap:8px; }
+      .flow-step{ padding:11px 13px; }
+      .flow-step:not(:last-child):after{ content:"↓"; left:50%; right:auto; top:auto; bottom:-11px;
+        transform:translateX(-50%); }
+      .flow-step strong{ font-size:19px; }
+      .flow-step span{ font-size:10px; }
+    }
     @media(prefers-reduced-motion:reduce){ .spinner{ animation:none; } *{ scroll-behavior:auto!important; } }
   </style>
+  <link rel="stylesheet" href="../app/product-ui.css">
 </head>
 <body class="u-body">
   <div class="u-bokeh" aria-hidden="true"></div>
   <main class="u-page show-page">
     <div id="app">
-      <div class="u-card load-card">
+      <div class="u-card load-card u-ai-card" data-ai-state="processing">
+        <div class="u-ai-head" style="justify-content:center"><span class="u-ai-orb"></span>UNSEEN AI · 展览同步</div>
         <div class="spinner" aria-hidden="true"></div>
         <div>正在打开这场展览</div>
       </div>
     </div>
   </main>
+  <div class="u-toast" id="liveToast" role="status" aria-live="polite"></div>
 
   <script>
     (function(){
@@ -113,9 +217,11 @@
       var SID = Q.get("s") || Q.get("space") || "s4";
       var BASE = (Q.get("b") || "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com").replace(/\/+$/,"");
       var LOCAL = Q.get("mode") === "local";
+      var LIVE = Q.get("live") === "1";
+      document.body.classList.toggle("live-mode", LIVE);
       var VIEWS = ["walk","photos","tasks","contributors"];
       var VIEW_META = {
-        walk:["走进空间","◎"], photos:["照片墙","▦"], tasks:["任务痕迹","✓"], contributors:["一起补全的人","♡"]
+        walk:["走进空间","◎"], photos:["已上传","▦"], tasks:["任务痕迹","✓"], contributors:["一起补全的人","♡"]
       };
 
       function esc(s){
@@ -126,7 +232,7 @@
       function backTarget(){
         var b = Q.get("back");
         if (b && !/^(https?:)?\/\//.test(b)) return "../" + b.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
-        return "../index.html";
+        return "../portal.html";
       }
       function configOf(sp){
         var raw = sp.exhibition || {};
@@ -145,6 +251,14 @@
         if (cfg.taskVisibility === "hidden") cfg.views = cfg.views.filter(function(v){ return v !== "tasks"; });
         if (cfg.contributorVisibility === "hidden") {
           cfg.views = cfg.views.filter(function(v){ return v !== "contributors"; });
+        }
+        if (LIVE) {
+          cfg.views = cfg.views.filter(function(v){ return v === "walk" || v === "photos"; });
+          if (cfg.views.indexOf("walk") < 0) cfg.views.unshift("walk");
+          if (cfg.views.indexOf("photos") < 0) cfg.views.push("photos");
+          cfg.entryView = (sp.photos || []).length ? "photos" : "walk";
+          cfg.taskVisibility = "hidden";
+          cfg.contributorVisibility = "hidden";
         }
         if (!cfg.views.length) cfg.views = ["walk"];
         cfg.entryView = cfg.views.indexOf(cfg.entryView) >= 0 ? cfg.entryView : cfg.views[0];
@@ -174,15 +288,33 @@
         var raw = "web/show.html?s=" + encodeURIComponent(SID);
         if (LOCAL) raw += "&mode=local";
         else raw += "&b=" + encodeURIComponent(BASE);
+        if (LIVE) raw += "&live=1";
         var inherited = Q.get("back");
         if (inherited && !/^(https?:)?\/\//.test(inherited)) raw += "&back=" + encodeURIComponent(inherited);
         return raw;
       }
-      function walkUrl(cfg){
-        var url = "../viewer/walk.html?space=" + encodeURIComponent(SID);
+      function walkUrl(cfg,nodeId){
+        // 直接双击 HTML 时页面本身能读云端 JSON，但 file:// 下 WebGL 纹理加载会被
+        // 浏览器的本地文件隔离拦住。后端已启动时把 3D 入口切到同一份 localhost 页面；
+        // 正常 http(s) 部署仍沿用相对路径，不改变线上地址。
+        var viewerBase = location.protocol === "file:"
+          ? "http://127.0.0.1:8777/viewer/walk.html"
+          : "../viewer/walk.html";
+        var url = viewerBase + "?space=" + encodeURIComponent(SID);
+        if (nodeId) url += "&node=" + encodeURIComponent(nodeId);
         if (!LOCAL) url += "&b=" + encodeURIComponent(BASE);
         if (cfg && cfg.allowPov === false) url += "&pov=0";
         return url + "&back=" + encodeURIComponent(showSelfPath());
+      }
+      function hasAiDisclosure(sp){
+        var raw = sp && (sp.aiDisclosure || sp.demoDisclosure);
+        return typeof raw === "string" ? !!raw.trim() : !!raw;
+      }
+      function realDemoUrl(){
+        var viewerBase = location.protocol === "file:"
+          ? "http://127.0.0.1:8777/viewer/walk.html"
+          : "../viewer/walk.html";
+        return viewerBase + "?scene=entrance_hall&back=" + encodeURIComponent(showSelfPath());
       }
       function dirWord(yaw){
         if (typeof yaw !== "number") return "";
@@ -221,15 +353,70 @@
       function empty(icon,text){
         return '<div class="u-card empty"><span class="big">' + icon + "</span>" + esc(text) + "</div>";
       }
+      function flowSection(sp){
+        var photos = sp.photos || [], nodes = sp.nodes || [], nodeIds = {};
+        nodes.forEach(function(n){ if (n && n.id) nodeIds[n.id] = true; });
+        var located = photos.filter(function(p){
+          var yaw = typeof p.yaw === "number" ? p.yaw : parseFloat(p.yaw);
+          return isFinite(yaw) && !!p.nodeId && !!nodeIds[p.nodeId];
+        }).length;
+        return '<section class="u-card flow-card" aria-label="照片展示流程">' +
+          '<div class="flow-head"><b>从上传到展览</b><span>本页只统计已进入展览的内容</span></div>' +
+          '<ol class="flow-steps">' +
+            '<li class="flow-step"><b>已上传</b><strong>' + photos.length +
+              ' 张</strong><span>进入本次展览</span></li>' +
+            '<li class="flow-step"><b>已定位</b><strong>' + located +
+              ' 张</strong><span>找到全景方向</span></li>' +
+            '<li class="flow-step"><b>可展示</b><strong>' + photos.length +
+              ' 张</strong><span>当前观众可见</span></li>' +
+          '</ol></section>';
+      }
+      function disclosureSection(sp){
+        var raw = sp.aiDisclosure || sp.demoDisclosure;
+        if (!raw) return "";
+        var text = typeof raw === "string" ? raw.trim() : "AI 生成演示素材";
+        if (!text) return "";
+        return '<aside class="u-card disclosure u-ai-card" data-ai-state="info" role="note">' +
+          '<span class="u-ai-mark" aria-hidden="true">✦</span><div>' +
+          '<div class="u-ai-head">UNSEEN AI · 素材说明</div><b>AI 素材说明</b><p>' +
+          esc(text) + "</p></div></aside>";
+      }
+      function stableCompareSection(sp){
+        if (!hasAiDisclosure(sp)) return "";
+        return '<aside class="u-card real-compare" aria-label="真实全景稳定版">' +
+          '<img src="../assets/walkdemo/entrance_hall.jpg" alt="" loading="lazy">' +
+          '<div class="real-compare-copy"><small>REAL PANORAMA · 4K</small>' +
+          '<h3>真实全景稳定版</h3><p>用真实拍摄的 2:1 全景保留空间结构，只开放 42 厘米以内的小范围视差。' +
+          '这版用来判断渲染本身，不受 AI 图形变干扰。</p>' +
+          '<a class="u-btn sm" href="' + esc(realDemoUrl()) + '">进入真实大厅对照</a></div></aside>';
+      }
       function walkSection(sp,cfg){
-        var nodes = sp.nodes || [], photos = sp.photos || [];
+        var nodes = sp.nodes || [], photos = sp.photos || [], aiDemo = hasAiDisclosure(sp);
+        var previews = nodes.length ? '<div class="node-preview-grid">' + nodes.map(function(n,i){
+          var photoN = photos.filter(function(p){ return p.nodeId === n.id; }).length;
+          var pano = assetUrl(n.panorama);
+          return '<a class="u-card node-preview" href="' + esc(walkUrl(cfg,n.id)) +
+            '" aria-label="进入全景节点 ' + esc(n.name || ("节点 " + (i + 1))) + '">' +
+              '<div class="node-preview-media">' +
+                '<span class="node-preview-fallback" aria-hidden="true">◎</span>' +
+                (pano ? '<img src="' + esc(pano) + '" alt="" loading="lazy" onerror="this.hidden=true">' : "") +
+                '<span class="node-preview-shade" aria-hidden="true"></span>' +
+                '<span class="node-preview-index">0' + (i + 1) + '</span>' +
+                '<span class="node-preview-open">进入节点 →</span>' +
+              '</div><div class="node-preview-copy"><b>' + esc(n.name || ("节点 " + (i + 1))) +
+                '</b><span>' + photoN + " 张照片" + (n.time ? " · " + esc(n.time) : "") +
+              "</span></div></a>";
+        }).join("") + "</div>" : "";
         var body = nodes.length
-          ? '<div class="u-card walk-card"><div class="space-orbit" aria-hidden="true">' +
+          ? previews + '<div class="u-card walk-card"><div class="space-orbit" aria-hidden="true">' +
               '<i class="pin p1"></i><i class="pin p2"></i><i class="pin p3"></i></div>' +
-              '<div class="walk-copy"><h3>回到照片朝着的方向</h3><p>' +
-              (cfg.allowPov ? "在空间里移动,点一张照片就能回到拍摄者当时朝着的方向。"
-                            : "在空间里移动,看看这些照片怎样围绕现场重新出现。") +
-              '</p><a class="u-btn sm" href="' + esc(walkUrl(cfg)) + '">进入 3D 空间</a></div></div>'
+              '<div class="walk-copy"><h3>' + (aiDemo ? "回到原始全景观看" : "回到照片朝着的方向") +
+              '</h3><p>' + (aiDemo
+                ? "AI 场景只在拍摄光心环视，避免把单张生成图硬拉成不可靠的自由漫游。"
+                : (cfg.allowPov ? "小范围探身,点一张照片就能回到拍摄者当时朝着的方向。"
+                                : "小范围探身,看看这些照片怎样围绕现场重新出现。")) +
+              '</p><a class="u-btn sm" href="' + esc(walkUrl(cfg)) + '">' +
+              (aiDemo ? "进入 AI 全景环视" : "进入 3D 空间") + "</a></div></div>"
           : empty("◎","还没有可进入的全景节点");
         return '<section class="section" id="walk"><div class="section-head"><h2>走进空间</h2>' +
           '<p>' + nodes.length + " 个全景节点," + photos.length + " 张照片</p></div>" + body + "</section>";
@@ -242,12 +429,16 @@
             (visibility === "anonymous" ? "一位宾客" : "");
           var yaw = typeof p.yaw === "number" ? p.yaw : parseFloat(p.yaw);
           var dir = isFinite(yaw) ? dirWord(yaw) : "";
-          return '<article class="u-card photo"><img src="' + esc(assetUrl(p.thumb || p.src)) +
+          var left = String(p.title || "").trim() || name;
+          var right = String(p.timeLabel || "").trim() || dir;
+          var photoId = String(p.id || p.src || "");
+          return '<article class="u-card photo"' + (photoId
+            ? ' data-photo-id="' + esc(photoId) + '"' : "") + '><img src="' + esc(assetUrl(p.thumb || p.src)) +
             '" alt="展览照片 ' + (i + 1) + '" loading="lazy"><div class="photo-cap"><span>' +
-            esc(name) + '</span><span>' + esc(dir) + "</span></div></article>";
-        }).join("") + "</div>" : empty("▦","主办方还没有选入照片");
-        return '<section class="section" id="photos"><div class="section-head"><h2>照片墙</h2>' +
-          "<p>只展示主办方已经选入的照片</p></div>" + body + "</section>";
+            esc(left) + '</span><span>' + esc(right) + "</span></div></article>";
+        }).join("") + "</div>" : empty("▦","当前还没有可展示的已上传照片");
+        return '<section class="section" id="photos"><div class="section-head"><h2>已上传</h2>' +
+          "<p>已经进入只读展览；待审核内容不会出现在这里</p></div>" + body + "</section>";
       }
       function tasksSection(sp,cfg){
         var tasks = (sp.tasks || []).slice();
@@ -281,18 +472,52 @@
         return '<section class="section" id="contributors"><div class="section-head"><h2>一起补全的人</h2>' +
           "<p>感谢每一个留下视角的人</p></div>" + body + "</section>";
       }
+      function renderLiveEmpty(sp){
+        var rawCapacity = (sp && sp.capacity) || {};
+        var limits = (sp && sp.limits) || {};
+        var max = Number(rawCapacity.maxPhotos != null ? rawCapacity.maxPhotos : limits.maxPhotos);
+        if (!isFinite(max) || max <= 0) max = 50;
+        var remaining = Number(rawCapacity.remaining);
+        if (!isFinite(remaining)) remaining = max;
+        remaining = Math.max(0,Math.min(max,remaining));
+        var title = (sp && sp.title) || "UNSEEN 路演现场";
+        document.title = title + " · UNSEEN";
+        document.getElementById("app").innerHTML =
+          '<div class="show-bar"><div class="u-bar"><a class="u-back" href="' + esc(backTarget()) +
+          '" aria-label="返回">←</a><h1>' + esc(title) +
+          '</h1><span class="u-chip ok mode-chip"><i class="live-dot"></i>现场同步中</span></div></div>' +
+          '<section class="u-card live-empty" aria-live="polite"><div>' +
+          '<div class="live-empty-mark" aria-hidden="true">◎</div>' +
+          '<h2>等待主办方上传全景</h2>' +
+          '<p>正式空间还没有创建。全景发布后，大屏会自动进入现场展示。</p>' +
+          '<small>当前无可进入节点 · 剩余 ' + remaining + "/" + max +
+          " 个投稿名额</small></div></section>" +
+          '<footer class="show-foot">UNSEEN · 现场同步等待中</footer>';
+      }
       function render(sp){
         var cfg = configOf(sp);
         var requested = Q.get("view");
         var entry = cfg.views.indexOf(requested) >= 0 ? requested : cfg.entryView;
         var photos = sp.photos || [], nodes = sp.nodes || [], people = sp.contributors || [];
+        // 正式路演空间还没有全景时只显示干净的等待态；不能继承封面、旧节点，
+        // 也不能生成任何 Viewer 入口。
+        if (LIVE && !nodes.length) {
+          renderLiveEmpty(sp);
+          return;
+        }
         var cover = coverUrl(sp.cover);
         var date = sp.date || "", place = sp.place || "";
         var mode = LOCAL ? '<span class="u-chip hot mode-chip">草稿预览</span>'
-          : '<span class="u-chip ok mode-chip">只读展览</span>';
+          : (LIVE
+            ? '<span class="u-chip ok mode-chip"><i class="live-dot"></i>现场同步中</span>'
+            : '<span class="u-chip ok mode-chip">只读展览</span>');
+        var aiDemo = hasAiDisclosure(sp);
         var primary = entry === "walk"
-          ? '<a class="u-btn" href="' + esc(walkUrl(cfg)) + '">走进这段记忆</a>'
+          ? '<a class="u-btn" href="' + esc(walkUrl(cfg)) + '">' +
+            (aiDemo ? "观看 AI 全景" : "走进这段记忆") + "</a>"
           : '<a class="u-btn" href="#' + esc(entry) + '">开始观看</a>';
+        var realCompareAction = aiDemo
+          ? '<a class="u-btn sec" href="' + esc(realDemoUrl()) + '">真实全景稳定版</a>' : "";
         var sections = "";
         cfg.views.forEach(function(v){
           if (v === "walk") sections += walkSection(sp,cfg);
@@ -311,11 +536,12 @@
           esc(sp.title || "我们的展览") + '</h2><p class="couple">' + esc(sp.couple || "") +
           '</p><div class="meta">' + (date ? '<span class="u-chip">' + esc(date) + "</span>" : "") +
           (place ? '<span class="u-chip">' + esc(place) + "</span>" : "") +
-          '</div><div class="hero-actions">' + primary + "</div></div></section>" +
+          '</div><div class="hero-actions">' + primary + realCompareAction + "</div></div></section>" +
           '<div class="facts"><div class="u-card fact"><b>' + nodes.length +
           '</b><span>空间节点</span></div><div class="u-card fact"><b>' + photos.length +
           '</b><span>展出照片</span></div><div class="u-card fact"><b>' + people.length +
-          "</b><span>贡献者</span></div></div>" + sections +
+          "</b><span>贡献者</span></div></div>" + flowSection(sp) + disclosureSection(sp) +
+          stableCompareSection(sp) + sections +
           '<footer class="show-foot">UNSEEN · 把散落的视角放回同一个空间</footer>';
         if (requested && requested !== entry) history.replaceState(null,"",location.pathname +
           "?" + new URLSearchParams(Array.from(Q.entries()).filter(function(x){ return x[0] !== "view"; })).toString());
@@ -323,12 +549,119 @@
       function renderError(err){
         document.getElementById("app").innerHTML =
           '<div class="u-bar"><a class="u-back" href="' + esc(backTarget()) +
-          '" aria-label="返回">←</a><h1>展览没有打开</h1></div><div class="u-card load-card">' +
+          '" aria-label="返回">←</a><h1>展览没有打开</h1></div>' +
+          '<div class="u-card load-card u-ai-card" data-ai-state="error">' +
+          '<div class="u-ai-head" style="justify-content:center"><span class="u-ai-orb"></span>UNSEEN AI · 读取失败</div>' +
           '<span style="font-size:34px">🥀</span><h2 class="error-title">暂时看不到这场展览</h2>' +
           '<p class="error-copy">' + esc(err && err.message ? err.message : "读取失败") +
           '</p><button class="u-btn sm" onclick="location.reload()">再试一次</button></div>';
       }
-      loadSpace().then(render).catch(renderError);
+
+      var liveTimer = null;
+      var liveBusy = false;
+      var liveStamp = "";
+      var livePhotoIds = {};
+
+      function photoKey(photo){
+        return String((photo && (photo.id || photo.src)) || "");
+      }
+      function stampOf(sp){
+        return String((sp && sp.publishedAt) || "");
+      }
+      function rememberLiveSnapshot(sp){
+        liveStamp = stampOf(sp);
+        livePhotoIds = {};
+        (sp.photos || []).forEach(function(photo){
+          var key = photoKey(photo);
+          if (key) livePhotoIds[key] = true;
+        });
+      }
+      function latestPhoto(list){
+        var photos = (list || []).slice();
+        if (!photos.length) return null;
+        return photos.sort(function(a,b){
+          return (Number(a.uploadedAt) || 0) - (Number(b.uploadedAt) || 0);
+        })[photos.length - 1];
+      }
+      function focusPhotoCard(photoId,smooth){
+        if (!photoId) return;
+        var cards = document.querySelectorAll("[data-photo-id]");
+        var target = null;
+        for (var i = 0; i < cards.length; i++) {
+          if (cards[i].getAttribute("data-photo-id") === String(photoId)) {
+            target = cards[i]; break;
+          }
+        }
+        if (!target) return;
+        target.classList.remove("live-focus");
+        void target.offsetWidth;
+        target.classList.add("live-focus");
+        var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        target.scrollIntoView({ block:"center", behavior:(smooth && !reduce) ? "smooth" : "auto" });
+        setTimeout(function(){ target.classList.remove("live-focus"); },3900);
+      }
+      function showLiveFeedback(){
+        var toast = document.getElementById("liveToast");
+        if (!toast) return;
+        toast.textContent = "新记忆已回到空间";
+        toast.classList.add("show");
+        clearTimeout(showLiveFeedback.timer);
+        showLiveFeedback.timer = setTimeout(function(){ toast.classList.remove("show"); },3600);
+      }
+      function scheduleLive(){
+        clearTimeout(liveTimer);
+        liveTimer = setTimeout(pollLive,5000);
+      }
+      function pollLive(){
+        if (!LIVE || LOCAL) return;
+        if (liveBusy) { scheduleLive(); return; }
+        liveBusy = true;
+        var oldY = window.scrollY;
+        loadSpace().then(function(next){
+          var nextStamp = stampOf(next);
+          if (!nextStamp || nextStamp === liveStamp) return;
+          var nextNumber = Number(nextStamp), liveNumber = Number(liveStamp);
+          // publishedAt 是公开快照版本。若边缘节点短暂回出更旧的一份，不允许大屏倒退。
+          if (isFinite(nextNumber) && isFinite(liveNumber) && nextNumber < liveNumber) return;
+          var fresh = (next.photos || []).filter(function(photo){
+            var key = photoKey(photo);
+            return key && !livePhotoIds[key];
+          });
+          render(next);
+          // 只有 render 成功后才推进版本；异常快照下一轮还能重试，不能被提前记账吞掉。
+          rememberLiveSnapshot(next);
+          if (fresh.length) {
+            var newest = latestPhoto(fresh);
+            showLiveFeedback();
+            requestAnimationFrame(function(){
+              focusPhotoCard(photoKey(newest),true);
+            });
+          } else {
+            window.scrollTo(0,oldY);
+          }
+        }).catch(function(){
+          // 现场网络抖动时保留上一帧，不用错误页覆盖大屏；下一轮继续检查。
+        }).then(function(){
+          liveBusy = false;
+          scheduleLive();
+        },function(){
+          liveBusy = false;
+          scheduleLive();
+        });
+      }
+      function startLive(sp){
+        rememberLiveSnapshot(sp);
+        var latest = latestPhoto(sp.photos || []);
+        if (latest) {
+          setTimeout(function(){ focusPhotoCard(photoKey(latest),false); },500);
+        }
+        scheduleLive();
+      }
+
+      loadSpace().then(function(sp){
+        render(sp);
+        if (LIVE && !LOCAL) startLive(sp);
+      }).catch(renderError);
     })();
   </script>
 </body>

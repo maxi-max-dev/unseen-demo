@@ -90,7 +90,7 @@
 <div class="u-page">
 
   <div class="u-bar">
-    <a class="u-back" href="../index.html" aria-label="返回首页">←</a>
+    <a class="u-back" href="../workspace.html" aria-label="返回工作台">←</a>
     <h1 id="sceneTitle">加载中…</h1>
     <select class="scene-select" id="sceneSwitch" aria-label="换场景"></select>
   </div>
@@ -553,14 +553,14 @@
       U.removeLocalScene(s.id);
       localStorage.removeItem(wishKey(s.id));
       U.toast("已删除");
-      setTimeout(function () { location.href = "../index.html"; }, 400);
+      setTimeout(function () { location.href = "../workspace.html"; }, 400);
     });
   }
 
   // ---------------------------------------------------------------- 场景不存在
   function notFoundHtml() {
     return '<div class="u-card u-empty"><div class="big">🔍</div>没找到这个场景,链接可能不对,或者场景已经被删除了。' +
-      '<div style="margin-top:14px"><a class="u-btn sm btn-inline" href="../index.html">回首页</a></div></div>';
+      '<div style="margin-top:14px"><a class="u-btn sm btn-inline" href="../workspace.html">回工作台</a></div></div>';
   }
 
   // ---------------------------------------------------------------- 启动

@@ -1,0 +1,894 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#f5f2ed">
+  <meta name="robots" content="noindex,nofollow">
+  <link rel="icon" href="data:,">
+  <title>UNSEEN · 路演控制台</title>
+  <style>
+    :root{
+      color-scheme:light;
+      --paper:#f5f2ed;
+      --panel:#fffdfa;
+      --ink:#171713;
+      --muted:#706e67;
+      --line:#d9d5cd;
+      --soft:#ebe7df;
+      --accent:#e55f77;
+      --accent-dark:#bd3e59;
+      --ok:#26775d;
+      --warn:#a76622;
+      --danger:#aa3e42;
+      --shadow:0 22px 70px rgba(44,37,27,.08);
+    }
+    *{ box-sizing:border-box; }
+    html{ min-width:0; background:var(--paper); }
+    body{
+      min-width:0;
+      min-height:100svh;
+      margin:0;
+      overflow-x:hidden;
+      color:var(--ink);
+      background:
+        radial-gradient(circle at 82% 3%,rgba(229,95,119,.12),transparent 32rem),
+        radial-gradient(circle at 3% 95%,rgba(221,167,86,.12),transparent 28rem),
+        var(--paper);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC",
+        "Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    }
+    button,input{ font:inherit; }
+    button,a,input{ -webkit-tap-highlight-color:transparent; }
+    button:focus-visible,a:focus-visible,input:focus-visible{
+      outline:3px solid rgba(229,95,119,.28);
+      outline-offset:2px;
+    }
+    [hidden]{ display:none !important; }
+    .shell{
+      width:min(100% - 32px,880px);
+      margin:0 auto;
+      padding:24px 0 max(32px,env(safe-area-inset-bottom,0px));
+    }
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:16px;
+      min-width:0;
+      margin-bottom:26px;
+    }
+    .brand{
+      min-width:0;
+      font-weight:850;
+      font-size:14px;
+      letter-spacing:.29em;
+      white-space:nowrap;
+    }
+    .brand i{ color:var(--accent); font-style:normal; }
+    .space-id{
+      overflow:hidden;
+      color:var(--muted);
+      font-size:12px;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .card{
+      min-width:0;
+      overflow:hidden;
+      border:1px solid rgba(217,213,205,.88);
+      border-radius:24px;
+      background:rgba(255,253,250,.91);
+      box-shadow:var(--shadow);
+    }
+    .login-card{
+      width:min(100%,460px);
+      margin:12vh auto 0;
+      padding:clamp(26px,6vw,44px);
+    }
+    .eyebrow{
+      margin:0 0 12px;
+      color:var(--accent-dark);
+      font-size:11px;
+      font-weight:800;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+    }
+    h1,h2,p{ overflow-wrap:anywhere; }
+    h1{
+      margin:0;
+      font-family:"Songti SC","STSong","Noto Serif SC",serif;
+      font-size:clamp(30px,7vw,48px);
+      line-height:1.12;
+      letter-spacing:-.04em;
+    }
+    .intro{
+      margin:14px 0 28px;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.75;
+    }
+    label{
+      display:block;
+      margin:0 0 8px;
+      font-size:12px;
+      font-weight:750;
+    }
+    input[type="password"],input[type="file"]{
+      display:block;
+      width:100%;
+      min-width:0;
+      border:1px solid var(--line);
+      border-radius:14px;
+      color:var(--ink);
+      background:#fff;
+    }
+    input[type="password"]{
+      height:52px;
+      padding:0 15px;
+      font-size:17px;
+      letter-spacing:.08em;
+    }
+    input[type="file"]{
+      min-height:52px;
+      padding:8px;
+      color:var(--muted);
+      font-size:13px;
+    }
+    input[type="file"]::file-selector-button{
+      height:34px;
+      margin-right:10px;
+      border:0;
+      border-radius:9px;
+      padding:0 13px;
+      color:var(--ink);
+      background:var(--soft);
+      font-weight:750;
+      cursor:pointer;
+    }
+    .btn{
+      min-height:48px;
+      max-width:100%;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:0 18px;
+      color:var(--ink);
+      background:#fff;
+      font-weight:800;
+      cursor:pointer;
+      transition:transform .15s ease,background .15s ease,border-color .15s ease;
+    }
+    .btn:hover:not(:disabled){ transform:translateY(-1px); border-color:#bbb5aa; }
+    .btn:disabled{ cursor:not-allowed; opacity:.46; }
+    .btn.primary{
+      border-color:transparent;
+      color:#fff;
+      background:linear-gradient(110deg,var(--accent-dark),#ef7a77);
+    }
+    .btn.primary:hover:not(:disabled){ background:linear-gradient(110deg,#ad344f,#ea686b); }
+    .btn.subtle{ background:transparent; }
+    .login-submit{ width:100%; margin-top:14px; }
+    .fineprint{
+      margin:13px 0 0;
+      color:#918e86;
+      font-size:11px;
+      line-height:1.6;
+    }
+    .message{
+      min-width:0;
+      margin:14px 0 0;
+      border-radius:12px;
+      padding:11px 13px;
+      color:var(--muted);
+      background:var(--soft);
+      font-size:12px;
+      line-height:1.55;
+    }
+    .message.error{ color:var(--danger); background:#fae9e8; }
+    .message.ok{ color:var(--ok); background:#e7f2ed; }
+    .dashboard{ display:grid; gap:18px; }
+    .hero{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:22px;
+      align-items:end;
+      padding:clamp(24px,5vw,38px);
+    }
+    .hero h1{ font-size:clamp(34px,7vw,58px); }
+    .hero-copy{
+      margin:13px 0 0;
+      color:var(--muted);
+      font-size:14px;
+      line-height:1.75;
+    }
+    .status-pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      min-height:34px;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:0 13px;
+      color:var(--muted);
+      background:#fff;
+      font-size:12px;
+      font-weight:800;
+      white-space:nowrap;
+    }
+    .status-pill::before{
+      width:8px;
+      height:8px;
+      border-radius:50%;
+      background:#aaa69d;
+      content:"";
+    }
+    .status-pill.open{ color:var(--ok); border-color:#b8d8cb; background:#eff8f4; }
+    .status-pill.open::before{ background:var(--ok); }
+    .status-pill.closed{ color:var(--warn); border-color:#e5ceb2; background:#fff8ee; }
+    .status-pill.closed::before{ background:var(--warn); }
+    .status-pill.full{ color:var(--danger); border-color:#e5c2c2; background:#fff3f2; }
+    .status-pill.full::before{ background:var(--danger); }
+    .metrics{
+      display:grid;
+      grid-template-columns:repeat(3,minmax(0,1fr));
+      gap:1px;
+      border-top:1px solid var(--line);
+      background:var(--line);
+    }
+    .metric{
+      min-width:0;
+      padding:19px clamp(18px,4vw,28px);
+      background:var(--panel);
+    }
+    .metric small{
+      display:block;
+      margin-bottom:7px;
+      color:var(--muted);
+      font-size:11px;
+    }
+    .metric strong{
+      display:block;
+      overflow:hidden;
+      font-size:22px;
+      line-height:1.2;
+      text-overflow:ellipsis;
+    }
+    .section{
+      min-width:0;
+      padding:clamp(22px,4vw,30px);
+    }
+    .section + .section{ border-top:1px solid var(--line); }
+    .section-head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+      margin-bottom:20px;
+    }
+    h2{ margin:0; font-size:18px; letter-spacing:-.02em; }
+    .section-copy{
+      margin:7px 0 0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.65;
+    }
+    .upload-row{
+      display:grid;
+      grid-template-columns:minmax(0,1fr) auto;
+      gap:10px;
+      align-items:end;
+    }
+    .file-field{ min-width:0; }
+    .controls{
+      display:grid;
+      grid-template-columns:repeat(2,minmax(0,1fr));
+      gap:10px;
+    }
+    .controls .btn{ width:100%; }
+    .cloud-line{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+      color:var(--muted);
+      font-size:12px;
+      line-height:1.55;
+    }
+    .cloud-dot{
+      flex:0 0 auto;
+      width:9px;
+      height:9px;
+      border-radius:50%;
+      background:#aaa69d;
+    }
+    .cloud-dot.running{ background:var(--warn); }
+    .cloud-dot.ok{ background:var(--ok); }
+    .cloud-dot.error{ background:var(--danger); }
+    .links{
+      display:flex;
+      flex-wrap:wrap;
+      gap:9px;
+      margin-top:18px;
+    }
+    .links a{
+      display:inline-flex;
+      min-height:40px;
+      align-items:center;
+      justify-content:center;
+      border:1px solid var(--line);
+      border-radius:999px;
+      padding:0 15px;
+      color:var(--ink);
+      background:#fff;
+      text-decoration:none;
+      font-size:12px;
+      font-weight:800;
+    }
+    .links a[aria-disabled="true"]{
+      pointer-events:none;
+      opacity:.45;
+    }
+    .session-actions{
+      display:flex;
+      justify-content:flex-end;
+      margin-top:14px;
+    }
+    .session-actions .btn{ min-height:38px; padding:0 14px; font-size:11px; }
+    .sr-only{
+      position:absolute;
+      width:1px;
+      height:1px;
+      padding:0;
+      margin:-1px;
+      overflow:hidden;
+      clip:rect(0,0,0,0);
+      white-space:nowrap;
+      border:0;
+    }
+    @media(max-width:640px){
+      .shell{ width:min(100% - 22px,880px); padding-top:16px; }
+      .topbar{ margin-bottom:18px; }
+      .login-card{ margin-top:7vh; border-radius:20px; }
+      .hero{ grid-template-columns:1fr; align-items:start; }
+      .status-pill{ justify-self:start; }
+      .metrics{ grid-template-columns:1fr; }
+      .upload-row,.controls{ grid-template-columns:1fr; }
+      .upload-row .btn{ width:100%; }
+      .section-head{ display:block; }
+      .section-head .status-pill{ margin-top:12px; }
+      .links{ display:grid; }
+      .links a{ width:100%; }
+    }
+    @media(prefers-reduced-motion:reduce){
+      *{ scroll-behavior:auto !important; transition:none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand" aria-label="UNSEEN">U N S E E N<i>.</i></div>
+      <div class="space-id">路演控制台 · s900003</div>
+    </header>
+
+    <main>
+      <section class="card login-card" id="loginView" aria-labelledby="loginTitle">
+        <p class="eyebrow">Host access</p>
+        <h1 id="loginTitle">主办方登录</h1>
+        <p class="intro">验证后才能上传正式全景、开放投稿或更新公开空间。</p>
+        <form id="loginForm">
+          <label for="pin">安全密钥</label>
+          <input id="pin" name="pin" type="password" autocomplete="off"
+                 autocapitalize="off" spellcheck="false" required>
+          <button class="btn primary login-submit" id="loginButton" type="submit">进入控制台</button>
+        </form>
+        <p class="fineprint">密钥只提交给当前同源服务；本页面不会把它写入本地存储或 URL。</p>
+        <div class="message error" id="loginMessage" role="alert" hidden></div>
+      </section>
+
+      <section class="dashboard" id="dashboardView" aria-label="路演空间管理" hidden>
+        <article class="card">
+          <div class="hero">
+            <div>
+              <p class="eyebrow">Formal roadshow space</p>
+              <h1>现场准备</h1>
+              <p class="hero-copy" id="heroCopy">正在读取 s900003 的真实状态。</p>
+            </div>
+            <div class="status-pill" id="collectionPill">读取中</div>
+          </div>
+          <div class="metrics">
+            <div class="metric">
+              <small>正式全景</small>
+              <strong id="nodeMetric">待读取</strong>
+            </div>
+            <div class="metric">
+              <small>观众投稿</small>
+              <strong id="photoMetric">待读取</strong>
+            </div>
+            <div class="metric">
+              <small>剩余名额</small>
+              <strong id="remainingMetric">待读取</strong>
+            </div>
+          </div>
+        </article>
+
+        <article class="card">
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>1. 创建空间</h2>
+                <p class="section-copy" id="uploadHelp">仅上传一张 2:1 的 360° 全景图片。成功后仍保持暂停投稿。</p>
+              </div>
+              <div class="status-pill" id="nodePill">等待全景</div>
+            </div>
+            <div class="upload-row">
+              <div class="file-field">
+                <label for="panorama">全景图片</label>
+                <input id="panorama" type="file" accept="image/*">
+              </div>
+              <button class="btn primary" id="activateButton" type="button">上传并创建空间</button>
+            </div>
+            <div class="message" id="uploadMessage" role="status" aria-live="polite" hidden></div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>2. 管理观众投稿</h2>
+                <p class="section-copy">空间准备完成后由你手动开放。达到 50 张时系统会自动关闭。</p>
+              </div>
+            </div>
+            <div class="controls">
+              <button class="btn primary" id="collectionButton" type="button" disabled>开放上传</button>
+              <button class="btn" id="publishButton" type="button">重试云发布</button>
+            </div>
+            <div class="message" id="actionMessage" role="status" aria-live="polite" hidden></div>
+          </section>
+
+          <section class="section">
+            <div class="section-head">
+              <div>
+                <h2>3. 公开现场</h2>
+                <p class="section-copy">这里显示的是真实云发布状态；同步失败时可以直接重试。</p>
+              </div>
+            </div>
+            <div class="cloud-line">
+              <span class="cloud-dot" id="cloudDot" aria-hidden="true"></span>
+              <span id="cloudText">正在读取云发布状态</span>
+            </div>
+            <div class="links">
+              <a id="showLink" href="#" target="_blank" rel="noopener" aria-disabled="true">进入公开大屏</a>
+              <a id="joinLink" href="#" target="_blank" rel="noopener" aria-disabled="true">打开观众入口</a>
+            </div>
+          </section>
+        </article>
+
+        <div class="session-actions">
+          <button class="btn subtle" id="logoutButton" type="button">退出主办方会话</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+  (function(){
+    "use strict";
+
+    var SID = "s900003";
+    var API = "/api/space/" + encodeURIComponent(SID);
+    var state = {
+      space: null,
+      cloud: null,
+      joinUrl: "",
+      busy: false,
+      pollTimer: 0
+    };
+
+    function byId(id){ return document.getElementById(id); }
+
+    function setMessage(id, text, kind){
+      var el = byId(id);
+      if (!el) return;
+      el.textContent = text || "";
+      el.className = "message" + (kind ? " " + kind : "");
+      el.hidden = !text;
+    }
+
+    function errorText(error, fallback){
+      if (error && typeof error.message === "string" && error.message.trim()) {
+        return error.message.trim();
+      }
+      return fallback;
+    }
+
+    function AuthError(message){
+      this.name = "AuthError";
+      this.message = message || "主办方会话已失效";
+    }
+    AuthError.prototype = Object.create(Error.prototype);
+
+    async function request(url, options){
+      var opts = Object.assign({}, options || {}, { credentials:"same-origin" });
+      var response;
+      try {
+        response = await fetch(url, opts);
+      } catch (error) {
+        throw new Error("无法连接现场服务，请检查网络后重试");
+      }
+      var data = null;
+      try { data = await response.json(); } catch (error) {}
+      var message = data && data.error
+        ? String(data.error)
+        : ("请求失败（HTTP " + response.status + "）");
+      if (response.status === 401 || response.status === 403) {
+        throw new AuthError(message);
+      }
+      if (!response.ok || !data || data.ok === false) {
+        throw new Error(message);
+      }
+      return data;
+    }
+
+    async function postJson(url, payload){
+      return request(url, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body:JSON.stringify(payload || {})
+      });
+    }
+
+    function showLogin(message){
+      state.space = null;
+      state.cloud = null;
+      state.joinUrl = "";
+      state.busy = false;
+      window.clearTimeout(state.pollTimer);
+      byId("dashboardView").hidden = true;
+      byId("loginView").hidden = false;
+      byId("loginButton").disabled = false;
+      byId("pin").value = "";
+      setMessage("loginMessage", message || "", "error");
+      if (message) byId("pin").focus();
+    }
+
+    function capacityOf(space){
+      var capacity = (space && space.capacity) || {};
+      var limits = (space && space.limits) || {};
+      var fallbackReceived = Array.isArray(space && space.photos) ? space.photos.length : 0;
+      var max = Number(capacity.maxPhotos);
+      if (!Number.isFinite(max) || max < 0) max = Number(limits.maxPhotos);
+      if (!Number.isFinite(max) || max < 0) max = 50;
+      var received = Number(capacity.received);
+      if (!Number.isFinite(received) || received < 0) {
+        received = Number(space && space.stats && space.stats.total);
+      }
+      if (!Number.isFinite(received) || received < 0) received = fallbackReceived;
+      received = Math.floor(received);
+      var remaining = Number(capacity.remaining);
+      if (!Number.isFinite(remaining) || remaining < 0) remaining = Math.max(0,max - received);
+      return {
+        max:Math.floor(max),
+        received:received,
+        remaining:Math.max(0,Math.floor(remaining)),
+        full:capacity.full === true || received >= max
+      };
+    }
+
+    function setPublicLink(element, url){
+      if (!url) {
+        element.href = "#";
+        element.setAttribute("aria-disabled","true");
+        return;
+      }
+      element.href = url;
+      element.removeAttribute("aria-disabled");
+    }
+
+    function publicUrls(joinUrl){
+      if (!joinUrl) return { join:"", show:"" };
+      try {
+        var join = new URL(joinUrl);
+        if (join.protocol !== "https:" && join.protocol !== "http:") {
+          return { join:"", show:"" };
+        }
+        join.searchParams.set("s",SID);
+        join.searchParams.set("roadshow","1");
+        var show = new URL(join.href);
+        show.pathname = show.pathname.replace(/\/web\/join\.html$/,"/web/show.html");
+        if (show.pathname === join.pathname) return { join:join.href, show:"" };
+        show.searchParams.delete("roadshow");
+        show.searchParams.set("live","1");
+        return { join:join.href, show:show.href };
+      } catch (error) {
+        return { join:"", show:"" };
+      }
+    }
+
+    function cloudPresentation(cloud, space){
+      var status = cloud || {};
+      var result = status.result || {};
+      if (status.running) {
+        var done = Number(status.done) || 0;
+        var total = Number(status.total) || 0;
+        return {
+          tone:"running",
+          text:total > 0 ? ("正在同步公开空间（" + done + " / " + total + "）") : "正在同步公开空间"
+        };
+      }
+      if (status.error) {
+        return { tone:"error", text:"云发布失败：" + String(status.error) };
+      }
+      if (result.stale) {
+        return { tone:"error", text:"发布期间空间有更新，请重试云发布" };
+      }
+      if (result.cleanupPending) {
+        return { tone:"error", text:"公开内容已更新，但旧文件清理待重试" };
+      }
+      if (result.spaceJson || (space && space.ossSpaceJson)) {
+        return { tone:"ok", text:"公开空间已同步" };
+      }
+      return { tone:"", text:"公开空间尚未完成云发布" };
+    }
+
+    function render(){
+      var space = state.space;
+      if (!space) return;
+      var nodes = Array.isArray(space.nodes) ? space.nodes : [];
+      var hasNode = nodes.length > 0;
+      var capacity = capacityOf(space);
+      var collectionOpen = !!(space.collection && space.collection.status === "open");
+      var collectionPill = byId("collectionPill");
+      var nodePill = byId("nodePill");
+
+      byId("nodeMetric").textContent = hasNode ? "1 / 1" : "0 / 1";
+      byId("photoMetric").textContent = capacity.received + " / " + capacity.max;
+      byId("remainingMetric").textContent = String(capacity.remaining);
+
+      collectionPill.className = "status-pill";
+      if (capacity.full) {
+        collectionPill.textContent = "已收满";
+        collectionPill.classList.add("full");
+        byId("heroCopy").textContent = "本场已收满 " + capacity.max + " 张照片，投稿通道已关闭。";
+      } else if (!hasNode) {
+        collectionPill.textContent = "等待全景";
+        byId("heroCopy").textContent = "正式空间仍为空白。先上传唯一一张全景，再决定是否开放观众投稿。";
+      } else if (collectionOpen) {
+        collectionPill.textContent = "投稿开放";
+        collectionPill.classList.add("open");
+        byId("heroCopy").textContent = "观众可以投稿；还可接收 " + capacity.remaining + " 张。";
+      } else {
+        collectionPill.textContent = "投稿暂停";
+        collectionPill.classList.add("closed");
+        byId("heroCopy").textContent = "全景已就绪，投稿仍暂停。确认现场准备好后再手动开放。";
+      }
+
+      nodePill.className = "status-pill";
+      nodePill.textContent = hasNode ? "全景已锁定" : "等待全景";
+      if (hasNode) nodePill.classList.add("open");
+      byId("panorama").disabled = state.busy || hasNode;
+      byId("activateButton").disabled = state.busy || hasNode;
+      byId("uploadHelp").textContent = hasNode
+        ? "正式空间已有全景，不能再次上传或替换。"
+        : "仅上传一张 2:1 的 360° 全景图片。成功后仍保持暂停投稿。";
+
+      var collectionButton = byId("collectionButton");
+      collectionButton.textContent = collectionOpen ? "暂停上传" : "开放上传";
+      collectionButton.classList.toggle("primary",!collectionOpen);
+      collectionButton.disabled = state.busy || !hasNode || capacity.full;
+      byId("publishButton").disabled = state.busy;
+
+      var cloudView = cloudPresentation(state.cloud,space);
+      byId("cloudDot").className = "cloud-dot" + (cloudView.tone ? " " + cloudView.tone : "");
+      byId("cloudText").textContent = cloudView.text;
+
+      var urls = publicUrls(state.joinUrl);
+      setPublicLink(byId("joinLink"),urls.join);
+      setPublicLink(byId("showLink"),urls.show);
+    }
+
+    async function loadState(options){
+      var silent = options && options.silent;
+      if (state.busy && silent) return;
+      try {
+        var results = await Promise.all([
+          request(API),
+          request(API + "/publish-cloud").catch(function(error){
+            if (error instanceof AuthError) throw error;
+            return { ok:false, state:{ error:errorText(error,"云发布状态读取失败") } };
+          }),
+          request(API + "/joinurl").catch(function(error){
+            if (error instanceof AuthError) throw error;
+            return { ok:false, url:"" };
+          })
+        ]);
+        state.space = results[0].space;
+        state.cloud = results[1].state || null;
+        state.joinUrl = results[2].url || "";
+        byId("loginView").hidden = true;
+        byId("dashboardView").hidden = false;
+        render();
+        return true;
+      } catch (error) {
+        if (error instanceof AuthError) {
+          showLogin(silent ? "主办方会话已失效，请重新登录" : "");
+          return false;
+        }
+        if (!silent) {
+          var message = errorText(error,"空间状态读取失败");
+          if (byId("dashboardView").hidden) {
+            setMessage("loginMessage",message,"error");
+            byId("loginButton").disabled = false;
+          } else {
+            setMessage("actionMessage",message,"error");
+          }
+        }
+        return false;
+      } finally {
+        schedulePoll();
+      }
+    }
+
+    function schedulePoll(){
+      window.clearTimeout(state.pollTimer);
+      if (!byId("dashboardView").hidden) {
+        state.pollTimer = window.setTimeout(function(){
+          loadState({ silent:true });
+        },5000);
+      }
+    }
+
+    async function login(event){
+      event.preventDefault();
+      var pinInput = byId("pin");
+      var pin = pinInput.value;
+      if (!pin) {
+        setMessage("loginMessage","请输入安全密钥","error");
+        return;
+      }
+      byId("loginButton").disabled = true;
+      setMessage("loginMessage","", "");
+      try {
+        await postJson("/api/host/login",{ pin:pin });
+        pinInput.value = "";
+        var loaded = await loadState();
+        if (!loaded && !byId("loginView").hidden) byId("loginButton").disabled = false;
+      } catch (error) {
+        byId("loginButton").disabled = false;
+        pinInput.value = "";
+        setMessage("loginMessage",errorText(error,"登录失败，请重试"),"error");
+        pinInput.focus();
+      }
+    }
+
+    async function activate(){
+      if (state.busy || !state.space) return;
+      var space = state.space;
+      if (Array.isArray(space.nodes) && space.nodes.length) {
+        setMessage("uploadMessage","正式空间已有全景，不能再次上传。","error");
+        return;
+      }
+      var input = byId("panorama");
+      if (!input.files || input.files.length !== 1) {
+        setMessage("uploadMessage","请选择一张 2:1 的全景图片。","error");
+        return;
+      }
+      var file = input.files[0];
+      if (!file.type || file.type.indexOf("image/") !== 0) {
+        setMessage("uploadMessage","只能上传图片文件。","error");
+        return;
+      }
+      state.busy = true;
+      render();
+      setMessage("uploadMessage","正在上传并处理真实全景，请保持页面打开。","");
+      try {
+        var form = new FormData();
+        form.append("panorama",file,file.name);
+        var result = await request(API + "/roadshow/activate",{
+          method:"POST",
+          body:form
+        });
+        input.value = "";
+        setMessage(
+          "uploadMessage",
+          result.cloudError
+            ? "全景已创建，投稿仍暂停；云发布未完成，请点击“重试云发布”。"
+            : "全景已创建，投稿仍暂停。确认现场准备好后再开放。",
+          result.cloudError ? "error" : "ok"
+        );
+      } catch (error) {
+        setMessage("uploadMessage",errorText(error,"全景没有创建成功，请检查图片后重试"),"error");
+      } finally {
+        state.busy = false;
+        await loadState({ silent:true });
+      }
+    }
+
+    async function toggleCollection(){
+      if (state.busy || !state.space) return;
+      var capacity = capacityOf(state.space);
+      var hasNode = Array.isArray(state.space.nodes) && state.space.nodes.length > 0;
+      if (!hasNode) {
+        setMessage("actionMessage","先上传正式全景，才能开放观众投稿。","error");
+        return;
+      }
+      if (capacity.full) {
+        setMessage("actionMessage","本场已收满 " + capacity.max + " 张，不能再次开放。","error");
+        return;
+      }
+      var isOpen = !!(state.space.collection && state.space.collection.status === "open");
+      var next = isOpen ? "closed" : "open";
+      state.busy = true;
+      render();
+      setMessage("actionMessage",next === "open" ? "正在开放投稿并同步公网。" : "正在暂停投稿并同步公网。","");
+      try {
+        await postJson(API + "/collection",{ status:next });
+        var cloudResult = await postJson(API + "/publish-cloud",{}).catch(function(error){
+          return { ok:false, error:errorText(error,"云发布没有启动") };
+        });
+        if (cloudResult.ok === false) {
+          setMessage(
+            "actionMessage",
+            (next === "open" ? "投稿已开放" : "投稿已暂停") +
+              "，但公网同步没有启动：" + cloudResult.error,
+            "error"
+          );
+        } else {
+          setMessage(
+            "actionMessage",
+            next === "open" ? "投稿已开放，正在同步公网。" : "投稿已暂停，正在同步公网。",
+            "ok"
+          );
+        }
+      } catch (error) {
+        setMessage("actionMessage",errorText(error,"投稿状态没有保存成功"),"error");
+      } finally {
+        state.busy = false;
+        await loadState({ silent:true });
+      }
+    }
+
+    async function retryPublish(){
+      if (state.busy) return;
+      state.busy = true;
+      render();
+      setMessage("actionMessage","正在启动真实云发布。","");
+      try {
+        var data = await postJson(API + "/publish-cloud",{});
+        state.cloud = data.state || state.cloud;
+        setMessage(
+          "actionMessage",
+          data.started ? "云发布已启动。" : "云发布已经在运行。",
+          "ok"
+        );
+      } catch (error) {
+        setMessage("actionMessage",errorText(error,"云发布没有启动"),"error");
+      } finally {
+        state.busy = false;
+        await loadState({ silent:true });
+      }
+    }
+
+    async function logout(){
+      window.clearTimeout(state.pollTimer);
+      try {
+        await request("/api/host/logout",{ method:"POST" });
+      } catch (error) {}
+      showLogin("");
+    }
+
+    byId("loginForm").addEventListener("submit",login);
+    byId("activateButton").addEventListener("click",activate);
+    byId("collectionButton").addEventListener("click",toggleCollection);
+    byId("publishButton").addEventListener("click",retryPublish);
+    byId("logoutButton").addEventListener("click",logout);
+
+    request("/api/host/session").then(function(result){
+      if (result.authenticated) loadState();
+      else showLogin("");
+    }).catch(function(){
+      showLogin("无法连接现场服务，请检查网络后重试");
+    });
+  })();
+  </script>
+</body>
+</html>

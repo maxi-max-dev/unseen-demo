@@ -7,12 +7,13 @@
  *   2. 收 console 报错(Runtime.consoleAPICalled type=error)和页面异常(Runtime.exceptionThrown)。
  *   3. 轮询等 window.__psmWalk 出现 = 渲染起来了;同时盯 walk.html 的错误卡(#cardError.on)
  *      = 页面自己认怂了,立刻判失败不用干等 30 秒。
- *   4. 每个 yaw:调 __psmWalk.setYaw(deg) -> 等 3 个真实 rAF 帧 -> Page.captureScreenshot。
- *   5. 截图在 Node 里用 zlib 自解 PNG 算 meanLuma/stdLuma,黑屏(WebGL 没出画面)当场露馅。
- *   6. 顺手把照片钉点 sprite 投影到屏幕坐标回传,给第三闸(语义)当锚点。
+ *   4. 可选 --walk-ms:真实派发 W 键并确认相机发生位移，再从移动后的位置截图。
+ *   5. 每个 yaw:调 __psmWalk.setYaw(deg) -> 等 3 个真实 rAF 帧 -> Page.captureScreenshot。
+ *   6. 截图在 Node 里用 zlib 自解 PNG 算 meanLuma/stdLuma,黑屏(WebGL 没出画面)当场露馅。
+ *   7. 顺手把照片钉点 sprite 投影到屏幕坐标回传,给第三闸(语义)当锚点。
  *
  * 跑法:
- *   node server/render_probe.mjs --url "<页面url>" --out "<输出目录绝对路径>" --prefix a1 --yaws 0,120,240
+ *   node server/render_probe.mjs --url "<页面url>" --out "<输出目录绝对路径>" --prefix a1 --yaws 0,120,240 [--walk-ms 400]
  *
  * 输出契约:stdout 只有一行 JSON(= report.json 里的 gates.render 对象),调试信息全走 stderr。
  * 零新依赖:只用 node 内置(child_process/fs/net/zlib/path/os)+ 全局 WebSocket(node >= 22)。
@@ -27,6 +28,8 @@ import zlib from "node:zlib";
 const CHROME = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
 const READY_TIMEOUT_MS = 30000; // 就绪总超时:第 3 步轮询的上限
 const VIEWPORT = { w: 1280, h: 800 };
+const TEAR_ANISOTROPY_MAX = 1.45;
+const TEAR_VERTICAL_SHARE_MAX = 0.55;
 
 function log(...args) { console.error("[probe]", ...args); } // 调试信息一律 stderr
 
@@ -70,6 +73,7 @@ function pngLumaStats(buf) {
   const ch = colorType === 6 ? 4 : 3;
   const raw = zlib.inflateSync(Buffer.concat(idat));
   const stride = w * ch;
+  const lumaPixels = new Float32Array(w * h);
   let prev = Buffer.alloc(stride), cur = Buffer.alloc(stride);
   let p = 0, n = 0, sum = 0, sumSq = 0;
 
@@ -97,12 +101,83 @@ function pngLumaStats(buf) {
     for (let x = 0; x < stride; x += ch) {
       const lum = 0.2126 * cur[x] + 0.7152 * cur[x + 1] + 0.0722 * cur[x + 2];
       sum += lum; sumSq += lum * lum; n++;
+      lumaPixels[y * w + x / ch] = lum;
     }
     const swap = prev; prev = cur; cur = swap; // 这行做完 prev 才是"上一行"
   }
   const mean = n ? sum / n : 0;
   const variance = n ? Math.max(0, sumSq / n - mean * mean) : 0;
-  return { meanLuma: +mean.toFixed(2), stdLuma: +Math.sqrt(variance).toFixed(2), width: w, height: h };
+
+  // 几何撕裂指标：裁掉顶部 HUD 和底部署名后，统计水平/垂直一阶差分。
+  // “竖向幕布”沿竖直方向延伸，因此跨 x 的变化(gx)会远强于跨 y 的变化(gy)。
+  // q80 只让最强 20% 边缘参与方向占比，避免天空/墙面等平坦区域稀释信号。
+  const x0 = Math.max(0, Math.min(w - 2, Math.round(w * 20 / 1280)));
+  const x1 = Math.max(x0 + 2, Math.min(w, Math.round(w * 1260 / 1280)));
+  const y0 = Math.max(0, Math.min(h - 2, Math.round(h * 100 / 800)));
+  const y1 = Math.max(y0 + 2, Math.min(h, Math.round(h * 720 / 800)));
+  let dxSum = 0, dxCount = 0, dySum = 0, dyCount = 0;
+  for (let y = y0; y < y1; y++) {
+    const row = y * w;
+    for (let x = x0; x < x1 - 1; x++) {
+      dxSum += Math.abs(lumaPixels[row + x + 1] - lumaPixels[row + x]);
+      dxCount++;
+    }
+  }
+  for (let y = y0; y < y1 - 1; y++) {
+    const row = y * w, next = row + w;
+    for (let x = x0; x < x1; x++) {
+      dySum += Math.abs(lumaPixels[next + x] - lumaPixels[row + x]);
+      dyCount++;
+    }
+  }
+  const cellW = x1 - x0 - 1, cellH = y1 - y0 - 1;
+  const magnitudes = new Float32Array(Math.max(0, cellW * cellH));
+  let mi = 0;
+  for (let y = y0; y < y1 - 1; y++) {
+    const row = y * w, next = row + w;
+    for (let x = x0; x < x1 - 1; x++) {
+      const gx = Math.abs(lumaPixels[row + x + 1] - lumaPixels[row + x]);
+      const gy = Math.abs(lumaPixels[next + x] - lumaPixels[row + x]);
+      magnitudes[mi++] = Math.hypot(gx, gy);
+    }
+  }
+  magnitudes.sort();
+  let q80 = 0;
+  if (magnitudes.length) {
+    const pos = 0.8 * (magnitudes.length - 1);
+    const lo = Math.floor(pos), hi = Math.ceil(pos);
+    q80 = magnitudes[lo] + (magnitudes[hi] - magnitudes[lo]) * (pos - lo);
+  }
+  let strongCount = 0, verticalCount = 0;
+  for (let y = y0; y < y1 - 1; y++) {
+    const row = y * w, next = row + w;
+    for (let x = x0; x < x1 - 1; x++) {
+      const gx = Math.abs(lumaPixels[row + x + 1] - lumaPixels[row + x]);
+      const gy = Math.abs(lumaPixels[next + x] - lumaPixels[row + x]);
+      if (Math.hypot(gx, gy) > q80) {
+        strongCount++;
+        if (gx > 2 * gy) verticalCount++;
+      }
+    }
+  }
+  const dxMean = dxCount ? dxSum / dxCount : 0;
+  const dyMean = dyCount ? dySum / dyCount : 0;
+  const anisotropy = dxMean / Math.max(dyMean, 1e-6);
+  const verticalShare = strongCount ? verticalCount / strongCount : 0;
+  const geometryTear = anisotropy > TEAR_ANISOTROPY_MAX &&
+    verticalShare > TEAR_VERTICAL_SHARE_MAX;
+  return {
+    meanLuma: +mean.toFixed(2),
+    stdLuma: +Math.sqrt(variance).toFixed(2),
+    width: w,
+    height: h,
+    dxMean: +dxMean.toFixed(3),
+    dyMean: +dyMean.toFixed(3),
+    anisotropy: +anisotropy.toFixed(3),
+    edgeQ80: +q80.toFixed(3),
+    verticalShare: +verticalShare.toFixed(3),
+    geometryTear,
+  };
 }
 
 // ============================================================
@@ -194,6 +269,9 @@ async function main() {
   const outDir = args.out;
   const prefix = args.prefix || "a1";
   const yaws = String(args.yaws || "0").split(",").map((s) => Number(s.trim())).filter((n) => Number.isFinite(n));
+  const walkMs = Math.max(0, Math.min(2000, Number(args["walk-ms"]) || 0));
+  const expectedMode = /^(flat|depth)$/.test(args["expect-mode"] || "")
+    ? args["expect-mode"] : "";
   if (!url || !outDir) throw new Error("用法: --url <页面url> --out <输出目录绝对路径> [--prefix a1] [--yaws 0,120,240]");
   fs.mkdirSync(outDir, { recursive: true });
 
@@ -234,7 +312,9 @@ async function main() {
 
   const gate = {
     ok: false, readyMs: null, shots: [],
-    consoleErrors: [], pageErrors: [], error: null, sprites: [],
+    consoleErrors: [], pageErrors: [], error: null, sprites: [], movement: null,
+    renderMode: null, interactionMode: null, maxWalkRadius: null,
+    fov: null, pitchLimitDeg: null, cameraToMeshCenter: null,
   };
 
   try {
@@ -287,6 +367,29 @@ async function main() {
     if (!ready) throw new Error(`就绪超时(${READY_TIMEOUT_MS}ms):window.__psmWalk 一直没出现`);
     log("就绪耗时", gate.readyMs, "ms");
 
+    const renderState = await cdp.evaluate(`(function(){
+      var w = window.__psmWalk;
+      if (!w || !w.camera || !w.mesh) return null;
+      var dx = w.camera.position.x - w.mesh.position.x;
+      var dy = w.camera.position.y - w.mesh.position.y;
+      var dz = w.camera.position.z - w.mesh.position.z;
+      return {
+        mode: w.renderMode || null,
+        interactionMode: w.interactionMode || null,
+        maxWalkRadius: typeof w.maxWalkRadius === 'number' ? w.maxWalkRadius : null,
+        fov: typeof w.fov === 'number' ? w.fov : null,
+        pitchLimitDeg: typeof w.pitchLimitDeg === 'number' ? w.pitchLimitDeg : null,
+        cameraToMeshCenter: Math.sqrt(dx*dx + dy*dy + dz*dz)
+      };
+    })()`);
+    gate.renderMode = renderState?.mode || null;
+    gate.interactionMode = renderState?.interactionMode || null;
+    gate.maxWalkRadius = renderState?.maxWalkRadius ?? null;
+    gate.fov = renderState?.fov ?? null;
+    gate.pitchLimitDeg = renderState?.pitchLimitDeg ?? null;
+    gate.cameraToMeshCenter = renderState
+      ? +renderState.cameraToMeshCenter.toFixed(4) : null;
+
     // 桌面端会盖一张"点击画面开始漫游"的半透明遮罩(.center-card#cardLock,背景 rgba(0,0,0,.5)),
     // 它会把整屏压暗一半还挡住中间 —— 那是交互提示不是渲染结果,截图前收掉,
     // 只动这一张卡,错误卡绝不碰(碰了就等于把失败信号抹掉)。
@@ -300,6 +403,43 @@ async function main() {
       requestAnimationFrame(step);
       setTimeout(function(){ res(-1); }, 3000); // rAF 万一被节流也别把探针卡死
     })`, { awaitPromise: true, timeoutMs: 8000 });
+
+    // 可选的真实移动检查。直接改 camera.position 只能证明调试出口能写，不能证明
+    // keydown → keys.KeyW → tick → clampWalk 这条用户实际走的链路有效，所以通过 CDP
+    // 派发一段 W 键。截图随后从移动后的位置采集，也能把“原点正常、一走就撕裂”抓出来。
+    if (walkMs > 0) {
+      const readCamera = () => cdp.evaluate(`(function(){
+        var c = window.__psmWalk && window.__psmWalk.camera;
+        return c ? { x:c.position.x, y:c.position.y, z:c.position.z } : null;
+      })()`);
+      const before = await readCamera();
+      await cdp.send("Input.dispatchKeyEvent", {
+        type: "keyDown", key: "w", code: "KeyW",
+        windowsVirtualKeyCode: 87, nativeVirtualKeyCode: 87,
+      });
+      // 用真实帧数驱动，避免多个 headless Chrome 并跑时后台 rAF 降频，
+      // 500ms 墙钟时间里偶尔只渲染一帧而把正常移动误判成失败。
+      const movementFrames = await waitFrames(
+        Math.max(3, Math.min(60, Math.round(walkMs / (1000 / 60))))
+      );
+      await cdp.send("Input.dispatchKeyEvent", {
+        type: "keyUp", key: "w", code: "KeyW",
+        windowsVirtualKeyCode: 87, nativeVirtualKeyCode: 87,
+      });
+      await waitFrames(3);
+      const after = await readCamera();
+      const movedDistance = before && after
+        ? Math.hypot(after.x - before.x, after.z - before.z) : 0;
+      gate.movement = {
+        requestedMs: walkMs,
+        frames: movementFrames,
+        before,
+        after,
+        movedDistance: +movedDistance.toFixed(3),
+        ok: movedDistance >= 0.05,
+      };
+      log(`移动检查 ${gate.movement.ok ? "通过" : "失败"}: ${gate.movement.movedDistance}m`);
+    }
 
     // 把照片钉点 sprite 的世界坐标投到屏幕像素坐标(页面里 THREE 是全局的,r128)。
     // 每个 yaw 采一次:onScreen 本来就跟朝向绑定,只在一个朝向采会把"其实转过去就能看到的钉子"
@@ -344,10 +484,14 @@ async function main() {
         file: `${path.basename(outDir)}/${shotName}`, // 相对路径,和 report.json 里的 shots/xxx.png 口径一致
         abs,
         meanLuma: stats.meanLuma, stdLuma: stats.stdLuma, black,
+        dxMean: stats.dxMean, dyMean: stats.dyMean,
+        anisotropy: stats.anisotropy, edgeQ80: stats.edgeQ80,
+        verticalShare: stats.verticalShare, geometryTear: !!stats.geometryTear,
         sprites: shotSprites, // 这一张图里各钉点的像素坐标,给第三闸对图用
         ...(stats.decodeError ? { decodeError: stats.decodeError } : {}),
       });
       log(`yaw=${yaw} -> ${shotName} meanLuma=${stats.meanLuma} stdLuma=${stats.stdLuma} black=${black}` +
+        ` tear=${!!stats.geometryTear} aniso=${stats.anisotropy} vertical=${stats.verticalShare}` +
         ` 钉点在画面内 ${shotSprites.filter((s) => s.onScreen).length}/${shotSprites.length}`);
     }
 
@@ -362,10 +506,19 @@ async function main() {
 
     // 闸门口径:出了图 + 没黑屏 + 没页面异常,才算这一闸过
     const anyBlack = gate.shots.some((s) => s.black || s.meanLuma === null);
-    gate.ok = gate.shots.length === yaws.length && !anyBlack && gate.pageErrors.length === 0;
+    const anyGeometryTear = gate.shots.some((s) => s.geometryTear);
+    const movementOk = !gate.movement || gate.movement.ok;
+    const modeOk = !expectedMode || gate.renderMode === expectedMode;
+    const originOk = gate.cameraToMeshCenter !== null && gate.cameraToMeshCenter <= 0.01;
+    gate.ok = gate.shots.length === yaws.length && !anyBlack && !anyGeometryTear &&
+      gate.pageErrors.length === 0 && movementOk && modeOk && originOk;
     if (!gate.ok && !gate.error) {
       gate.error = anyBlack ? "截图疑似黑屏/无法解码,WebGL 可能没出画面"
-        : (gate.pageErrors.length ? "页面抛了未捕获异常" : "截图数量不足");
+        : (anyGeometryTear ? "截图出现强烈竖向几何撕裂(幕布/尖刺)"
+          : (gate.pageErrors.length ? "页面抛了未捕获异常"
+          : (!modeOk ? `渲染模式不符:期待 ${expectedMode},实际 ${gate.renderMode}`
+            : (!originOk ? `相机没有位于全景光心:偏移 ${gate.cameraToMeshCenter}`
+              : (!movementOk ? "W 键移动链路没有让相机发生位移" : "截图数量不足")))));
     }
   } catch (e) {
     gate.ok = false;

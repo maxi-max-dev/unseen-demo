@@ -62,7 +62,11 @@
   .truths{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; align-items:start; }
   .truth.span{ grid-column:1 / -1; }
 }
+@media (max-width:420px){
+  .cta .alt{ display:grid; grid-template-columns:1fr; }
+}
 </style>
+<link rel="stylesheet" href="../app/product-ui.css">
 </head>
 <body class="u-body">
 <div class="u-bokeh" aria-hidden="true"></div>
@@ -70,9 +74,9 @@
 <main class="u-page pov-page">
 
   <header class="u-bar">
-    <a class="u-back" id="backLink" href="../index.html" aria-label="返回">‹</a>
+    <a class="u-back u-product-back" id="backLink" href="../portal.html" aria-label="返回">‹</a>
     <h1>回到 TA 的视角</h1>
-    <span class="u-chip hot">演示页</span>
+    <span class="u-chip hot">AI 能力说明</span>
   </header>
 
   <!-- ① 一句话开场:这个功能在答什么问题 -->
@@ -81,7 +85,7 @@
     <p>「回到 TA 的视角」答的是后半截：那一刻，那个地方，每个人分别朝着哪个方向在看，还有哪个方向一个人都没拍到。</p>
     <p>它不是把照片放大。放大的照片会跟着你的屏幕走，这里的照片钉在空间里，你转头它留在原地。</p>
 
-    <div class="gauge">
+    <div class="gauge u-ai-card" data-ai-state="info">
       <span class="n">30°</span>
       <span class="t">口径先摆出来：系统只能定到 30 度扇区，一圈 12 格，照片被钉在扇区正中间。给的是大致方向，不是拍摄位置的还原。</span>
     </div>
@@ -214,7 +218,7 @@
       if(b && !/^(https?:)?\/\//.test(b)) return "../"+b.replace(/^(\.\.\/)+/,"").replace(/^\//,""); }catch(e){}
     return fallback;
   }
-  document.getElementById("backLink").href = backTarget("../index.html");
+  document.getElementById("backLink").href = backTarget("../portal.html");
 
   // 进 walk 页时把云端数据基址和"回到本页"一起接上，避免公网又落回 Vercel 同源 /api。
   var pageQuery = new URLSearchParams(location.search);

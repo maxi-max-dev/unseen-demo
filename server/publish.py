@@ -51,7 +51,9 @@ from server.space import (                                         # noqa: E402
     _inbox_prefix as _space_inbox_prefix,
     _normal_collection,
     _normal_exhibition,
+    _normal_limits,
     _normal_retired_inboxes,
+    space_capacity,
     space_dir,
     space_txn,
 )
@@ -185,6 +187,14 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "id": n.get("id"),
             "name": n.get("name"),
             "time": n.get("time"),
+            # 展示型空间可以给每个节点编排首屏与章节文案。只透传这些明确的
+            # 公开字段，导入来源、校验摘要等内部信息仍留在本机 space.json。
+            "eyebrow": n.get("eyebrow"),
+            "title": n.get("title"),
+            "description": n.get("description"),
+            "initialYaw": n.get("initialYaw"),
+            "initialPitch": n.get("initialPitch"),
+            "initialFov": n.get("initialFov"),
             "panorama": pano,
             "depth": take(n.get("depth")),
             "depthJson": take(n.get("depthJson")),
@@ -192,6 +202,8 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
     node_ids = {n["id"] for n in nodes}
     collection = _normal_collection(space.get("collection"))
     exhibition = _normal_exhibition(space.get("exhibition"))
+    limits = _normal_limits(space.get("limits"))
+    capacity = space_capacity(space)
     contributor_visibility = exhibition["contributorVisibility"]
     task_visibility = exhibition["taskVisibility"]
 
@@ -200,7 +212,7 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         if contributor_visibility == "name":
             return name
         if contributor_visibility == "anonymous":
-            return "匿名宾客"
+            return "匿名参与者"
         return None
 
     def public_receipt_ref(key):
@@ -226,7 +238,16 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "pitch": p.get("pitch", 0),
             "confidence": p.get("confidence"),
             "taskId": p.get("taskId"),
+            # 参与端只有拿到后端发出的真实奖励标记，才能确认“完成了任务”。
+            # 不能根据 taskId 自行推断，因为已完成任务仍允许继续投稿。
+            "bountyPaid": bool(p.get("bountyPaid")),
+            "taskNote": p.get("taskNote"),
             "uploadedAt": p.get("uploadedAt"),
+            # 预置演示照片没有真实投稿人，但仍需要标题和时间标签把它放回
+            # 对应章节；这些字段都是策展文案，不包含机器评分或私有上传信息。
+            "title": p.get("title"),
+            "caption": p.get("caption"),
+            "timeLabel": p.get("timeLabel"),
             # 宾客页靠这段 key 里的短 id 认领"我传的那张"(见 web/join.html findMine)
             "inboxKey": public_receipt_ref(p.get("inboxKey")),
         }
@@ -256,9 +277,24 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "taskId": p.get("taskId"),
             "inboxKey": public_receipt_ref(p.get("inboxKey")),
             # 给宾客看的人话, 不暴露机器的具体评分
-            "note": {"needs_review": "已收到,等新人确认",
-                     "rejected": "新人看过了,这张没收进空间",
+            "note": {"needs_review": "已收到,等主办方确认",
+                     "rejected": "主办方看过了,这张没收进空间",
                      "quarantined": "机器判定它不在这个空间,已自动隔离"}.get(st, "已收到"),
+        })
+    for receipt in space.get("_quotaReceipts") or []:
+        if not isinstance(receipt, dict) or receipt.get("state") != "quota_full":
+            continue
+        pending.append({
+            "id": None,
+            "state": "quota_full",
+            "uploadedAt": receipt.get("uploadedAt"),
+            "taskId": None,
+            "inboxKey": public_receipt_ref(receipt.get("inboxKey")),
+            "note": (
+                f"本场已收满 {capacity['maxPhotos']} 张,这张未进入空间"
+                if capacity["maxPhotos"] is not None
+                else "本场名额已满,这张未进入空间"
+            ),
         })
 
     tasks = []
@@ -273,7 +309,7 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         ):
             continue
         if contributor_visibility == "anonymous":
-            filled_by = ["匿名宾客"] if filled_by else []
+            filled_by = ["匿名参与者"] if filled_by else []
         elif contributor_visibility == "hidden":
             filled_by = []
         tasks.append({
@@ -288,6 +324,13 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "bounty": t.get("bounty"),
             "status": t.get("status"),
             "filledBy": filled_by,
+            # “还能继续投稿”和“悬赏还没发出”是两件事。心愿任务会长期保持
+            # open 以继续收照片，但 filledBy 非空后不能再向参与者展示可领取奖励。
+            # 单独公开布尔真值，也避免贡献者匿名/隐藏时前端从 filledBy 猜错。
+            "bountyAvailable": (
+                t.get("status", "open") != "closed"
+                and not bool(t.get("filledBy"))
+            ),
         })
 
     raw_contributors = space.get("contributors") or []
@@ -295,13 +338,17 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         contributors = raw_contributors
     elif contributor_visibility == "anonymous":
         contributors = [{
-            "name": f"宾客 {i + 1:02d}",
+            "name": f"参与者 {i + 1:02d}",
             "photos": int(c.get("photos") or 0),
         } for i, c in enumerate(raw_contributors)]
     else:
         contributors = []
 
-    if collection["status"] == "open":
+    if (
+        collection["status"] == "open"
+        and bool(nodes)
+        and not capacity["full"]
+    ):
         upload = oss.post_policy(conf, inbox_prefix(sid, space), expire_s=upload_expire_s)
         upload["enabled"] = True
     else:
@@ -317,11 +364,17 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
         "date": space.get("date") or "",
         "place": space.get("place") or "",
         "cover": space.get("cover") or "",
+        "subtitle": space.get("subtitle") or "",
+        "contentLabel": space.get("contentLabel") or "",
+        "demoDisclosure": space.get("demoDisclosure") or "",
+        "aiDisclosure": space.get("aiDisclosure") or "",
         "createdAt": space.get("createdAt"),
         "published": True,
         "publishedAt": time.time(),
         "collection": collection,
         "exhibition": exhibition,
+        "limits": limits,
+        "capacity": capacity,
         "nodes": nodes,
         "tasks": tasks,
         "photos": photos,
@@ -348,6 +401,8 @@ def build_empty_public_space(sid, space):
     collection["status"] = "closed"
     exhibition = _normal_exhibition(space.get("exhibition"))
     exhibition["status"] = "published"
+    limits = _normal_limits(space.get("limits"))
+    capacity = space_capacity(space)
     upload = {"enabled": False, "expiresAt": now}
     return {
         "schema": space.get("schema"),
@@ -357,11 +412,17 @@ def build_empty_public_space(sid, space):
         "date": space.get("date") or "",
         "place": space.get("place") or "",
         "cover": space.get("cover") or "",
+        "subtitle": space.get("subtitle") or "",
+        "contentLabel": space.get("contentLabel") or "",
+        "demoDisclosure": space.get("demoDisclosure") or "",
+        "aiDisclosure": space.get("aiDisclosure") or "",
         "createdAt": space.get("createdAt"),
         "published": True,
         "publishedAt": now,
         "collection": collection,
         "exhibition": exhibition,
+        "limits": limits,
+        "capacity": capacity,
         "nodes": [],
         "tasks": [],
         "photos": [],
@@ -449,6 +510,7 @@ def _publish_space_locked(sid, conf=None, progress=None, force=False):
                     bool(space.get("published"))
                     and _has_valid_cloud_delete_outbox(sid, space)
                 )
+                or bool(space.get("roadshowMode"))
             )
             and _normal_collection(space.get("collection"))["status"] == "closed"
         )
@@ -557,6 +619,8 @@ def _publish_space_locked(sid, conf=None, progress=None, force=False):
             )
             current["published"] = True
             current["ossSpaceJson"] = space_json_url
+            # Studio 用它判断二维码里的直传策略是否仍在有效期，过期就必须重新发布。
+            current["uploadExpiresAt"] = public["expiresAt"]
             # 这是“公网当前 manifest 正在引用什么”的本机镜像。下一次慢发布过期时，
             # 它用来区分可立刻清掉的新孤儿和仍被旧公网引用、必须等新 manifest 后再删的资源。
             current["_publishedResourceKeys"] = sorted(wanted_keys)

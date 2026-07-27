@@ -8,14 +8,15 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="UNSEEN · 让照片回到它当时朝着的方向">
 <meta property="og:description" content="一套系统连接宾客上传、主办方 Studio 与只读记忆展览。">
-<meta property="og:url" content="https://unseen-demo.vercel.app/portal.html">
-<meta property="og:image" content="https://unseen-demo.vercel.app/assets/portal/og.png">
+<meta property="og:url" content="https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/portal.html">
+<meta property="og:image" content="https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/assets/portal/og.png">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="UNSEEN · 产品入口">
 <meta name="twitter:description" content="让照片回到它当时朝着的方向。">
-<meta name="twitter:image" content="https://unseen-demo.vercel.app/assets/portal/og.png">
+<meta name="twitter:image" content="https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/assets/portal/og.png">
 <title>UNSEEN · 产品入口</title>
 <link rel="stylesheet" href="app/theme.css">
+<link rel="stylesheet" href="app/product-ui.css">
 <style>
   :root{
     --portal-plum:#503843;
@@ -792,8 +793,8 @@
         UNSEEN 把散落在宾客手机里的照片，重新放回它被拍下的空间。一套系统连接宾客上传、主办方处理与可分享的记忆展览。
       </p>
       <div class="hero-actions">
-        <a class="primary-cta" href="web/demo.html" target="_blank" rel="noopener">
-          开始六幕演示 <span aria-hidden="true">↗</span>
+        <a class="primary-cta" href="roadshow.html">
+          进入路演现场 <span aria-hidden="true">→</span>
         </a>
         <a class="secondary-cta" href="#roles">打开产品入口 <span aria-hidden="true">↓</span></a>
       </div>
@@ -801,6 +802,7 @@
         <span class="proof"><span class="dot"></span>三个角色界面</span>
         <span class="proof">世界锚定照片</span>
         <span class="proof">真实数据展览</span>
+        <span class="proof">4 个 AI 全景场景</span>
       </div>
     </div>
 
@@ -824,36 +826,36 @@
       <div class="section-no">01 · PRODUCT</div>
       <div class="section-title">
         <h2>一个系统，三个使用界面</h2>
-        <p>每个角色只看到自己需要的动作。所有入口都会在新窗口打开，这个页面会一直留作展示目录。</p>
+        <p>每个角色只看到自己需要的动作。进入下一页以后都能按原路返回，不需要在多个标签页之间寻找。</p>
       </div>
     </div>
 
     <div class="role-grid">
-      <a class="role-card guest" href="web/join.html?s=s4" target="_blank" rel="noopener">
+      <a class="role-card guest" href="web/join.html?s=s4&amp;back=portal.html">
         <span class="role-index">01</span>
         <h3>宾客上传端</h3>
         <p>宾客不需要注册。看任务、选择照片、上传，并查看每一张照片的真实处理结果。</p>
         <div class="role-list"><span>任务</span><span>上传</span><span>我的结果</span></div>
-        <span class="role-open"><span class="arrow">↗</span>进入宾客端</span>
+        <span class="role-open"><span class="arrow">→</span>进入宾客端</span>
       </a>
 
-      <a class="role-card host" data-local-path="/server/host.html?space=s4"
+      <a class="role-card host" data-local-path="/server/host.html?space=s4&amp;back=portal.html"
          data-cloud-path="web/studio-login.html" data-studio-link
-         href="web/studio-login.html" target="_blank" rel="noopener">
+         href="web/studio-login.html">
         <span class="local-flag">云端演示登录</span>
         <span class="role-index">02</span>
         <h3>主办方 Studio</h3>
         <p>管理照片收集、机器状态、人工审核和展览草稿。主办方从这里完成发布。</p>
         <div class="role-list"><span>收集</span><span>审核</span><span>策展</span><span>发布</span></div>
-        <span class="role-open"><span class="arrow">↗</span><span data-studio-action>登录云端演示 Studio</span></span>
+        <span class="role-open"><span class="arrow">→</span><span data-studio-action>登录云端演示 Studio</span></span>
       </a>
 
-      <a class="role-card exhibit" href="web/show.html?s=s4" target="_blank" rel="noopener">
+      <a class="role-card exhibit" href="web/show.html?s=s4&amp;back=portal.html">
         <span class="role-index">03</span>
         <h3>只读记忆展览</h3>
         <p>分享给宾客、观众和现场大屏。只展示主办方发布的内容，不出现后台操作。</p>
         <div class="role-list"><span>走进空间</span><span>照片墙</span><span>任务痕迹</span></div>
-        <span class="role-open"><span class="arrow">↗</span>打开公开展览</span>
+        <span class="role-open"><span class="arrow">→</span>打开公开展览</span>
       </a>
     </div>
   </section>
@@ -874,9 +876,10 @@
         <h3>那五分钟，也许被别人拍下来了</h3>
         <p>从散落的宾客照片开始，依次看到方向识别、空间钉点、缺口任务和可以走进去的记忆展览。</p>
         <div class="stage-actions">
-          <a class="stage-primary" href="web/demo.html" target="_blank" rel="noopener">打开六幕演示 ↗</a>
-          <a class="stage-ghost" href="web/pov.html?back=../portal.html" target="_blank" rel="noopener">查看 POV 说明</a>
-          <a class="stage-ghost" href="viewer/walk.html?demo=1&amp;back=../portal.html" target="_blank" rel="noopener">直接进入 3D</a>
+          <a class="stage-primary" href="web/demo.html">打开六幕演示 →</a>
+          <a class="stage-ghost" data-ai-show href="web/show.html?s=s900001">AI 全景回顾 · 已上传</a>
+          <a class="stage-ghost" href="web/pov.html?back=portal.html">查看 POV 说明</a>
+          <a class="stage-ghost" href="viewer/walk.html?demo=1&amp;back=portal.html">直接进入 3D</a>
         </div>
       </div>
       <div class="stage-steps" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
@@ -888,22 +891,30 @@
       <div class="section-no">03 · PAGE INDEX</div>
       <div class="section-title">
         <h2>全部展示页面</h2>
-        <p>正式入口在上面，三个补充展示页面集中在这里。旧原型和开发工具没有放进展示目录。</p>
+        <p>正式入口在上面，四个补充展示页面集中在这里。旧原型和开发工具没有放进展示目录。</p>
       </div>
     </div>
 
     <div class="module-grid">
-      <a class="module" href="web/pov.html?back=../portal.html" target="_blank" rel="noopener">
+      <a class="module" data-ai-show href="web/show.html?s=s900001">
+        <span class="module-icon">✦</span><h3>AI 全景回顾 · 已上传</h3>
+        <p>4 个全景场景和 8 张演示照片，按“已上传 → 已定位 → 可展示”进入同一条主系统流程。</p><span class="module-go">打开完整展览 →</span>
+      </a>
+      <a class="module" href="web/pov.html?back=portal.html">
         <span class="module-icon">◎</span><h3>回到 TA 的视角</h3>
-        <p>解释照片如何世界锚定，以及能力边界。</p><span class="module-go">打开页面 ↗</span>
+        <p>解释照片如何世界锚定，以及能力边界。</p><span class="module-go">打开页面 →</span>
       </a>
-      <a class="module" href="viewer/walk.html?demo=1&amp;back=../portal.html" target="_blank" rel="noopener">
-        <span class="module-icon">↗</span><h3>3D 空间漫游</h3>
-        <p>进入稳定演示空间，点击照片查看拍摄方向。</p><span class="module-go">打开页面 ↗</span>
+      <a class="module" href="viewer/walk.html?demo=1&amp;back=portal.html">
+        <span class="module-icon">◎</span><h3>3D 空间漫游</h3>
+        <p>进入稳定演示空间，点击照片查看拍摄方向。</p><span class="module-go">打开页面 →</span>
       </a>
-      <a class="module" href="web/demo.html" target="_blank" rel="noopener">
+      <a class="module" href="web/demo.html">
         <span class="module-icon">▶</span><h3>六幕评委 Demo</h3>
-        <p>用完整叙事讲清问题、技术路径和最终结果。</p><span class="module-go">打开页面 ↗</span>
+        <p>用完整叙事讲清问题、技术路径和最终结果。</p><span class="module-go">打开页面 →</span>
+      </a>
+      <a class="module" href="workspace.html">
+        <span class="module-icon">⌂</span><h3>空间工作台</h3>
+        <p>查看本机空间、场景入口和历史演示工具。</p><span class="module-go">打开工作台 →</span>
       </a>
     </div>
   </section>
@@ -927,18 +938,18 @@
     <div class="footer-title">看见没被看见的。</div>
     <div class="footer-meta">
       UNSEEN · AdventureX 2026<br>
-      <a href="web/demo.html" target="_blank" rel="noopener">六幕演示</a>
-      · <a href="web/show.html?s=s4" target="_blank" rel="noopener">公开展览</a>
+      <a href="web/demo.html">六幕演示</a>
+      · <a href="web/show.html?s=s4&amp;back=portal.html">公开展览</a>
     </div>
   </footer>
 </main>
 
 <nav class="quickbar" aria-label="三个主要入口">
-  <a href="web/join.html?s=s4" target="_blank" rel="noopener">宾客端</a>
-  <a class="primary" data-local-path="/server/host.html?space=s4"
-     data-cloud-path="web/studio-login.html" href="web/studio-login.html"
-     target="_blank" rel="noopener">Studio</a>
-  <a href="web/show.html?s=s4" target="_blank" rel="noopener">看展览</a>
+  <a href="web/join.html?s=s4&amp;back=portal.html">宾客端</a>
+  <a class="primary" data-local-path="/server/host.html?space=s4&amp;back=portal.html"
+     data-cloud-path="web/studio-login.html?back=portal.html"
+     href="web/studio-login.html?back=portal.html">Studio</a>
+  <a href="web/show.html?s=s4&amp;back=portal.html">看展览</a>
 </nav>
 
 <script>
@@ -950,6 +961,10 @@
     var localPath = link.getAttribute("data-local-path");
     var cloudPath = link.getAttribute("data-cloud-path");
     link.href = isLocal ? localPath : (cloudPath || ("http://127.0.0.1:8777" + localPath));
+  });
+  document.querySelectorAll("[data-ai-show]").forEach(function(link){
+    link.href = "web/show.html?s=s900001" + (isLocal ? "&mode=local" : "") +
+      "&back=portal.html";
   });
   var studioCard = document.querySelector("[data-studio-link]");
   if (studioCard && isLocal) {

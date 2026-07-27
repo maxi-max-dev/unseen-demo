@@ -1,6 +1,7 @@
 # 公开静态站精确清单。新增文件必须人工审查后逐项加入。
 amap-config.js
 app/cloud.js
+app/product-ui.css
 app/create.html
 app/invite.html
 app/scene.html
@@ -145,6 +146,8 @@ film/out/poster.jpg
 index.html
 matches.json
 portal.html
+roadshow.html
+workspace.html
 server/host.html
 server/join.html
 server/qr.js

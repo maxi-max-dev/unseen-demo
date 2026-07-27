@@ -6,7 +6,8 @@
 #
 #   1. 这个脚本会把你这台电脑上的 :8777 服务**暴露到公网**。
 #      跑起来之后会拿到一个 https://xxxx.trycloudflare.com 地址,
-#      **地球上任何人拿到这个地址都能打开**,没有密码、没有登录、没有白名单。
+#      **地球上任何人拿到这个地址都能打开登录页**；主办动作仍由服务端 PIN
+#      和 HttpOnly 会话保护。地址本身仍只应交给现场主办方。
 #   2. 之所以需要它:婚礼现场宾客用的是手机流量,连不上你的 Wi-Fi 局域网,
 #      所以必须有个公网地址他们才扫得到。
 #   3. 地址是随机的、临时的,不会被搜索引擎收录,短时间演示风险可控。
@@ -78,6 +79,8 @@ TUNNEL_PID=$!
 
 # ── 4. 从日志里把 https://xxxx.trycloudflare.com 抠出来 ─────────────────
 PUBLIC_URL=""
+ROADSHOW_SID="${PSM_ROADSHOW_SPACE_ID:-s900003}"
+CLOUD_JOIN_BASE="${PSM_CLOUD_JOIN_BASE:-https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/web/join.html}"
 for _ in $(seq 1 60); do
   PUBLIC_URL="$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$LOG" | head -n 1)"
   [ -n "$PUBLIC_URL" ] && break
@@ -108,10 +111,10 @@ echo "════════════════════════�
 echo "  ✅ 公网地址已就绪"
 echo ""
 echo "  新人(你自己)开这个:"
-echo "      $PUBLIC_URL/server/host.html"
+echo "      $PUBLIC_URL/server/roadshow-admin.html"
 echo ""
 echo "  宾客扫的码指向这个:"
-echo "      $PUBLIC_URL/join"
+echo "      ${CLOUD_JOIN_BASE}?s=${ROADSHOW_SID}&roadshow=1"
 echo ""
 echo "  地址已写入:server/public_url.txt"
 echo "════════════════════════════════════════════════════════"

@@ -1,0 +1,131 @@
+/*
+ * UNSEEN 产品层共享组件。
+ * 各页面可以保留自己的场景皮肤，这里只统一品牌出口、AI 状态和点击尺寸。
+ */
+:root{
+  --u-ai-accent:#8a62d5;
+  --u-ai-accent-soft:rgba(138,98,213,.12);
+  --u-ai-line:rgba(138,98,213,.22);
+  --u-ai-success:#3f9a6d;
+  --u-ai-success-soft:rgba(63,154,109,.11);
+  --u-ai-success-line:rgba(63,154,109,.22);
+  --u-ai-review:#b7772f;
+  --u-ai-review-soft:rgba(183,119,47,.11);
+  --u-ai-review-line:rgba(183,119,47,.24);
+  --u-ai-error:#b75267;
+  --u-ai-error-soft:rgba(183,82,103,.10);
+  --u-ai-error-line:rgba(183,82,103,.23);
+}
+
+.u-product-back{
+  width:44px;
+  height:44px;
+  min-width:44px;
+  min-height:44px;
+  display:inline-grid;
+  place-items:center;
+  border:1px solid rgba(255,255,255,.82);
+  border-radius:50%;
+  color:inherit;
+  background:rgba(255,255,255,.76);
+  box-shadow:0 8px 24px rgba(137,79,99,.12);
+  text-decoration:none;
+  font-size:18px;
+  line-height:1;
+  -webkit-backdrop-filter:blur(14px);
+  backdrop-filter:blur(14px);
+}
+.u-product-back:hover{ transform:translateY(-1px); }
+.u-product-back:active{ transform:scale(.97); }
+
+.u-ai-card{
+  --u-ai-current:var(--u-ai-accent);
+  --u-ai-current-soft:var(--u-ai-accent-soft);
+  --u-ai-current-line:var(--u-ai-line);
+  border-width:1px;
+  border-style:solid;
+  border-color:var(--u-ai-current-line)!important;
+  border-radius:16px;
+  box-shadow:inset 3px 0 0 var(--u-ai-current);
+}
+.u-ai-card[data-ai-state="success"]{
+  --u-ai-current:var(--u-ai-success);
+  --u-ai-current-soft:var(--u-ai-success-soft);
+  --u-ai-current-line:var(--u-ai-success-line);
+}
+.u-ai-card[data-ai-state="review"]{
+  --u-ai-current:var(--u-ai-review);
+  --u-ai-current-soft:var(--u-ai-review-soft);
+  --u-ai-current-line:var(--u-ai-review-line);
+}
+.u-ai-card[data-ai-state="error"]{
+  --u-ai-current:var(--u-ai-error);
+  --u-ai-current-soft:var(--u-ai-error-soft);
+  --u-ai-current-line:var(--u-ai-error-line);
+}
+.u-ai-card[data-ai-state="processing"]{
+  background-image:linear-gradient(110deg,var(--u-ai-current-soft),rgba(255,255,255,0));
+}
+.u-ai-head{
+  display:flex;
+  align-items:center;
+  gap:7px;
+  margin:0 0 5px;
+  color:var(--u-ai-current);
+  font-size:10px;
+  font-weight:800;
+  letter-spacing:.12em;
+  line-height:1.2;
+  text-transform:uppercase;
+}
+.u-ai-mark{
+  width:20px;
+  height:20px;
+  display:inline-grid;
+  place-items:center;
+  flex:none;
+  border:1px solid var(--u-ai-current-line);
+  border-radius:7px;
+  background:var(--u-ai-current-soft);
+  color:var(--u-ai-current);
+  font-size:11px;
+  letter-spacing:0;
+}
+.u-ai-orb{
+  width:7px;
+  height:7px;
+  flex:none;
+  border-radius:50%;
+  background:var(--u-ai-current);
+  box-shadow:0 0 0 4px var(--u-ai-current-soft);
+}
+.u-ai-card[data-ai-state="processing"] .u-ai-orb{
+  animation:uAiPulse 1.35s ease-in-out infinite;
+}
+@keyframes uAiPulse{
+  0%,100%{ opacity:.35; transform:scale(.82); }
+  50%{ opacity:1; transform:scale(1); }
+}
+
+.u-ai-dark{
+  color:#fff!important;
+  background:rgba(28,20,31,.74)!important;
+  border-color:rgba(255,255,255,.22)!important;
+  box-shadow:inset 3px 0 0 #c7a8ff,0 12px 30px rgba(0,0,0,.28)!important;
+}
+.u-ai-dark .u-ai-head{ color:#e4d6ff; }
+.hud-badge.u-ai-card{ border-radius:999px; }
+
+.u-back{
+  width:44px!important;
+  height:44px!important;
+  min-width:44px!important;
+  min-height:44px!important;
+}
+
+@media(max-width:420px){
+  .u-product-back{ width:44px; height:44px; }
+}
+@media(prefers-reduced-motion:reduce){
+  .u-ai-card[data-ai-state="processing"] .u-ai-orb{ animation:none; }
+}

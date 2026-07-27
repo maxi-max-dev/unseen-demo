@@ -88,6 +88,7 @@
   .stat span{ font-size:11px; color:var(--sub); letter-spacing:.5px; }
   .top-actions{ display:flex; flex-direction:column; align-items:flex-end; gap:8px; }
   .pubstate{ font-size:11.5px; color:var(--sub); }
+  .pubstate.u-ai-card{ width:100%; padding:9px 11px; text-align:left; }
   .pubstate.off{ color:#bdb3ab; }   /* 诚实空态: 这项能力这次没有结果, 灰掉 */
   /* 数字是活的还是死的, 要让人一眼看见: 绿点 = 刚跟后台核对过, 灰点 = 有阵子没核对了 */
   .fresh{ display:inline-flex; align-items:center; gap:6px; margin-top:12px; font-size:11px; color:var(--sub); letter-spacing:.2px; }
@@ -324,6 +325,50 @@
   .system-box b{ display:block; font-size:12px; }
   .system-box span{ display:block; color:var(--sub); font-size:11px; margin-top:2px; }
   .system-box.ok b{ color:#34825f; }.system-box.warn b{ color:#b96a3f; }
+  .upload-summary{ display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:9px; margin-bottom:14px; }
+  .upload-count{ min-width:0; padding:12px 13px; border:1px solid var(--line2); border-radius:15px;
+    background:rgba(255,255,255,.72); }
+  .upload-count b{ display:block; font-size:20px; line-height:1.2; font-variant-numeric:tabular-nums; }
+  .upload-count span{ display:block; margin-top:3px; color:var(--sub); font-size:10.5px; line-height:1.4; }
+  .upload-count.included b{ color:#34825f; }
+  .upload-count.pending b{ color:#c2713e; }
+  .upload-count.held b{ color:#a16578; }
+  .upload-node-grid{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:12px; }
+  .upload-node{ min-width:0; overflow:hidden; border:1px solid var(--line); border-radius:17px; background:#fff; }
+  .upload-pano{ position:relative; display:block; aspect-ratio:2/1; overflow:hidden;
+    background:linear-gradient(145deg,#584550,#a97184); color:#fff; text-decoration:none; }
+  .upload-pano img{ position:absolute; inset:0; z-index:1; width:100%; height:100%; object-fit:cover; display:block; }
+  .upload-pano-fallback{ position:absolute; inset:0; display:grid; place-items:center; color:rgba(255,255,255,.76);
+    font-size:36px; }
+  .upload-pano:after{ content:""; position:absolute; inset:0; z-index:2;
+    background:linear-gradient(180deg,transparent 42%,rgba(48,31,39,.72)); }
+  .upload-pano-copy{ position:absolute; z-index:3; left:13px; right:13px; bottom:11px;
+    display:flex; align-items:flex-end; justify-content:space-between; gap:10px; }
+  .upload-pano-copy b{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:14px; }
+  .upload-pano-copy span{ flex:none; color:rgba(255,255,255,.78); font-size:10.5px; }
+  .upload-node-body{ padding:12px; }
+  .upload-node-meta{ display:flex; align-items:baseline; justify-content:space-between; gap:8px;
+    margin-bottom:9px; color:var(--sub); font-size:10.5px; }
+  .upload-node-meta b{ color:var(--ink); font-size:11.5px; }
+  .upload-photo-grid{ display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+  .upload-thumb{ min-width:0; margin:0; overflow:hidden; border:1px solid var(--line2);
+    border-radius:10px; background:#fffaf8; }
+  .upload-thumb-media{ position:relative; aspect-ratio:1; overflow:hidden; background:#f5e7e8; }
+  .upload-thumb-media img{ position:absolute; inset:0; z-index:1; width:100%; height:100%; object-fit:cover; display:block; }
+  .upload-thumb-fallback{ position:absolute; inset:0; display:grid; place-items:center; color:#b9949e; font-size:20px; }
+  .upload-thumb figcaption{ padding:6px 6px 7px; }
+  .upload-state{ display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:9.5px; font-weight:750; }
+  .upload-state.included{ color:#34825f; }
+  .upload-state.pending{ color:#c2713e; }
+  .upload-state.held{ color:#a16578; }
+  .upload-state.unknown{ color:var(--sub); }
+  .upload-who{ display:block; margin-top:1px; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; color:var(--sub); font-size:9px; }
+  .upload-more{ min-height:70px; display:grid; place-items:center; border:1px dashed var(--line);
+    border-radius:10px; color:var(--sub); font-size:11px; text-align:center; padding:8px; }
+  .upload-unassigned{ grid-column:1/-1; }
+  .upload-unassigned .upload-pano{ aspect-ratio:auto; min-height:90px; }
   .exhibit-grid{ display:grid; grid-template-columns:minmax(0,1.15fr) minmax(260px,.85fr); gap:14px; }
   .exhibit-preview{
     min-height:258px; padding:22px; border-radius:18px; color:#fff;
@@ -361,10 +406,14 @@
   @media(max-width:760px){
     .exhibit-grid{ grid-template-columns:1fr; }
     .system-grid{ grid-template-columns:1fr; }
+    .upload-summary{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .upload-node-grid{ grid-template-columns:1fr; }
+    .upload-unassigned{ grid-column:auto; }
     .studio-tabs{ margin-left:0; }
   }
   footer.foot{ text-align:center; font-size:10.5px; color:#b8b0a4; letter-spacing:.5px; margin-top:8px; }
 </style>
+<link rel="stylesheet" href="../app/product-ui.css">
 </head>
 <body>
   <div class="wrap" id="app">
@@ -388,6 +437,13 @@
   var AUTH_TTL = 8 * 60 * 60 * 1000;
   var REMOTE_HOST = !isHostOrigin();
   var CLOUD_DEMO = MOCK && REMOTE_HOST;
+  function productBack(){
+    var raw = qs.get("back");
+    if (raw && !/^(https?:)?\/\//.test(raw)) {
+      return "../" + raw.replace(/^(\.\.\/)+/,"").replace(/^\//,"");
+    }
+    return "../portal.html";
+  }
 
   function hasDemoAccess(){
     try {
@@ -413,10 +469,11 @@
   }
 
   // 宾客页的【公开地址】。现场宾客的手机连不到这台电脑, 所以二维码绝不能是局域网 IP ——
-  // 页面可托管在 Vercel 或绑定了自定义域名的阿里云 OSS,数据仍在杭州 OSS。
+  // 页面托管在腾讯云静态站,数据仍在杭州 OSS。
   // OSS 默认域名会强制下载 HTML,所以阿里云网页入口必须使用绑定域名。
   // 地址来自 ../app/cloud.js,正式站会自动使用当前域名,不要在这里写死。
-  var CLOUD_ORIGIN = window.UNSEEN_CLOUD_ORIGIN || "https://unseen-demo.vercel.app";
+  var CLOUD_ORIGIN = window.UNSEEN_CLOUD_ORIGIN ||
+    "https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com";
   var CLOUD_JOIN_BASE = CLOUD_ORIGIN + "/web/join.html";
   var CLOUD_WALK_BASE = CLOUD_ORIGIN + "/viewer/walk.html";
   var CLOUD_SHOW_BASE = CLOUD_ORIGIN + "/web/show.html";
@@ -453,9 +510,9 @@
     var at = String(S.cloudJson || "").indexOf(marker);
     return at >= 0 ? String(S.cloudJson).slice(0, at) : "";
   }
-  function studioBack(){
+  function studioBack(anchor){
     return "server/host.html?space=" + encodeURIComponent(SID) +
-      (MOCK ? "&mock=1" : "") + "#exhibition";
+      (MOCK ? "&mock=1" : "") + "#" + (anchor || "exhibition");
   }
   function localWalkUrl(){
     if (CLOUD_DEMO) {
@@ -606,8 +663,10 @@
       couple:"陈屹 & 林沐",
       createdAt:t0, published:CLOUD_DEMO,
       nodes:[
-        { id:"n1", name:"宴会厅", time:"18:00", panorama:"nodes/n1/pano.jpg", depth:"nodes/n1/depth.png", depthJson:"nodes/n1/depth.json" },
-        { id:"n2", name:"仪式草坪", time:"16:30", panorama:"nodes/n2/pano.jpg", depth:"nodes/n2/depth.png", depthJson:"nodes/n2/depth.json" }
+        { id:"n1", name:"宴会厅", time:"18:00", panorama:"../assets/walkdemo/ballroom.jpg",
+          depth:"../assets/depth/ballroom.png", depthJson:"../assets/depth/ballroom.json" },
+        { id:"n2", name:"仪式草坪", time:"16:30", panorama:"../assets/walkdemo/chapel_day.jpg",
+          depth:"../assets/depth/chapel_day.png", depthJson:"../assets/depth/chapel_day.json" }
       ],
       tasks:[
         { id:"t1", nodeId:"n1", type:"gap", title:"缺这个角度", brief:"站在舞台右前方,拍向舞台",
@@ -634,10 +693,17 @@
   // 契约的 GET /api/space 只保证返回 space.json, 所以统计一律在前端算;
   // 后端若额外给了 space.stats, 优先用后端的。
   function stats(sp){
-    var s = { auto:0, pending:0, approved:0, rejected:0, total:0 };
+    var s = { auto:0, autoAccepted:0, quarantined:0, pending:0, approved:0, rejected:0, total:0 };
     (sp.photos || []).forEach(function(p){
       s.total++;
-      if (p.state === "auto_ok" || p.state === "quarantined") s.auto++;
+      if (p.state === "auto_ok") {
+        s.auto++;
+        s.autoAccepted++;
+      }
+      else if (p.state === "quarantined") {
+        s.auto++;
+        s.quarantined++;
+      }
       else if (p.state === "needs_review") s.pending++;
       else if (p.state === "approved") s.approved++;
       else if (p.state === "rejected") s.rejected++;
@@ -645,7 +711,7 @@
     // "机器已自动处理" = 机器自己拍板的那些(自动入选 + 自动隔离)
     s.machineHandled = (sp.stats && typeof sp.stats.machineHandled === "number") ? sp.stats.machineHandled : s.auto;
     s.needHuman = (sp.stats && typeof sp.stats.needHuman === "number") ? sp.stats.needHuman : s.pending;
-    s.inSpace = s.auto + s.approved; // 空间里实际展示的张数(粗算)
+    s.inSpace = s.autoAccepted + s.approved;
     return s;
   }
   function pendingPhotos(sp){
@@ -677,7 +743,7 @@
     return '' +
     '<div class="card" id="overview">' +
       '<div class="navrow">' +
-        '<a class="navlink" href="../index.html">← 回首页</a>' +
+        '<a class="navlink" href="' + esc(productBack()) + '">← 产品主页</a>' +
         // 带上 from: 列表页要把"你刚才在看的那个空间"永远留在列表里,
         // 哪怕它的名字长得像开发测试空间(现场就是拿这种空间在演示)
         '<a class="navlink" href="host.html?from=' + encodeURIComponent(sp.id || SID) +
@@ -801,7 +867,9 @@
                 (task ? ' · 认领了「' + esc(task.title) + '」' : '') + '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="robot">🤖 <b>机器说:</b>' + esc(p.reason || "没给理由") + '</div>' +
+          '<div class="robot u-ai-card" data-ai-state="review">' +
+            '<div class="u-ai-head"><span class="u-ai-orb"></span>AI 识别建议</div>' +
+            '<b>识别建议：</b>' + esc(p.reason || "没有生成说明") + '</div>' +
           '<div class="acts">' +
             '<button class="btn primary act-approve" data-pid="' + esc(p.id) + '">收下</button>' +
             '<button class="btn act-reject" data-pid="' + esc(p.id) + '">不要</button>' +
@@ -845,7 +913,7 @@
         : (t.status === "open" ? "还没人接" : "");
       var range = (isGap && t.yawRange && t.yawRange.length === 2)
         ? ('方位 ' + t.yawRange[0] + '° 到 ' + t.yawRange[1] + '°')
-        : (t.createdBy === "couple" ? "新人亲自写的" : "");
+        : (t.createdBy === "couple" ? "主办方亲自写的" : "");
       return '' +
       '<div class="task">' + thumb +
         '<div class="body">' +
@@ -881,7 +949,7 @@
         '<div class="node-copy"><b>' + esc(n.name || n.id) + '</b><span>' +
           esc(n.time || "时间未填") + " · " + photoN + " 张照片 · " + taskN + " 个空间任务</span></div>" +
         '<div class="node-actions">' +
-          '<a class="btn sm quiet" href="' + esc(walkHref) + '" target="_blank">进入 3D</a>' +
+          '<a class="btn sm quiet" href="' + esc(walkHref) + '" target="_blank" rel="noopener">预览 3D ↗</a>' +
           (MOCK ? '' : '<button class="btn sm danger delete-node" type="button" data-node-id="' +
             esc(n.id) + '">移除场景</button>') +
         '</div>' +
@@ -944,7 +1012,7 @@
             ? '这是公开演示地址,宾客用手机流量也能打开。'
             : S.cloudJson
             ? '这是公开地址,宾客用手机流量也能打开。'
-            : '这是局域网地址,只有和这台电脑连同一个 WiFi 的手机能打开。') +
+            : '发布展览并完成云同步后,这里才会生成可扫码的公开地址。') +
         '</div>' +
       '</div>' +
     '</div>';
@@ -1000,11 +1068,115 @@
     return out;
   }
 
+  function uploadStateOf(photo){
+    var state = photo && photo.state;
+    if (state === "auto_ok") return { cls:"included", label:"自动入选", included:true };
+    if (state === "approved") return { cls:"included", label:"已确认入选", included:true };
+    if (state === "needs_review") return { cls:"pending", label:"待审核 · 未公开", pending:true };
+    if (state === "quarantined") return { cls:"held", label:"已隔离 · 未公开", held:true };
+    if (state === "rejected") return { cls:"held", label:"未入选", held:true };
+    return { cls:"unknown", label:"状态未标注 · 未公开", unknown:true };
+  }
+
+  function uploadTotals(sp){
+    var total = { all:0, included:0, pending:0, held:0, unknown:0 };
+    (sp.photos || []).forEach(function(photo){
+      var meta = uploadStateOf(photo);
+      total.all++;
+      if (meta.included) total.included++;
+      else if (meta.pending) total.pending++;
+      else if (meta.held) total.held++;
+      else total.unknown++;
+    });
+    return total;
+  }
+
+  function uploadNodeWalkUrl(sp,node,nodeIndex){
+    var back = studioBack("uploads");
+    if (MOCK) {
+      return "../viewer/walk.html?scene=" +
+        encodeURIComponent(["ballroom","chapel_day","comfy_cafe","entrance_hall"][nodeIndex] || "ballroom") +
+        "&back=" + encodeURIComponent(back);
+    }
+    return "../viewer/walk.html?space=" + encodeURIComponent(sp.id || SID) +
+      "&node=" + encodeURIComponent(node.id) +
+      "&back=" + encodeURIComponent(back);
+  }
+
+  function uploadThumb(photo){
+    var meta = uploadStateOf(photo);
+    var src = assetUrl(photo.thumb || photo.src);
+    var who = photo.contributor || "匿名宾客";
+    return '<figure class="upload-thumb" title="' + esc(meta.label) + '">' +
+      '<div class="upload-thumb-media"><span class="upload-thumb-fallback" aria-hidden="true">▦</span>' +
+        (src ? '<img src="' + esc(src) + '" alt="' + esc(who) +
+          ' 上传的照片" loading="lazy" onerror="this.hidden=true">' : "") +
+      '</div><figcaption><span class="upload-state ' + meta.cls + '">' + esc(meta.label) +
+        '</span><span class="upload-who">' + esc(who) + "</span></figcaption></figure>";
+  }
+
+  function uploadNodeCard(sp,node,nodeIndex,photos){
+    var included = photos.filter(function(p){ return uploadStateOf(p).included; }).length;
+    var notPublic = photos.length - included;
+    var pano = assetUrl(node.panorama);
+    return '<article class="upload-node">' +
+      '<a class="upload-pano" href="' + esc(uploadNodeWalkUrl(sp,node,nodeIndex)) +
+        '" target="_blank" rel="noopener" aria-label="进入全景节点 ' + esc(node.name || node.id) + '">' +
+        '<span class="upload-pano-fallback" aria-hidden="true">◎</span>' +
+        (pano ? '<img src="' + esc(pano) + '" alt="" loading="lazy" onerror="this.hidden=true">' : "") +
+        '<span class="upload-pano-copy"><b>' + esc(node.name || node.id) + '</b><span>' +
+          esc(node.time || "时间未填") + " · 进入节点 →</span></span>" +
+      '</a><div class="upload-node-body"><div class="upload-node-meta"><b>' + photos.length +
+        ' 张上传</b><span>' + included + " 张已入选 · " + notPublic + " 张未公开</span></div>" +
+        (photos.length ? '<div class="upload-photo-grid">' + photos.map(uploadThumb).join("") + "</div>"
+          : '<div class="empty"><span class="em">▦</span>这个全景节点还没有收到照片</div>') +
+      "</div></article>";
+  }
+
+  function uploadUnassignedCard(photos){
+    return '<article class="upload-node upload-unassigned">' +
+      '<div class="upload-pano"><span class="upload-pano-fallback" aria-hidden="true">?</span>' +
+        '<span class="upload-pano-copy"><b>未归入全景节点</b><span>等待定位</span></span></div>' +
+      '<div class="upload-node-body"><div class="upload-node-meta"><b>' + photos.length +
+        ' 张上传</b><span>尚未归入任何全景</span></div>' +
+        '<div class="upload-photo-grid">' + photos.map(uploadThumb).join("") + "</div></div></article>";
+  }
+
+  function viewUploads(sp){
+    var photos = sp.photos || [], nodes = sp.nodes || [], totals = uploadTotals(sp), nodeIds = {};
+    nodes.forEach(function(node){ if (node && node.id) nodeIds[node.id] = true; });
+    var cards = nodes.map(function(node,nodeIndex){
+      var inNode = photos.filter(function(photo){ return photo.nodeId === node.id; });
+      return uploadNodeCard(sp,node,nodeIndex,inNode);
+    });
+    var unassigned = photos.filter(function(photo){ return !photo.nodeId || !nodeIds[photo.nodeId]; });
+    if (unassigned.length) cards.push(uploadUnassignedCard(unassigned));
+    var unknown = totals.unknown
+      ? '<div class="upload-count"><b>' + totals.unknown +
+          '</b><span>状态未标注（默认未公开）</span></div>'
+      : "";
+    return '<section class="card" id="uploads">' +
+      '<div class="sec-head"><h2 class="sec-title">▦ 已上传</h2>' +
+        '<span class="sec-note">查看全部全景和照片状态；只有已入选内容才会进入展览</span></div>' +
+      '<div class="upload-summary" aria-label="照片状态汇总">' +
+        '<div class="upload-count"><b>' + totals.all + '</b><span>全部上传</span></div>' +
+        '<div class="upload-count included"><b>' + totals.included + '</b><span>已入选，可进入展览</span></div>' +
+        '<div class="upload-count pending"><b>' + totals.pending +
+          '</b><span>待审核（未公开）</span></div>' +
+        '<div class="upload-count held"><b>' + totals.held +
+          '</b><span>未入选 / 已隔离（未公开）</span></div>' + unknown +
+      '</div>' +
+      (cards.length
+        ? '<div class="upload-node-grid">' + cards.join("") + "</div>"
+        : '<div class="empty"><span class="em">◎</span>还没有全景或照片。上传全景后，这里会按节点整理。</div>') +
+    "</section>";
+  }
+
   function viewExhibition(sp){
     var ex = exhibitionOf(sp);
     var pendingPublish = !!sp.publishDirty;
     var choices = [
-      ["walk","◎","走进空间"],["photos","▦","照片墙"],
+      ["walk","◎","走进空间"],["photos","▦","已上传"],
       ["tasks","✓","任务痕迹"],["contributors","♡","贡献者"]
     ].map(function(v){
       var disabled = (v[0] === "tasks" && ex.taskVisibility === "hidden") ||
@@ -1014,11 +1186,11 @@
         '><span>' + v[1] + " " + v[2] + "</span></label>";
     }).join("");
     var entryOptions = ex.views.map(function(v){
-      var names = {walk:"走进空间",photos:"照片墙",tasks:"任务痕迹",contributors:"贡献者"};
+      var names = {walk:"走进空间",photos:"已上传",tasks:"任务痕迹",contributors:"贡献者"};
       return '<option value="' + v + '"' + (ex.entryView === v ? " selected" : "") + ">" + names[v] + "</option>";
     }).join("");
     var publicAction = S.cloudJson
-      ? '<a class="btn quiet" href="' + esc(cloudShowUrl()) + '" target="_blank">打开公开展览</a>'
+      ? '<a class="btn quiet" href="' + esc(cloudShowUrl()) + '" target="_blank" rel="noopener">预览公开展览 ↗</a>'
       : "";
     var dataNote = CLOUD_DEMO
       ? "云端演示数据，操作只影响当前页面"
@@ -1040,10 +1212,10 @@
             '<p>' + (sp.nodes || []).length + " 个全景节点," + (sp.selectedCount != null ? sp.selectedCount : stats(sp).inSpace) +
               " 张已入选照片。先看草稿,发布后观众看到同一套内容。</p>" +
             '<div class="preview-acts">' +
-              '<a class="btn" href="' + esc(localShowUrl()) + '" target="_blank">' +
-                (CLOUD_DEMO ? '预览公开展览' : '预览完整展览') + '</a>' +
-              '<a class="btn quiet" href="' + esc(localWalkUrl()) + '" target="_blank">' +
-                (CLOUD_DEMO ? '进入 3D 演示' : '直接走进未成品') + '</a>' +
+              '<a class="btn" href="' + esc(localShowUrl()) + '" target="_blank" rel="noopener">' +
+                (CLOUD_DEMO ? '预览公开展览 ↗' : '预览完整展览 ↗') + '</a>' +
+              '<a class="btn quiet" href="' + esc(localWalkUrl()) + '" target="_blank" rel="noopener">' +
+                (CLOUD_DEMO ? '预览 3D 演示 ↗' : '预览未成品 ↗') + '</a>' +
               publicAction +
             '</div>' +
           '</div>' +
@@ -1083,9 +1255,10 @@
       viewDemoGate() +
       viewTop(sp) +
       '<nav class="studio-tabs" aria-label="Studio 工作区">' +
-        '<a href="#overview">概况</a><a href="#collect">收集</a>' +
+        '<a href="#overview">概况</a><a href="#uploads">已上传</a><a href="#collect">收集</a>' +
         '<a href="#review">审核</a><a href="#exhibition">展览</a>' +
       '</nav>' +
+      viewUploads(sp) +
       viewExhibition(sp) +
       viewReview(sp) +
       '<div class="cols">' +
@@ -1196,33 +1369,36 @@
   // ---------------------------------------------------------------- 处理电脑 + 云发布状态
   var SYSTEM = { timer:null };
 
+  function paintSystemCard(element,state,label,title,detail,extra){
+    if (!element) return;
+    element.className = "system-box u-ai-card";
+    element.setAttribute("data-ai-state",state || "info");
+    element.innerHTML =
+      '<div class="u-ai-head"><span class="u-ai-orb"></span>' + esc(label) + "</div>" +
+      "<b>" + esc(title) + "</b><span>" + esc(detail) + "</span>" + (extra || "");
+  }
+
   function paintSystem(){
     var worker = $("workerSlot");
     var cloud = $("cloudSlot");
     if (CLOUD_DEMO){
-      if (worker){
-        worker.className = "system-box ok";
-        worker.innerHTML = "<b>处理流程演示</b><span>这里展示现场处理电脑接收和识别照片的状态</span>";
-      }
-      if (cloud){
-        cloud.className = "system-box ok";
-        cloud.innerHTML = "<b>公开展览示例已连接</b><span>预览按钮打开已发布的 s4 只读展览</span>";
-      }
+      paintSystemCard(worker,"success","AI 处理状态","处理流程演示",
+        "这里展示现场处理电脑接收和识别照片的状态");
+      paintSystemCard(cloud,"success","公开展览","示例展览已连接",
+        "预览按钮打开已发布的 s4 只读展览");
       return;
     }
     if (worker){
       if (!S.worker){
-        worker.className = "system-box";
-        worker.innerHTML = "<b>处理电脑</b><span>正在读取状态</span>";
+        paintSystemCard(worker,"processing","AI 处理状态","正在连接处理电脑","正在读取状态");
       } else if (S.worker.running){
-        worker.className = "system-box ok";
-        worker.innerHTML = "<b>处理电脑运行中</b><span>" +
-          (S.worker.note === "loading-clip" ? "正在加载识别模型,冷启动通常要十几秒" : "正在接收和处理宾客照片") +
-          "</span>";
+        paintSystemCard(worker,S.worker.note === "loading-clip" ? "processing" : "success",
+          "AI 处理状态",S.worker.note === "loading-clip" ? "正在启动识别模型" : "AI 处理在线",
+          S.worker.note === "loading-clip" ? "模型加载完成后会自动接收照片" : "正在接收并定位宾客照片");
       } else {
-        worker.className = "system-box warn";
-        worker.innerHTML = '<b>处理电脑没有在线</b><span>新照片可以先保存,但暂时不会归入空间。</span>' +
-          '<button class="btn sm" id="btnStartWorker" style="margin-top:8px">启动处理电脑</button>';
+        paintSystemCard(worker,"error","AI 处理状态","处理电脑没有在线",
+          "新照片可以先保存，但暂时不会归入空间。",
+          '<button class="btn sm" id="btnStartWorker" style="margin-top:8px">启动处理电脑</button>');
         var start = $("btnStartWorker");
         if (start) start.addEventListener("click", startWorker);
       }
@@ -1232,24 +1408,22 @@
     if (cloud){
       if (st.running){
         var total = Number(st.total) || 0, done = Number(st.done) || 0;
-        cloud.className = "system-box";
-        cloud.innerHTML = "<b>正在更新公开展览</b><span>" +
-          (total ? (done + "/" + total + " 个文件") : "正在准备文件") + "</span>";
+        paintSystemCard(cloud,"processing","公开展览","正在更新公开展览",
+          total ? (done + "/" + total + " 个文件") : "正在准备文件");
       } else if (st.error){
-        cloud.className = "system-box warn";
-        cloud.innerHTML = "<b>公开展览更新失败</b><span>" + esc(st.error) + "</span>";
+        paintSystemCard(cloud,"error","公开展览","公开展览更新失败",st.error);
       } else if (st.result && st.result.cleanupPending){
-        cloud.className = "system-box warn";
-        cloud.innerHTML = "<b>旧云端文件清理待重试</b><span>公开内容已更新,请再点一次更新展览完成清理</span>";
+        paintSystemCard(cloud,"review","公开展览","旧云端文件清理待重试",
+          "公开内容已更新，请再点一次更新展览完成清理");
       } else if (st.result && st.result.stale){
-        cloud.className = "system-box warn";
-        cloud.innerHTML = "<b>发布时空间又有改动</b><span>请再点一次更新展览,同步最新内容</span>";
+        paintSystemCard(cloud,"review","公开展览","发布时空间又有改动",
+          "请再点一次更新展览，同步最新内容");
       } else if ((st.result && st.result.spaceJson) || S.cloudJson){
-        cloud.className = "system-box ok";
-        cloud.innerHTML = "<b>公开展览已就绪</b><span>宾客页和只读展览都能从外网打开</span>";
+        paintSystemCard(cloud,"success","公开展览","公开展览已就绪",
+          "宾客页和只读展览都能从外网打开");
       } else {
-        cloud.className = "system-box";
-        cloud.innerHTML = "<b>公开展览还没生成</b><span>保存草稿后,按右上角发布展览</span>";
+        paintSystemCard(cloud,"info","公开展览","公开展览还没生成",
+          "保存草稿后，按右上角发布展览");
       }
     }
   }
@@ -1308,17 +1482,27 @@
     var slot = $("reportSlot");
     if (!slot) return;
     slot.className = "pubstate";
+    slot.removeAttribute("data-ai-state");
     if (MOCK || !S.space || !S.space.published) { slot.innerHTML = ""; return; }
     var href = "/server/report.html?src=" + encodeURIComponent("/spaces/" + SID + "/report.json");
     if (REPORT.verdict){
-      slot.innerHTML = '机器验收:' + esc(VERDICT_CN[REPORT.verdict] || REPORT.verdict) +
-        ' · <a href="' + href + '" target="_blank">查看机器验收报告</a>';
+      slot.className = "pubstate u-ai-card";
+      slot.setAttribute("data-ai-state",REPORT.verdict === "pass" ? "success" :
+        REPORT.verdict === "reject" ? "error" : "processing");
+      slot.innerHTML = '<div class="u-ai-head"><span class="u-ai-orb"></span>AI 自动验收</div>' +
+        '验收结果：' + esc(VERDICT_CN[REPORT.verdict] || REPORT.verdict) +
+        ' · <a href="' + href + '" target="_blank" rel="noopener">查看验收报告 ↗</a>';
     } else if (REPORT.state === "waiting"){
-      slot.innerHTML = '机器正在验收这个空间…(无人值守)';
+      slot.className = "pubstate u-ai-card";
+      slot.setAttribute("data-ai-state","processing");
+      slot.innerHTML = '<div class="u-ai-head"><span class="u-ai-orb"></span>AI 自动验收</div>' +
+        "正在检查这个空间";
     } else if (REPORT.state === "none"){
       // 没有报告就说没有, 别让一句"正在验收"永远转下去
-      slot.className = "pubstate off";
-      slot.innerHTML = '这次发布还没有机器验收报告';
+      slot.className = "pubstate off u-ai-card";
+      slot.setAttribute("data-ai-state","review");
+      slot.innerHTML = '<div class="u-ai-head"><span class="u-ai-orb"></span>AI 自动验收</div>' +
+        "这次发布还没有验收报告";
     } else {
       slot.innerHTML = "";
     }
@@ -1463,7 +1647,7 @@
     function syncEntryOptions(){
       var entry = $("exEntry");
       if (!entry) return;
-      var old = entry.value, names = {walk:"走进空间",photos:"照片墙",tasks:"任务痕迹",contributors:"贡献者"};
+      var old = entry.value, names = {walk:"走进空间",photos:"已上传",tasks:"任务痕迹",contributors:"贡献者"};
       var views = Array.prototype.slice.call(document.querySelectorAll("[data-ex-view]:checked"))
         .map(function(x){ return x.getAttribute("data-ex-view"); });
       entry.innerHTML = views.map(function(v){
@@ -1827,7 +2011,8 @@
     $("app").innerHTML = '' +
       viewDemoGate() +
       '<div class="card">' +
-        '<div class="navrow"><a class="navlink" href="../index.html">← 回首页</a></div>' +
+        '<div class="navrow"><a class="navlink" href="' + esc(productBack()) +
+          '">← 产品主页</a></div>' +
         '<div class="kicker">U N S E E N <span>Studio</span> · 主办后台</div>' +
         '<div class="sec-head"><h2 class="sec-title">我的空间</h2><span class="sec-note">点一个进后台</span></div>' +
         '<div class="slist">' + items + '</div>' + devRow +
@@ -1868,7 +2053,8 @@
   // ================================================================ 启动
   function fallbackJoinUrl(){
     if (CLOUD_DEMO) return location.origin + "/web/join.html?s=s4";
-    return location.origin + "/server/join.html?space=" + encodeURIComponent(SID);
+    // 未发布空间没有匿名 LAN 上传契约；空值让 Studio 保持“尚未开放”状态。
+    return "";
   }
 
   function isHostOrigin(){
@@ -1886,7 +2072,8 @@
       ? '<button class="btn primary" type="button" onclick="location.reload()">重新检查</button>'
       : '<a class="btn primary" href="' + esc(localUrl) + '">在主办方电脑打开 Studio</a>';
     $("app").innerHTML =
-      '<div class="card"><div class="navrow"><a class="navlink" href="../index.html">← 回首页</a></div>' +
+      '<div class="card"><div class="navrow"><a class="navlink" href="' + esc(productBack()) +
+        '">← 产品主页</a></div>' +
       '<div class="empty"><span class="em">🖥️</span><b>Studio 需要主办方后台</b><br>' +
       esc(body) +
       '<div style="margin-top:16px">' + action + '</div></div></div>';

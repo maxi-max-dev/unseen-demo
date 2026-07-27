@@ -288,13 +288,14 @@
     *,*::before,*::after{ animation:none!important; transition:none!important; }
   }
 </style>
+<link rel="stylesheet" href="../app/product-ui.css">
 </head>
 <body class="u-body">
 <div class="u-bokeh"></div>
 <main class="login-shell">
   <section class="brand-pane">
     <div class="topline">
-      <a class="back" href="../portal.html" aria-label="返回产品主页">‹</a>
+      <a class="back u-product-back" href="../portal.html" aria-label="返回产品主页">‹</a>
       <div class="logo">U N S E E N<i>.</i></div>
     </div>
     <div class="eyebrow">Studio Access</div>
@@ -349,7 +350,7 @@
 
   var AUTH_KEY = "unseen.studio.demo.auth.v1";
   var AUTH_TTL = 8 * 60 * 60 * 1000;
-  var DEFAULT_NEXT = "/server/host.html?space=s4&mock=1";
+  var DEFAULT_NEXT = "/server/host.html?space=s4&mock=1&back=portal.html";
   var pin = "";
   var attempts = 0;
   var lockedUntil = 0;

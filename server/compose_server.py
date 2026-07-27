@@ -31,7 +31,8 @@ from contextlib import asynccontextmanager
 
 import numpy as np
 from fastapi import FastAPI, File, Request, UploadFile
-from fastapi.responses import JSONResponse, Response
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
@@ -58,17 +59,31 @@ IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp"}
 
 # 自检环回头要用无头浏览器访问本服务自己的页面, 所以要知道自己的地址
 SELF_URL = os.environ.get("PSM_SELF_URL", "http://127.0.0.1:8777")
-HOST_PIN = os.environ.get("UNSEEN_HOST_PIN", "1111")
+_RAW_HOST_PIN = (os.environ.get("UNSEEN_HOST_PIN") or "").strip()
+# 公网主办方接口没有默认口令。未配置或仍使用历史弱口令时，本机可调试，
+# 但所有远程 host 请求一律拒绝，避免隧道一开就把控制台暴露出去。
+HOST_PIN = (
+    _RAW_HOST_PIN
+    if len(_RAW_HOST_PIN) >= 6 and _RAW_HOST_PIN not in {"1111", "123456", "000000"}
+    else ""
+)
 HOST_COOKIE_NAME = "unseen_host_demo"
 HOST_COOKIE_TTL_S = 8 * 60 * 60
+HOST_LOGIN_WINDOW_S = 60
+HOST_LOGIN_LOCK_S = 10
+HOST_LOGIN_FAILURE_LIMIT = 3
 
 _session_lock = threading.Lock()
+_host_login_lock = threading.Lock()
+_host_login_failures = {}
 _clip_state = {}  # 启动时加载一次,别每次请求重加载
 _verify_stage = {}  # 会话 id -> 自检环当前跑到哪一闸, 给上传页那条进度条读
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    roadshow = space_mod.initialize_roadshow_space()
+    print(f"  路演空间 {roadshow['id']} 已就绪", flush=True)
     print("== 加载 CLIP (clip-ViT-B-32) ==", flush=True)
     t0 = time.time()
     from sentence_transformers import SentenceTransformer
@@ -84,7 +99,40 @@ async def lifespan(app: FastAPI):
     _clip_state.clear()
 
 
-app = FastAPI(lifespan=lifespan)
+# This service sits behind a public roadshow tunnel.  The interactive schema
+# pages are development conveniences and disclose every host-only endpoint, so
+# production runtime exposes neither Swagger/ReDoc nor the OpenAPI document.
+app = FastAPI(
+    lifespan=lifespan,
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
+)
+
+# 妙搭正式 Studio 需要从自己的 HTTPS origin 调用这台现场处理机。
+# 只允许明确列出的产品 origin；额外预览地址通过环境变量按逗号追加，
+# 不使用 "*"，也不把主办方口令写进前端包。
+STUDIO_CORS_ORIGINS = [
+    "https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com",
+    "https://app-d9d8b2ig54w1.appmiaoda.com",
+    "https://app-d9d8b2ig54w1-vitesandbox-bj-2.miaoda.cn",
+    "http://localhost:8081",
+    "http://localhost:19006",
+]
+for _origin in os.environ.get("UNSEEN_STUDIO_ORIGINS", "").split(","):
+    _origin = _origin.strip().rstrip("/")
+    if _origin.startswith(("https://", "http://")) and _origin not in STUDIO_CORS_ORIGINS:
+        STUDIO_CORS_ORIGINS.append(_origin)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=STUDIO_CORS_ORIGINS,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "X-Unseen-Host-Pin"],
+    expose_headers=["Content-Length", "Content-Type"],
+    max_age=600,
+)
 
 # 闭环产品的全部 /api/... 接口。必须在下面的 app.mount("/") 之前 include ——
 # 挂载点是按注册顺序匹配的, 根挂载一旦排在前面就会把所有路径都吃掉。
@@ -92,6 +140,11 @@ app.include_router(space_mod.router)
 
 
 def _is_loopback_client(request):
+    # A public Cloudflare Tunnel reaches uvicorn through 127.0.0.1.  The
+    # forwarded marker therefore wins over the socket peer; otherwise every
+    # internet visitor would be mistaken for this Mac.
+    if request.headers.get("cf-connecting-ip") or request.headers.get("x-forwarded-for"):
+        return False
     host = (request.client.host if request.client else "").split("%", 1)[0]
     try:
         return ipaddress.ip_address(host).is_loopback
@@ -99,9 +152,69 @@ def _is_loopback_client(request):
         return host == "localhost"
 
 
+def _host_client_key(request):
+    for header in ("cf-connecting-ip", "x-forwarded-for"):
+        raw = (request.headers.get(header) or "").split(",", 1)[0].strip()
+        if not raw:
+            continue
+        try:
+            return str(ipaddress.ip_address(raw.split("%", 1)[0]))
+        except ValueError:
+            continue
+    return (request.client.host if request.client else "unknown").split("%", 1)[0]
+
+
+def _host_login_retry_after(request):
+    key = _host_client_key(request)
+    now = time.time()
+    with _host_login_lock:
+        record = _host_login_failures.get(key)
+        if not record:
+            return 0
+        locked_until = float(record.get("lockedUntil") or 0)
+        if locked_until > now:
+            return max(1, int(locked_until - now + 0.999))
+        if now - float(record.get("firstAt") or 0) > HOST_LOGIN_WINDOW_S:
+            _host_login_failures.pop(key, None)
+    return 0
+
+
+def _record_host_login_failure(request):
+    key = _host_client_key(request)
+    now = time.time()
+    with _host_login_lock:
+        record = _host_login_failures.get(key) or {
+            "firstAt": now, "count": 0, "lockedUntil": 0,
+        }
+        if now - float(record.get("firstAt") or 0) > HOST_LOGIN_WINDOW_S:
+            record = {"firstAt": now, "count": 0, "lockedUntil": 0}
+        record["count"] = int(record.get("count") or 0) + 1
+        if record["count"] >= HOST_LOGIN_FAILURE_LIMIT:
+            record["lockedUntil"] = now + HOST_LOGIN_LOCK_S
+        _host_login_failures[key] = record
+
+
+def _clear_host_login_failures(request):
+    with _host_login_lock:
+        _host_login_failures.pop(_host_client_key(request), None)
+
+
+def _too_many_host_attempts(request):
+    retry_after = _host_login_retry_after(request)
+    if not retry_after:
+        return None
+    return JSONResponse(
+        {"ok": False, "error": "口令尝试过多,请稍后再试"},
+        status_code=429,
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
 def _host_request_allowed(request):
     if _is_loopback_client(request):
         return True
+    if not HOST_PIN:
+        return False
     supplied = request.headers.get("x-unseen-host-pin", "")
     if supplied and hmac.compare_digest(supplied, HOST_PIN):
         return True
@@ -125,7 +238,7 @@ def _public_api_request(request):
     path = request.url.path
     if request.method == "POST" and path in ("/api/host/login", "/api/host/logout"):
         return True
-    if request.method == "POST" and re.fullmatch(r"/api/space/s\d+/upload", path):
+    if request.method == "GET" and path == "/api/host/session":
         return True
     return bool(
         request.method == "GET"
@@ -134,15 +247,44 @@ def _public_api_request(request):
     )
 
 
+# 根目录绝不能再通过 StaticFiles 暴露。旧的本机工具只按这个白名单提供，
+# 源码、配置、空间真值、Git 元数据和虚拟环境在任何情况下都没有静态路由。
+SERVER_UI_FILES = {
+    "/server/host.html": "host.html",
+    "/server/roadshow-admin.html": "roadshow-admin.html",
+    "/server/report.html": "report.html",
+    "/server/upload.html": "upload.html",
+    "/server/qr.js": "qr.js",
+    "/server/sample_report.json": "sample_report.json",
+}
+PUBLIC_SERVER_UI_FILES = {"/server/roadshow-admin.html"}
+
+
+@app.get("/api/host/session")
+def api_host_session(request: Request):
+    """Public, non-secret probe so the login shell never triggers 403 noise."""
+    return {"ok": True, "authenticated": _host_request_allowed(request)}
+
+
 @app.post("/api/host/login")
 async def api_host_login(request: Request):
+    if not HOST_PIN:
+        return JSONResponse(
+            {"ok": False, "error": "现场服务未配置安全主办方口令"},
+            status_code=503,
+        )
+    limited = _too_many_host_attempts(request)
+    if limited is not None:
+        return limited
     try:
         payload = await request.json()
     except Exception:
         payload = {}
     supplied = str(payload.get("pin") or "") if isinstance(payload, dict) else ""
     if not hmac.compare_digest(supplied, HOST_PIN):
+        _record_host_login_failure(request)
         return JSONResponse({"ok": False, "error": "主办方口令无效"}, status_code=403)
+    _clear_host_login_failures(request)
     issued_at = int(time.time())
     signature = hmac.new(
         HOST_PIN.encode("utf-8"),
@@ -155,7 +297,10 @@ async def api_host_login(request: Request):
         f"{issued_at}.{signature}",
         max_age=HOST_COOKIE_TTL_S,
         httponly=True,
-        secure=request.url.scheme == "https",
+        secure=(
+            request.url.scheme == "https"
+            or (request.headers.get("x-forwarded-proto") or "").split(",", 1)[0].strip() == "https"
+        ),
         samesite="strict",
         path="/",
     )
@@ -178,6 +323,8 @@ def _guest_asset_allowed(sid, rel):
         return False
     try:
         with space_mod.space_txn(sid, write=False) as space:
+            if not space_mod.is_publicly_published_space(space):
+                return False
             allowed = set()
             for node in space.get("nodes") or []:
                 for field in ("panorama", "depth", "depthJson"):
@@ -211,6 +358,10 @@ def _guest_asset_allowed(sid, rel):
 @app.middleware("http")
 async def protect_space_assets(request: Request, call_next):
     """堵住根静态挂载的旁路，并给局域网宾客套上和 guest API 相同的素材白名单。"""
+    # CORS 预检本身不会携带主办方口令。让 CORSMiddleware 按精确来源白名单
+    # 回答预检；真正的 GET/POST 仍会在这里校验 X-Unseen-Host-Pin。
+    if request.method == "OPTIONS":
+        return await call_next(request)
     # 根 StaticFiles 会先 normpath，再去磁盘找文件。鉴权如果只看原始 URL，
     # `/server//spaces`、`/server/./spaces`、`/server/x/../spaces` 就能在这里
     # 漏过去，随后被静态服务归一到本机真值目录。鉴权必须使用同等级归一结果。
@@ -218,6 +369,17 @@ async def protect_space_assets(request: Request, call_next):
     path = posixpath.normpath("/" + raw_path.replace("\\", "/").lstrip("/"))
     if path == "/server/spaces" or path.startswith("/server/spaces/"):
         return Response(status_code=404)
+    if path.startswith("/server/") and path not in SERVER_UI_FILES:
+        return Response(status_code=404)
+    if not _is_loopback_client(request):
+        supplied_pin = request.headers.get("x-unseen-host-pin", "")
+        if supplied_pin and not (
+            HOST_PIN and hmac.compare_digest(supplied_pin, HOST_PIN)
+        ):
+            limited = _too_many_host_attempts(request)
+            if limited is not None:
+                return limited
+            _record_host_login_failure(request)
     host_allowed = _host_request_allowed(request)
     request.state.unseen_host_allowed = host_allowed
     if path.startswith("/api/") and not host_allowed and not _public_api_request(request):
@@ -225,6 +387,23 @@ async def protect_space_assets(request: Request, call_next):
             {"ok": False, "error": "主办方口令无效"},
             status_code=403,
         )
+    # 旧版“上传即合成”和自检会启动 CLIP/DAP 并落盘，只向本机或已认证
+    # 主办方开放。现场参与者走 OSS 直传，不需要这些入口。
+    if not host_allowed and (
+        path == "/compose"
+        or path.startswith("/verify/")
+        or (path in SERVER_UI_FILES and path not in PUBLIC_SERVER_UI_FILES)
+    ):
+        return JSONResponse(
+            {"ok": False, "error": "主办方口令无效"},
+            status_code=403,
+        )
+    # 历史 compose session 含全景与投稿。匿名请求一律伪装成不存在，
+    # 避免顺序枚举 session id。
+    if not host_allowed and (
+        path == "/sessions" or path.startswith("/sessions/")
+    ):
+        return Response(status_code=404)
     if path.startswith("/spaces/") and not host_allowed:
         parts = path[len("/spaces/"):].split("/", 1)
         allowed = (
@@ -541,12 +720,25 @@ async def compose(panorama: UploadFile = File(None), photos: list[UploadFile] = 
 
 
 # ---------------------------------------------------------------- 静态服务(必须最后挂载)
-# ⚠️ 顺序有讲究: 具体路径的挂载全部排在 "/" 之前, 否则根挂载会先命中, 后面的全废。
+# 旧本机工具只显式提供这几个文件。中间件会要求 loopback 或主办方认证。
+@app.get("/server/{filename:path}")
+async def get_server_ui_file(filename: str):
+    path = f"/server/{filename}"
+    local_name = SERVER_UI_FILES.get(path)
+    if not local_name:
+        return Response(status_code=404)
+    return FileResponse(os.path.join(REPO_ROOT, "server", local_name))
+
+
+# ⚠️ 只挂明确白名单目录，禁止恢复 app.mount("/", REPO_ROOT)。
 app.mount("/sessions", StaticFiles(directory=SESSIONS_DIR), name="sessions")
 # 闭环的空间资源: 全景/深度图/照片/缩略图/通缉令裁切图/验收报告都在这下面,
 # host.html 和 join.html 里的 assetUrl() 拼的就是 /spaces/<sid>/... 这个前缀。
 app.mount("/spaces", StaticFiles(directory=space_mod.SPACES_DIR), name="spaces")
-app.mount("/", StaticFiles(directory=REPO_ROOT, html=True), name="root")
+app.mount("/viewer", StaticFiles(directory=os.path.join(REPO_ROOT, "viewer"), html=True), name="viewer")
+app.mount("/web", StaticFiles(directory=os.path.join(REPO_ROOT, "web"), html=True), name="web")
+app.mount("/app", StaticFiles(directory=os.path.join(REPO_ROOT, "app"), html=True), name="app")
+app.mount("/assets", StaticFiles(directory=os.path.join(REPO_ROOT, "assets")), name="assets")
 
 
 if __name__ == "__main__":

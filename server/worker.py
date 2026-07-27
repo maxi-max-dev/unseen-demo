@@ -293,6 +293,45 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
         return {"ok": True, "listed": len(listed), "new": 0,
                 "processed": 0, "failed": 0, "results": [], "published": published}
 
+    # 满额对象必须得到终态回执并进入去重台账，但绝不能下载或跑 CLIP。
+    # 最后一个名额会在同一事务里自动关闭 collection，因此这个判断必须早于
+    # “collection closed 就暂停”，否则超额对象会永远留在重试队列。
+    capacity = space.space_capacity(current_space)
+    if capacity["full"]:
+        quota_rejected = 0
+        for item in fresh:
+            key = item["key"]
+            contributor, task_id = parse_key(key)
+            space.record_quota_full_receipt(sid, key, contributor)
+            done[key] = {
+                "state": "quota_full",
+                "contributor": contributor,
+                "taskId": task_id,
+                "at": time.time(),
+            }
+            quota_rejected += 1
+        save_state(sid, st)
+        published = None
+        if do_publish:
+            with space.space_txn(sid, write=False) as current:
+                can_sync = space._cloud_publish_authorized(current)
+            if can_sync:
+                published = republish(sid, conf)
+        log(
+            f"本场已收满 {capacity['maxPhotos']} 张,"
+            f"已拒绝 {quota_rejected} 张超额投稿且未运行 CLIP"
+        )
+        return {
+            "ok": True,
+            "listed": len(listed),
+            "new": len(fresh),
+            "processed": 0,
+            "failed": 0,
+            "quotaFull": quota_rejected,
+            "results": [],
+            "published": published,
+        }
+
     # 主办方暂停收集时, 新对象留在收件箱里等恢复, 既不处理也不记失败。
     # 公开直传策略在过期前仍可能被旧页面持有, 所以工人也必须守这道闸。
     collection = space._normal_collection(current_space.get("collection"))
@@ -306,13 +345,27 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
     # 已知任务 id, 用来挡掉宾客页传来的野 taskId(带个不存在的任务会让积分/任务状态错乱)
     known_tasks = {t["id"] for t in current_space.get("tasks", [])}
 
-    results, failed, deferred = [], 0, 0
+    results, failed, deferred, quota_rejected = [], 0, 0, 0
     for item in fresh:
         key = item["key"]
         contributor, task_id = parse_key(key)
         if task_id and task_id not in known_tasks:
             task_id = None                      # 野 taskId 直接丢掉, 让自动判定去接
         try:
+            with space.space_txn(sid, write=False) as latest:
+                latest_capacity = space.space_capacity(latest)
+            if latest_capacity["full"]:
+                space.record_quota_full_receipt(sid, key, contributor)
+                done[key] = {
+                    "state": "quota_full",
+                    "contributor": contributor,
+                    "taskId": task_id,
+                    "at": time.time(),
+                }
+                quota_rejected += 1
+                log(f"名额已满,拒绝 {os.path.basename(key)}（未下载、未跑 CLIP）")
+                save_state(sid, st)
+                continue
             try:
                 raw = oss.get_bytes(conf, key)
             except Exception as e:
@@ -337,13 +390,23 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
                             "nodeId": r["nodeId"], "yaw": r["yaw"], "direction": r["direction"],
                             "confidence": r["confidence"], "margin": margin,
                             "contributor": contributor, "taskFilled": r.get("taskFilled")})
+        except space.PhotoQuotaFull as e:
+            space.record_quota_full_receipt(sid, key, contributor)
+            done[key] = {
+                "state": "quota_full",
+                "contributor": contributor,
+                "taskId": task_id,
+                "at": time.time(),
+            }
+            quota_rejected += 1
+            log(f"名额已满,拒绝 {os.path.basename(key)}（未入库）")
         except RuntimeError as e:
             # 主办方可能正好删了最后一个场景或在 CLIP 计算期间删了命中的场景。
             # 这不是坏图,OSS 原件还在。不要写进 done 台账,留到重新建场景并开放
             # 收集后再处理,否则一次场景调整会把宾客照片永久吞掉。
             msg = str(e)
             if ("还没有全景节点" in msg or "全景场景刚刚被移除" in msg
-                    or "已经暂停收集照片" in msg):
+                    or "已经暂停收集照片" in msg or "正在处理中" in msg):
                 deferred += 1
                 log(f"⏸️ {os.path.basename(key)} 等待新场景,下一轮重试")
                 continue
@@ -379,15 +442,18 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
                 s = f"{r['photoId']} 待审({_why(r['confidence'], r['margin'])})"
             bits.append(s)
         tail = (f", {failed} 张失败" if failed else "") + (
-            f", {deferred} 张等待重试" if deferred else "")
+            f", {deferred} 张等待重试" if deferred else "") + (
+            f", {quota_rejected} 张因满额拒绝" if quota_rejected else "")
         log(f"收到 {len(fresh)} 张{tail} → " + " / ".join(bits))
     elif deferred:
         log(f"收到 {len(fresh)} 张,其中 {deferred} 张等待新场景后重试")
+    elif quota_rejected:
+        log(f"收到 {len(fresh)} 张,其中 {quota_rejected} 张因名额已满未入库")
     else:
         log(f"收到 {len(fresh)} 张, 全部处理失败")
 
     published = None
-    if do_publish and results:
+    if do_publish and (results or quota_rejected):
         with space.space_txn(sid, write=False) as current:
             auto_publish = space._cloud_publish_authorized(current)
         if auto_publish:
@@ -396,6 +462,7 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
             log("照片已归位,展览仍是主办方草稿,等主办方发布后再同步公网")
     return {"ok": True, "listed": len(listed), "new": len(fresh), "processed": len(results),
             "failed": failed, "deferred": deferred,
+            "quotaFull": quota_rejected,
             "results": results, "published": published}
 
 

@@ -2,14 +2,14 @@
  *
  * 为什么要有这个文件:二维码和分享链接原来写死在三个地方(server/host.html、
  * app/scene.html、app/invite.html),换主机就得三处手改,漏一处现场就发出去一个死码。
- * 2026-07-25 Max 实测 Vercel 在国内不挂加速器打不开,这个开关就是为那一刻准备的。
+ * 腾讯云静态站负责国内访问，开发环境仍可通过查询参数切换本地接口。
  *
- * 正式站自动使用当前域名,所以部署到阿里云自定义域名后不用再改源码。
- * 本机开发仍回到当前 Vercel 公网入口。后端那一份对应环境变量 PSM_CLOUD_JOIN_BASE。
+ * 正式站自动使用当前域名,所以部署到腾讯云或绑定自定义域名后不用再改源码。
+ * 本机开发默认回到腾讯云公网入口。后端那一份对应环境变量 PSM_CLOUD_JOIN_BASE。
  */
 (function () {
   "use strict";
-  var FALLBACK = "https://unseen-demo.vercel.app";
+  var FALLBACK = "https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com";
   var STORE_KEY = "unseen.public.origin.v1";
 
   function isLocalHost(host) {

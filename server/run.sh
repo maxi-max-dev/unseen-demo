@@ -6,6 +6,11 @@
 set -e
 cd "$(dirname "$0")/.."
 SITE_ORIGIN_FILE="server/public_site_url.txt"
+HOST_PIN_FILE="server/.host_pin"
+if [[ -z "${UNSEEN_HOST_PIN:-}" && -f "$HOST_PIN_FILE" ]]; then
+  IFS= read -r UNSEEN_HOST_PIN < "$HOST_PIN_FILE"
+  export UNSEEN_HOST_PIN
+fi
 if [[ -f "$SITE_ORIGIN_FILE" ]]; then
   IFS= read -r UNSEEN_SITE_ORIGIN < "$SITE_ORIGIN_FILE"
   if [[ "$UNSEEN_SITE_ORIGIN" == https://* ]]; then
