@@ -243,3 +243,64 @@ $ ls -la archive/tour.js.before-40photos.bak
   viewer/timeline.html、web/doors.html），无关行未动。
 
 结论：收官状态成立，两处未达标（死链残留、rename=18）是结构性限制而非未完成，不再重复施工。
+
+---
+
+# BLOCKED · 批次C（展览页五视图合一）
+
+> 本节是批次C（把 archive/viewer/ 四个旧皮收进 web/show.html 做页内切换视图）的记录，
+> 追加在 agent A / agent B 的记录之后，没有动前面任何一个字。
+
+## C-1. 顺手发现：app/contract.md 的云版 photos[] 字段表，和 s4 真实数据对不上（只读，没有动手）
+
+实测拉取 `https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com/spaces/s4/space.json`，
+`photos[]` 里每一条真实字段是：
+
+```
+id, src, thumb, nodeId, yaw, pitch, confidence, taskId, uploadedAt, inboxKey, contributor
+```
+
+对照 `app/contract.md`「三、一张照片」里云版 `photos[]`/`pending[]` 那张表，列的是：
+
+```
+id, src, thumb, nodeId, yaw, confidence, margin, state, reason, contributor, taskId
+```
+
+对不上的地方：
+- `pitch`：contract.md 只在「本地版 `nodes[].photos[]`」那张表里提到，并写着
+  「云版目前不产出这个」——但 s4 真数据的云版 `photos[]` 每条都带 `"pitch": 0`。
+- `uploadedAt` / `inboxKey`：两个云版真实存在的字段，契约表里完全没提。
+- `margin` / `state` / `reason`：契约表说云版有，但 s4 的 `photos[]`（已选入的 9 张）
+  一条都没有这三个字段——实测它们只出现在 `pending[]`（待审核的 6 张）里。
+
+`app/contract.md` 在本次任务的只读清单里，没有改一个字。本次新增的四个视图只用了两边
+都对得上的字段（`nodeId`/`yaw`/`contributor`/`thumb`/`src`），这条对不上不影响本次交付，
+但下次有人要靠这份契约做小程序，这几个字段的真实情况值得找人核实后回填。
+
+## C-2. timeline 视图第一次截图偶发"最左边那张图片没画出来"，重跑即好（判断为抖动，不是数据/代码问题）
+
+`node tools/acceptance.mjs shot ".../show.html?s=s4&view=timeline" ...` 第一次跑，
+最左边第一张宝丽来卡片的图片区域是空白（白框），但同一张截图的 `errs`/`net404` 都是
+空数组。直接 `curl` 测这张图的 OSS 地址（`.../thumbs/p1.jpg`）返回 200，29352 字节，
+不是死链。原样重跑一遍（不改任何代码/参数），第一张图片就正常显示了。判断是无头
+Chrome 截图时机撞上图片刚好没解码完的抖动，不是 URL 错、不是跨域挡、不是数据缺。
+已在 PROGRESS.md「任务2①」记录，交付前最终一轮 `final-timeline.png` 是干净的。
+
+## C-3. journey.html 不是「章节卡列表」，是完整的 Pannellum 3D 漫游（判断记录，不是漏做）
+
+抄版式之前打开 `archive/viewer/journey.html` 发现它整页其实是一个 Pannellum 全景
+播放器（内嵌了整份 Pannellum 引擎代码 + 婚车路线转场动画），不是一份 flat 的
+「章节卡」列表。任务书写死「3D 走进保持独立页」，所以没有照抄整份 3D 漫游逻辑，
+只抽取了它「到达标题卡」（`.title-card`/`.tc-chapter`/`.tc-time`）和「结束页章节列表」
+（`.ep-row`）这两处非 3D 的版式语言，重新组成本次 show.html 里 flat 的
+「章节牌 + 照片格」卡片（`.jr-plaque`/`.jr-grid`）。如果验收人原本期待的是"能像
+3D 旅程一样自动往前走"的体验，现在做出来的是静态卡片，不是动态导览——这是一处
+解读判断，不是漏做，记在这里备查，理由见 PROGRESS.md 判断记录第 1、2 条。
+
+## C-4. app/product-ui.css 最终没有改动
+
+任务书把它列进可改范围，但实现下来，四个新视图需要的所有颜色都能直接用
+`app/theme.css` 现成的 `--u-` token，组件级 CSS 全部写进了 `web/show.html` 自己的
+`<style>` 块（这和原文件的分工一致：product-ui.css 只放跨页面共享的小组件，
+页面专属版式留在页面自己的 style 里）。没有为了"用满白名单"而找一个不必要的理由去改它。
+`git status --short` 里没有它的 diff，只有 `web/show.html`、`PROGRESS.md`、`BLOCKED.md` 三个。

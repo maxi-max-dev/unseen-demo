@@ -375,3 +375,129 @@ quota_full），但 `web/join.html` 的 `stateLabel()`（1437-1447 行）和 `se
 （1815-1842 行）里还真在处理 `rejected`／`quarantined`／`scene_updated` 三个取值，漏了
 不算「编」，但当「将来的小程序」的契约看就不完整。补了这三行，取值和文案原样抄自这两个
 函数，没有一个是编的；补完 `grep -c yaw` 仍是 8，不影响任何一条验收。
+
+---
+---
+
+# PROGRESS · 展览页五视图合一（批次C）
+
+> 任务：把 archive/viewer/ 里退役的四个旧皮（journey/timeline/album/machine）以页内切换视图的
+> 形式收进 web/show.html，3D 走进（viewer/walk.html）保持独立页不动。只许改
+> web/show.html、app/product-ui.css，外加本文件和 BLOCKED.md 末尾追加。
+
+## 任务 0 · 核对（2026-07-28 通过，四条全绿）
+- `wc -l < web/show.html` = **669** ✅
+- 【色数】`grep -hoE "#[0-9a-fA-F]{3,6}\b" web/show.html | tr a-f A-F | sort -u | wc -l` = **1**
+  （唯一命中 `#FFF3F1`，第 6 行 `<meta name="theme-color">`）✅
+- 【体检】`node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4" /tmp/c0.png 390 844`
+  → `"横向溢出": false`，`"errs": []`；截图确认云端 s4 真数据已拉到
+  （1 个空间节点 / 9 张展出照片 / 8 位贡献者，与任务书说的一致）✅
+- `grep -c "iframe\|tour\.js" web/show.html` = **0** ✅
+
+## 理解（目标／顺序／最大风险）
+- 目标：show.html 现在只有「展览」一种看法（4 个 section：走进空间/已上传/任务痕迹/一起补全的人）。
+  要在同一份 `loadSpace()` 数据上加旅程/时光轴/画册/监控墙 4 种新看法，靠 `?view=` 参数直达 +
+  顶栏下的药丸切换，无参数时展览保持现状（4 个 section 不少不乱序）。版式抄
+  archive/viewer/ 四个旧皮，颜色全部换成 theme.css 的 `--u-` token，不读 tour.js，不进 3D。
+- 顺序：先搭路由骨架（顶层 `?view=` 分流 + 药丸导航，不碰视觉）→ 逐个移植四种皮 →
+  反向验证色数计数器会响 → 收尾贴证据。
+- 最大风险（接缝）：`?view=` 这个 query key 现有代码已经在用——用来选「进场时先看哪个内部
+  小节」（值是 walk/photos/tasks/contributors 四选一），不是页面级换皮。处理：只在
+  `Q.get("view")` 命中新的 4 个名字（journey/timeline/album/machine）且不在 LIVE 模式时才接管
+  渲染；其余任何取值（含旧的 4 个、无参数、垃圾值）原样走老代码，`configOf()` 一行不改。
+  LIVE 大屏模式（现场路演）也刻意不接这套切换器，维持原样，见下方判断记录。
+
+## 任务 1 · 视图骨架 结果（2026-07-28，全绿）
+- `node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4" /tmp/c1.png 390 844`
+  → `"横向溢出": false`，`"errs": []`；截图核对：新的「换个方式看」药丸条（展览/旅程/时光轴/
+  画册/监控墙）出现在顶栏正下方，"展览"高亮，其下原来的内部小节导航（走进空间/已上传/
+  任务痕迹/一起补全的人）原样还在，hero/数字卡/流程卡都没变样 ✅
+- `grep -c 'id="photos"' web/show.html` = **1** ✅
+- 默认视图（无 `?view=` 或 `?view=` 取旧的四个值之一）：`render()` 函数体一个字没改，
+  只是把组装 show-bar 那 4 行换成一次 `topBar(sp,cfg,mode,"exhibition")` 调用，
+  该函数对 `topView==="exhibition"` 时的输出 = 原来的 `.u-bar` + 新增的 `viewSwitcher()` +
+  原来的 `sectionNav(cfg)`，四个 section（`id=walk/photos/tasks/contributors`）的构建函数
+  （walkSection/photosSection/tasksSection/peopleSection）一行未动，顺序原样。
+  唯一动过的一行是 photosSection 里给照片卡加了 `data-photo="i"` 属性（纯新增，
+  不影响原有的 `data-photo-id` 焦点动画机制）。
+
+## 任务 2 · 四种视图移植 结果（2026-07-28，五条全绿）
+
+**做法**：抄 `archive/viewer/` 四个旧皮的版式骨架，不读它们的 tour.js/window.TOUR，
+不进 3D，颜色全部换成 `app/theme.css` 的 `--u-` token。四个新视图函数
+（journeyView/timelineView/albumView/machineView）都只吃 `loadSpace()` 拿到的同一个
+`sp`（+`configOf(sp)` 算出的同一个 `cfg`），字段只用 `app/contract.md` 里写了的
+（`nodes[].id/name/time`、`photos[].nodeId/yaw/contributor/thumb/src`），没有用
+`uploadedAt` 之类契约没写的字段去猜排序或时间。
+
+### ① 四个视图 shot 全绿
+```
+$ node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4&view=journey"  /tmp/final-journey.png  390 844
+{"横向溢出": false, "errs": [], "net404": []}
+$ node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4&view=timeline" /tmp/final-timeline.png 390 844
+{"横向溢出": false, "errs": [], "net404": []}
+$ node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4&view=album"    /tmp/final-album.png    390 844
+{"横向溢出": false, "errs": [], "net404": []}
+$ node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4&view=machine"  /tmp/final-machine.png  390 844
+{"横向溢出": false, "errs": [], "net404": []}
+```
+（timeline 第一次截图时最左边那张图片刚好没来得及画出来，`errs`/`net404` 都是空,
+直接重跑一遍就是好的——是无头浏览器截图时机的抖动,不是数据或代码问题,
+详见 BLOCKED.md 本节记录。）
+
+### ② data-photo 计数,四个视图都 ≥1(实测全部 = 9,和真数据的 9 张照片对上)
+```
+$ node tools/acceptance.mjs walk .../walk-dataphoto.json   # 每个视图 eval document.querySelectorAll("[data-photo]").length
+journey  → 9
+timeline → 9
+album    → 9
+machine  → 9
+(exhibition-default → 9，默认视图也顺手核过)
+```
+
+### ③【色数】≤8,实测 **1**(还是原来那个 `#FFF3F1`,四个新视图零新增色)
+
+### ④ `grep -c "iframe\|tour\.js"` = **0**,`grep -c "walkdemo"` = **2**(≤3)
+walkdemo 的 2 处：第 1 处是原有的「真实全景稳定版」封面图（任务书说这处不算数）；
+第 2 处是我写的注释「不拿 assets/walkdemo/ 的演示图冒充宾客照片」，本身就是在申明
+没有用它,四个新视图的每一张图都来自 `assetUrl(p.thumb||p.src)`,即 space 数据本身。
+
+### ⑤ 反向验证
+```
+$ printf '<!-- SENTINEL #A1B2C3 -->\n' >> web/show.html
+加之后【色数】 1 → 2   (#A1B2C3, #FFF3F1)      ← 变大了,且新增确实是 #A1B2C3
+$ sed -i '' '/SENTINEL/d' web/show.html
+删之后【色数】 2 → 1   (#FFF3F1)                ← 还原
+$ grep -c SENTINEL web/show.html → 0；wc -l → 915(加之前/删之后一致)
+```
+
+### 四种皮怎么抄的(辨识度对照)
+| 视图 | 抄自 | 留住的辨识度 | 数据分组 |
+|---|---|---|---|
+| 旅程 journey | journey.html 的「到达标题卡」 | 深色章节牌(章号+地点+时间) | 按 `nodeId` 分章,单节点=单章 |
+| 时光轴 timeline | timeline.html 的宝丽来拼贴 | 横向长条 + 底部顺序刻度 | 按 `photos` 数组原始顺序,不按节点 |
+| 画册 album | album.html 的装订边 | 左侧深色书脊(手机宽度也保留,不是桌面专属)+ 米白纸面 + 方位读数 | 按 `nodeId` 分章,同 journey |
+| 监控墙 machine | machine.html 的取景框 | 深色 HUD 文字条 + REC 呼吸点 + 冷色调照片墙 + 呼吸取景框 | 不分章,`photos` 全量平铺 |
+
+### 施工中的判断(任务书没写死,按「有更好的路就走」处理,记一句为什么)
+1. **LIVE 大屏模式(`&live=1`)不接换视图药丸。** 任务书没提这个模式,`render()` 是
+   LIVE 和默认展览共用的同一个函数。为了让「现有展览功能不能坏」在最敏感的这条路径上
+   零风险,`topBar()` 在 `LIVE` 为真时直接不渲染 `viewSwitcher()`,LIVE 模式的 DOM
+   和改动前逐字节一致。已用 `?s=s4&live=1` 实测截图核对,轮询/焦点动画/toast 都正常。
+2. **画册也按节点分章,不是任务书唯一点名的「旅程」。** 任务书原文只写了
+   「旅程按节点分章」,没提画册。archive/viewer/album.html 本身就是按时间戳分章的版式,
+   为了让"同一份数据、五种看法"这个说法站得住(不同视图对同一批照片用不同的分组维度,
+   但同一个维度不能这个视图信那个视图不信),画册和旅程共用"按节点分章"这条,
+   时光轴和监控墙共用"不分章,数组原样"这条。两个维度,四个视图,不是四套各自发明的规则。
+3. **没有改 app/product-ui.css。** 任务书把它列进可改范围,但实际实现下来,四个新皮
+   需要的颜色/组件全部能用 app/theme.css 现成的 token 加 web/show.html 自己的
+   `<style>` 块解决(这也是原文件本来的分工:公共小组件在 product-ui.css,页面专属版式
+   在页面自己的 style 里)。没有为了"用满白名单"而硬找理由去改一个不需要改的文件。
+4. **`photoLabel()` 是新写的一个小函数,没有把 photosSection 内部的同名逻辑抽出来复用。**
+   两处逻辑一样(6 行),抽出来更 DRY,但会碰 photosSection 的内部结构,而
+   default 视图"一个不许少、顺序不许变"是硬红线。权衡后选择多 6 行重复代码,
+   换 default 视图零风险,只在 photosSection 里加了一个新属性(data-photo)。
+5. **timeline 和 machine 没有编造时间戳。** 真数据的 `photos[]` 确实带 `uploadedAt`
+   (实测 s4 每张都有),但 `app/contract.md` 的云版 photos 字段表没有列这一条,
+   任务书明确说"不许用契约里没有的字段"。所以时光轴按数组原始顺序(标题写清楚
+   "顺序=数据本身的先后,不是拍摄时间"),没有排序、没有编时刻。
