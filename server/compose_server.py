@@ -129,7 +129,10 @@ app.add_middleware(
     allow_origins=STUDIO_CORS_ORIGINS,
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "X-Unseen-Host-Pin"],
+    # X-Unseen-Space-Key: 批次E 新增的单空间主办密钥(改标题/换封面/删节点用),
+    # 和 X-Unseen-Host-Pin(全局口令)是两个独立的凭据, 只是都需要出现在这份
+    # CORS 白名单里, 浏览器才会放行带这个请求头的跨域请求。
+    allow_headers=["Content-Type", "X-Unseen-Host-Pin", "X-Unseen-Space-Key"],
     expose_headers=["Content-Length", "Content-Type"],
     max_age=600,
 )
@@ -728,6 +731,15 @@ async def get_server_ui_file(filename: str):
     if not local_name:
         return Response(status_code=404)
     return FileResponse(os.path.join(REPO_ROOT, "server", local_name))
+
+
+@app.get("/vendor/qrcode.js")
+async def get_qrcode_js():
+    """app/invite.html 生成邀请二维码要用的零依赖库。只开这一个文件——vendor/ 底下
+    还躺着 vendor/DAP/(含 .git 内部文件和模型权重 weights/model.pth), 挂整个目录
+    就是把这些东西也一起公开了, 不是"白名单目录"该干的事, 所以照抄 SERVER_UI_FILES
+    的路数, 按文件名精确开一条路由, 别的一律不理。"""
+    return FileResponse(os.path.join(REPO_ROOT, "vendor", "qrcode.js"))
 
 
 # ⚠️ 只挂明确白名单目录，禁止恢复 app.mount("/", REPO_ROOT)。

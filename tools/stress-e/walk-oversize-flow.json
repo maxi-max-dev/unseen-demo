@@ -1,0 +1,14 @@
+{
+  "steps": [
+    { "name": "打开create.html(带压测sid3)", "metrics": [390, 844],
+      "go": "http://127.0.0.1:8777/app/create.html?sid=stresse3", "settle": 800 },
+    { "name": "填标题", "fill": { "selector": "#fName", "value": "批次E压测-超大文件拒绝测试" } },
+    { "name": "提交建空间", "click": "#submitBtn", "wait": 2500 },
+    { "name": "选一张超大(34MB)全景", "file": { "selector": "#panoFiles",
+        "paths": ["/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/oversized_pano.jpg"] } },
+    { "name": "等一下(这一步不该有任何网络请求)", "wait": 800 },
+    { "name": "读该行状态文本", "eval": "(document.querySelector('.pano-row .st')||{}).textContent" },
+    { "name": "读该行是否标了err样式", "eval": "(document.querySelector('.pano-row')||{}).className" },
+    { "name": "截图:太大被拒绝", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-oversize.png" }
+  ]
+}

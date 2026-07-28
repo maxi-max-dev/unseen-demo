@@ -25,6 +25,12 @@ oss.post_policy 签出来的策略【直接 POST 进 OSS】, 谁都不用暴露�
   · 三段用【双下划线】分隔, 昵称必须 url 编码(中文/空格/表情都安全)
   · 没接任务就写 none; 昵称为空就留空(工人会记成"匿名宾客")
   · 解析失败一律降级成匿名投稿, 绝不丢照片
+
+批次E新增(2026-07-28): 主办方自助建空间后, 自己传的全景走另一条独立通道
+spaces/<sid>/pano-inbox/<时间戳毫秒>_<随机短id>.<ext>(建 key 的代码在
+app/create.html), poll_panos_once() 每轮和照片收件箱一起看一眼, 新全景直接
+调 space.add_node() 建真节点, 成功就把空间从草稿推成发布(自助建空间没有
+另一个"发布"按钮可点, 传第一张全景进去就该是宾客能扫码看到的那一刻)。
 """
 import argparse
 import json
@@ -93,6 +99,38 @@ def load_state(sid):
 def save_state(sid, st):
     """先写临时文件再 os.replace, 和 space.save_space 一个路数: 写一半断电不会毁台账。"""
     path = state_path(sid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(st, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+
+
+PANO_STATE_NAME = ".pano_ingested.json"     # 全景收件箱的已处理台账, 和照片台账分开存
+
+
+def pano_state_path(sid):
+    return os.path.join(space.space_dir(sid), PANO_STATE_NAME)
+
+
+def load_pano_state(sid):
+    """读全景已处理台账。坏了/没有就当空的重来, 道理和 load_state() 一样。"""
+    path = pano_state_path(sid)
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as f:
+                st = json.load(f)
+            if isinstance(st.get("keys"), dict):
+                return st
+        except Exception as e:
+            log(f"⚠️ 全景台账读坏了({e}), 当空的重建 —— 已入库的全景可能会被重算一次")
+    return {"schema": "psm-pano-ingested/1", "spaceId": sid, "keys": {}}
+
+
+def save_pano_state(sid, st):
+    path = pano_state_path(sid)
     os.makedirs(os.path.dirname(path), exist_ok=True)
     tmp = path + ".tmp"
     with open(tmp, "w", encoding="utf-8") as f:
@@ -466,6 +504,89 @@ def poll_once(sid, conf=None, log_empty=True, do_publish=True):
             "results": results, "published": published}
 
 
+# ================================================================ 全景收件箱(批次E)
+def poll_panos_once(sid, conf=None, log_empty=True, do_publish=True):
+    """收一轮主办方自传的全景。独立通道(spaces/<sid>/pano-inbox/), 和宾客照片的
+    收件箱互不干扰、互不去重。每张新全景调 space.add_node() 建一个真节点
+    (标准化 + DAP 深度 + 缺口任务, 逻辑和 Studio 手传全景完全一样, 只是触发源
+    从"HTTP 上传请求"换成了"云端收件箱里出现一个新对象")。
+
+    自助建空间没有一个单独的"发布"按钮给主办方点, 所以这里的产品语义是:
+    传第一张全景进去的那一刻,就该是宾客能扫码看到的那一刻。这一点和宾客
+    上传照片故意不同——那边不自动发布未发布的草稿(见 poll_once), 因为
+    上传照片的是宾客, 万一主办方还没准备好, 不该替他们把草稿捅出去。
+    但全景是主办方自己传的, 这就是他们自己在明确地"添加内容", 没有"抢跑"
+    这一说, 所以每收到至少一张就顺手把空间从草稿推成已发布(publish_space
+    对已发布的空间是幂等的, 不会因为重复调用出问题)。
+    """
+    conf = conf or oss.load_conf()
+    st = load_pano_state(sid)
+    done = st["keys"]
+
+    try:
+        space.load_space(sid)
+    except FileNotFoundError as e:
+        log(f"⚠️ {e} —— 先建好空间再开工人")
+        return {"ok": False, "error": str(e), "listed": 0, "new": 0,
+                "processed": 0, "failed": 0, "results": [], "published": None}
+
+    try:
+        listed = oss.list_keys(conf, space.pano_inbox_prefix(sid))
+    except Exception as e:
+        log(f"⚠️ 列云端全景收件箱失败(下一轮再试): {e}")
+        return {"ok": False, "error": str(e), "listed": 0, "new": 0,
+                "processed": 0, "failed": 0, "results": [], "published": None}
+
+    fresh = [it for it in listed
+             if it["key"] not in done and it["size"] > 0 and is_image_key(it["key"])]
+    fresh.sort(key=lambda it: it["key"])   # key 以时间戳打头, 排序 ≈ 按上传先后
+
+    if not fresh:
+        if log_empty:
+            log(f"没有新全景(云端全景收件箱 {len(listed)} 个对象, 台账已记 {len(done)} 个)")
+        return {"ok": True, "listed": len(listed), "new": 0,
+                "processed": 0, "failed": 0, "results": [], "published": None}
+
+    results, failed = [], 0
+    for item in fresh:
+        key = item["key"]
+        base = os.path.basename(key)
+        try:
+            raw = oss.get_bytes(conf, key)
+        except Exception as e:
+            # 列表成功不代表 GET 一定成功(瞬时超时/OSS 5xx), 这类错误不能写进
+            # 永久台账 —— 原件还在, 留到下一轮重试。
+            log(f"⏸️ {base} 下载暂时失败,下一轮重试: {type(e).__name__}")
+            continue
+        try:
+            nid, tasks, timings = space.add_node(
+                sid, raw, base, oss.guess_type(key), "", "",
+            )
+            done[key] = {"nodeId": nid, "at": time.time()}
+            results.append({"key": key, "nodeId": nid, "tasks": len(tasks), "timings": timings})
+            log(f"新全景 {base} → 建成节点 {nid}(切图 {timings.get('pano_s')}s, "
+                f"深度 {timings.get('depth_s')}s, 缺口任务 {len(tasks)} 个)")
+        except Exception as e:
+            # 坏图/画幅不对/等等: 记一笔失败就翻篇, 别让一张烂图卡住整条队列
+            # (道理和 poll_once 处理坏照片一样)。
+            failed += 1
+            done[key] = {"failed": True, "error": str(e)[:300], "at": time.time()}
+            log(f"⚠️ {base} 建节点失败,记账跳过: {e}")
+        save_pano_state(sid, st)   # 每张都落盘: 中途 Ctrl-C/断电也不会重算已经算完的
+
+    published = None
+    if do_publish and results:
+        try:
+            space.publish_space(sid)
+        except Exception as e:
+            log(f"⚠️ 本地发布状态没能更新(全景已建成节点,下一轮重试发布): {e}")
+        published = republish(sid, conf)
+
+    return {"ok": True, "listed": len(listed), "new": len(fresh),
+            "processed": len(results), "failed": failed,
+            "results": results, "published": published}
+
+
 def run_forever(sid, interval=5, conf=None):
     """常驻循环。Ctrl-C 干净退出(台账每张都已经落盘, 不会丢进度)。"""
     conf = conf or oss.load_conf()
@@ -481,7 +602,10 @@ def run_forever(sid, interval=5, conf=None):
         while True:
             beat(sid, "polling")     # 每轮一次心跳, 新人后台靠它显示"工人运行中"
             res = poll_once(sid, conf, log_empty=False)
-            if res.get("processed"):
+            # 全景收件箱(主办方自传)和照片收件箱(宾客直传)同一轮里都看一眼。
+            # 两条通道各自独立、互不去重, 这里只是共用同一个循环节奏。
+            pano_res = poll_panos_once(sid, conf, log_empty=False)
+            if res.get("processed") or pano_res.get("processed"):
                 idle = 0
             else:
                 idle += 1
@@ -501,7 +625,7 @@ def purge_inbox(sid, conf=None):
     conf = conf or oss.load_conf()
     keys = []
     seen = set()
-    for prefix in (f"spaces/{sid}/inbox/", f"spaces/{sid}/inbox-v2/"):
+    for prefix in (f"spaces/{sid}/inbox/", f"spaces/{sid}/inbox-v2/", f"spaces/{sid}/pano-inbox/"):
         for item in oss.list_keys(conf, prefix):
             key = str(item.get("key") or "")
             if key and key not in seen:
@@ -540,7 +664,8 @@ def main():
 
     if args.once:
         res = poll_once(args.sid, conf, do_publish=not args.no_publish)
-        return 0 if res.get("ok") else 1
+        pano_res = poll_panos_once(args.sid, conf, do_publish=not args.no_publish)
+        return 0 if (res.get("ok") and pano_res.get("ok")) else 1
 
     run_forever(args.sid, args.interval, conf)
     return 0

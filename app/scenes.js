@@ -145,6 +145,72 @@
     el._t = setTimeout(function () { el.classList.remove("show"); }, ms || 2400);
   }
 
+  // ── 主办密钥(批次E)──────────────────────────────────────────────
+  // 建空间那一次响应里只出现一次的 token,存这台浏览器的 localStorage,
+  // create.html(建空间时拿到) 和 scene.html(改标题/换封面/删节点时要用)
+  // 共用同一套存取,别各写一份键名约定。只存本机、不发布、不进 space.json。
+  function hostKeyLsKey(sid) { return "unseen.hostkey." + sid; }
+  function saveHostKey(sid, key) {
+    if (!sid || !key) return;
+    try { localStorage.setItem(hostKeyLsKey(sid), key); } catch (e) {}
+  }
+  function getHostKey(sid) {
+    try { return localStorage.getItem(hostKeyLsKey(sid)) || ""; } catch (e) { return ""; }
+  }
+
+  // ── 图片压缩成小 dataURL(批次E从 create.html 抽出来,scene.html 换封面复用)──
+  // 建空间的模板封面/自传封面、编辑页换封面,走的是同一套"压到 640 宽 jpeg
+  // dataURL,直接存进 space.cover 字段"的路数,不是两套实现。
+  function compressToDataURL(file, maxW, cb) {
+    function draw(src, w, h) {
+      var scale = Math.min(1, maxW / w);
+      var cw = Math.max(1, Math.round(w * scale));
+      var ch = Math.max(1, Math.round(h * scale));
+      var canvas = document.createElement("canvas");
+      canvas.width = cw; canvas.height = ch;
+      var ctx = canvas.getContext("2d");
+      ctx.drawImage(src, 0, 0, cw, ch);
+      try { cb(canvas.toDataURL("image/jpeg", 0.82)); }
+      catch (e) { cb(null); }
+    }
+    function fallback() {
+      var url = URL.createObjectURL(file);
+      var img = new Image();
+      img.onload = function () { draw(img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); };
+      img.onerror = function () { cb(null); URL.revokeObjectURL(url); };
+      img.src = url;
+    }
+    if (window.createImageBitmap) {
+      createImageBitmap(file, { imageOrientation: "from-image" })
+        .then(function (bmp) { draw(bmp, bmp.width, bmp.height); })
+        .catch(fallback);
+    } else {
+      fallback();
+    }
+  }
+
+  // 复制文本到剪贴板:clipboard API 优先,不支持就退化到 textarea + execCommand
+  // (和 invite.html 复制链接那段是同一个思路,这里给 create.html/scene.html 复用)。
+  function copyText(text, onOk, onFail) {
+    function fail() {
+      var ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus(); ta.select();
+      var done = false;
+      try { done = document.execCommand("copy"); } catch (e) { done = false; }
+      document.body.removeChild(ta);
+      if (done) { if (onOk) onOk(); } else if (onFail) onFail();
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () { if (onOk) onOk(); }).catch(fail);
+    } else {
+      fail();
+    }
+  }
+
   window.UNSEEN = {
     LS_KEY: LS_KEY, API: API, PREFIX: PREFIX,
     BUILTIN: BUILTIN, TEMPLATES: TEMPLATES,
@@ -153,6 +219,8 @@
     allScenes: allScenes, findScene: findScene,
     probeBackend: probeBackend, toast: toast,
     isJunkSpace: isJunkSpace,
-    backTarget: backTarget, withBack: withBack, selfPath: selfPath
+    backTarget: backTarget, withBack: withBack, selfPath: selfPath,
+    saveHostKey: saveHostKey, getHostKey: getHostKey,
+    compressToDataURL: compressToDataURL, copyText: copyText
   };
 })();

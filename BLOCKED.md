@@ -304,3 +304,170 @@ Chrome 截图时机撞上图片刚好没解码完的抖动，不是 URL 错、�
 `<style>` 块（这和原文件的分工一致：product-ui.css 只放跨页面共享的小组件，
 页面专属版式留在页面自己的 style 里）。没有为了"用满白名单"而找一个不必要的理由去改它。
 `git status --short` 里没有它的 diff，只有 `web/show.html`、`PROGRESS.md`、`BLOCKED.md` 三个。
+
+---
+---
+
+# BLOCKED · 批次D（压测军团）
+
+> 本节是批次D（当几十上百个真宾客反复走 join→show 动线找 bug）的记录，
+> 追加在前面所有记录之后，没有动前面任何一个字。
+
+## D-1. s4（真实线上空间）的贡献者名单里有一条真实测试记录，我读到了但没有权限处理
+
+压测 show.html 的 `machine`/`journey` 等视图时（`tools/stress/shots/S23-w768-machine.png`
+等截图可见），发现 s4 的贡献者名单里有一条显示为「公网验收员」的记录——这明显是
+历史验收/测试流程里真实上传过的数据，不是我这次造出来的。
+
+`web/show.html` 的 `publicName()` 匿名化黑名单目前是：
+
+```js
+var blocked = {"泛音测":1,"泛音测试":1,"延迟测试":1,"你大爷":1,"阿伟测试":1};
+var looksLikeQa = /^(FIX|E2E|QA|TMP|SMOKE|TEST)[-_]?/i.test(n) ||
+  /(验收测试|回归测试|攻击测试)/.test(n);
+```
+
+「公网验收员」不匹配这几个固定词，也不匹配 `looksLikeQa` 的模式（它不是
+"验收测试"而是"验收员"），所以原样显示了出来。
+
+**为什么没有动手：**
+1. 这是 **s4 上真实存在的数据**（`contributors[]` 里的一条记录），不是代码逻辑
+   算出来的东西。要"修"这条，要么改真实的 `space.json`（我对 s4 只读，任务书
+   写死"绝不许真实上传任何照片到云端"，修改既有数据同样是写操作，不在我的权限
+   和白名单里），要么扩大 `publicName()` 的黑名单/正则去多挡一个词——但这属于
+   "又发现一个没挡住的变体就加一条规则"的打地鼠，治标不治本，且是否要为这一个
+   具体名字改动展示逻辑，是内容/产品判断，不是我该单方面决定的代码 bug 修复。
+2. 界限里 `web/show.html` 虽然可改，但这次改动的对象应该是"规则该怎么定"而不是
+   "补一个特例"，值得由能看到 s4 完整数据、了解这条记录来源的人来决定。
+
+登记在此，不算进 BUGS.md 的 bug 列表（那份文件只登记 web/join.html 等四个白名单
+页面里我能确认、能负责修的代码问题）。
+
+## D-2. 「toast 短暂盖住背景任务卡按钮一角」判断为不用修，如实登记
+
+详细复现、判断理由、截图路径见 `tools/stress/BUGS.md`「观察到、判断不需要修的一条」。
+没有改代码，摆在这里防止被读成"漏报"。
+
+---
+---
+
+# BLOCKED · 批次E(主办方自助建空间)
+
+> 本节记录施工中按界限没动手、或需要下一批决定的事,不覆盖前面任何一个字。
+
+## E-1. 全景直传/主办密钥编辑接口在"非回环+无全局口令"场景下仍会被中间件挡在外面,本批次未做(如实登记)
+
+`server/compose_server.py` 的 `protect_space_assets` 中间件对所有 `/api/` 路径
+要求 `host_allowed`(回环请求,或携带全局 `X-Unseen-Host-Pin`),`_public_api_request()`
+的公开白名单里没有把我新增的 `POST /space/{sid}/host/meta` 和
+`DELETE /space/{sid}/node/{node_id}` 纳入例外。也就是说:一个真正不在这台 Mac
+上、也没有全局口令的主办方,即使拿着自己空间的主办密钥,请求也会先被这层中间件
+挡在外面,拿不到 space.py 里"只认主办密钥"这一层判断的机会。
+
+**为什么没做**:要打开这条路,中间件自己得先验证"这个请求带的
+`X-Unseen-Space-Key` 是不是这个 sid 的真密钥"才能放行,这是对安全中间件的改动。
+让步顺序里"凭据安全"排第一,我选择保守:本批次的验收条款(改标题/删节点的
+401/403,以及完整端到端流程)全部在回环环境下可以完整验证,不依赖打开这条路;
+而"真正的远程、非回环主办方"这个场景我在这个沙盒里也没有能力发起一个真正
+非回环的请求来验证改动是否正确——与其做一个自己测不了的安全改动,不如如实
+登记,留给能实测的下一批。
+
+**下一批的一行思路**:在 `_public_api_request()` 里加一个新分支,匹配
+`POST /api/space/s\w+/host/meta` 和 `DELETE /api/space/s\w+/node/[^/]+` 这两个
+路径,且请求头 `X-Unseen-Space-Key` 非空时才放行(真正的校验仍然交给 space.py
+路由自己的 `_host_key_authorized()`,中间件这层只是不提前拦截)。
+
+## E-2. 主办密钥/全景直传策略只在建空间那一次响应里给出,没有"事后再要一次"的接口
+
+如果主办方在 create.html 第2步没截图、没复制,也没能让 localStorage 存下来就
+关了标签页(理论上少见,`saveHostKey()` 是同步执行的,但极端场景比如浏览器隐私
+模式整体禁用了 localStorage),这个空间就再也拿不到主办密钥,也没有别的入口能
+重新申请一份全景直传策略。
+
+**为什么没做**:任务书对任务1的目标动线只描述了"建空间那一次"的路径,没有要求
+"创建完之后还能回来接着传";任务2的三个编辑动作里也没有"重新申请全景上传通道"。
+按"别做更多"没有加这个入口。
+
+**下一批的建议**:给 `GET /api/space/{sid}` 的 host 角色响应加一个 `panoUpload`
+字段(复用现成的 `pano_upload_policy()`),scene.html 的"主办编辑"卡片可以顺手
+加一个"补传全景"的文件选择器。
+
+## E-3. 全景直传前缀不做照片那一套"收件箱代际轮换",故意简化(判断记录,非漏做)
+
+`_ensure_private_inbox_prefix()`/`_normal_retired_inboxes()` 这套"收件箱代际
+轮换+过期策略自动失效"的机制是照片直传专用的,全景直传前缀
+(`spaces/<sid>/pano-inbox/`)固定不变、没有代际。如果主办密钥泄露被人拿去传
+垃圾全景,没有"让旧策略失效"的手段,只能等 48 小时策略自然过期。这套复杂度
+是宾客链接被到处转发、旧签名长期留存这个前提逼出来的历史包袱(照片场景才有),
+全景直传只有主办方自己在用,现有威胁模型下不成比例,是故意简化,已在 PROGRESS.md
+判断记录4说明。
+
+## E-4. 批次E收尾:凭据/一致性/残留清理的最终证据
+
+**s4(线上演示空间)只读不写,md5 前后一致**:
+```
+$ curl -s https://.../spaces/s4/space.json | md5     # 会话中段第一次核实
+46e41c7ab5372ea84d8f38c3562c1605
+$ curl -s https://.../spaces/s4/space.json | md5     # 会话收尾再次核实
+46e41c7ab5372ea84d8f38c3562c1605                       ← 一致
+$ ls -la server/spaces/s4/space.json
+-rw-r--r--@ 1 max staff 13168 Jul 26 01:38 space.json   ← 本机文件 mtime 早于本次会话(7/28-29),
+                                                            证明本地真值也没被写过
+```
+本次会话没有任何一条命令以 `s4` 为目标 sid(全部测试都用 `stress*` 前缀),
+`git diff`/进程日志里也搜不出一次对它的写操作。
+
+**测试残留已清(本机+云端全清)**:
+```
+$ .venv/bin/python tools/stress-e/cleanup.py --list
+本机现存 0 个 stress* 空间: []
+
+$ for sid in stresse0 stresse1 stresse2 stresse3 stresse4 stresse5; do
+    curl -s -o /dev/null -w "$sid -> %{http_code}\n" https://.../spaces/$sid/space.json
+  done
+stresse0 -> 403
+stresse1 -> 403
+stresse2 -> 403
+stresse3 -> 403
+stresse4 -> 403
+stresse5 -> 403
+```
+(403 是私有桶对不存在 key 的标准响应,不是权限错误——同一条 curl 对仍存在的
+s4/space.json 返回 200,可以对照。)
+
+`tools/stress-e/cleanup.py` 只清理 `stress` 前缀(硬编码校验挡在最前面,传别的
+sid 直接拒绝),和 `server/worker.py --purge-inbox` 的区别是它清理整个空间的
+OSS 前缀(含已发布素材),不只是收件箱——压测空间用完就该整个消失,不是长期
+运营空间那种"只清收件箱、留着已发布素材"的语义。
+
+**测试后台进程已杀干净**:
+```
+$ pgrep -fl "compose_server|server.worker"
+34484 ... server.worker s900002 --interval 5
+92963 ... server.worker s900003 --interval 5
+```
+这两个是本次会话开工前就已经在跑的路演空间工人(和本批次无关,任务书没让碰,
+全程没有被误杀),PID 和会话开始时探测到的完全一致。我自己起的
+compose_server.py(本机后端)和历次 `server.worker stresseN` 全部已 kill,
+不在上面的列表里。
+
+**git status 改动只落白名单**:
+```
+$ git status --short
+ M app/create.html          ← 白名单
+ M app/invite.html          ← 白名单
+ M app/scene.html           ← 白名单
+ M app/scenes.js            ← 白名单
+ M server/compose_server.py ← 白名单(server/ 下的 Python 文件)
+ M server/space.py          ← 白名单
+ M server/worker.py         ← 白名单
+?? tools/stress-e/          ← 白名单(新建,压测产物)
+ M BLOCKED.md / PROGRESS.md ← 任务书指定要交的两份(只在末尾追加)
+```
+`web/join.html` 的改动、`tools/stress/`(注意没有 `-e`)、`PROGRESS.md`/
+`BLOCKED.md` 里我这段之前的内容,全部是另一位工兵(压测 join/show/pov/portal
+那位)的产物——按界限"另一个工兵正在压测它们,别撞",本次会话没有修改这几个
+文件的一个字节,只读引用过 `web/join.html`/`web/show.html`(拿它们既有的直传
+模式和展示逻辑当参照,验证我的新代码渲染是否正常),从未写入。
+`theme.css`/`acceptance.mjs`/`web/pov.html`/`portal.html` 同理,全程只读或
+完全没碰。

@@ -31,11 +31,13 @@ server/space.py -- 「空间记忆」闭环产品的数据层 + 全部 HTTP API�
 不改动 tools/ 下任何脚本, 只 import 复用。
 """
 import copy
+import hmac
 import ipaddress
 import json
 import math
 import os
 import re
+import secrets
 import shutil
 import socket
 import subprocess
@@ -125,6 +127,15 @@ WISH_BOUNTY = 100        # 新人心愿任务默认悬赏
 THUMB_LONG_EDGE = 480    # 缩略图长边
 INBOX_POLICY_TTL_S = 48 * 3600
 PHOTO_RESERVATION_TTL_S = 15 * 60
+
+# 主办方自助建空间 · 批次E新增(2026-07-28)
+# 全景直传独立前缀 + 独立上限: 现场实拍的等距柱状图常见 10-20MB, 照片直传策略的
+# 12MB 默认上限(见 server/oss.py post_policy 的 max_size 默认值)会让正常尺寸的
+# 全景直传失败。这里单独给一个上限, 不去动 post_policy() 的默认值 —— 那个默认值
+# 是宾客照片在用的, 动它等于给所有旧调用方一起加量, 不是这次该碰的东西。
+PANO_INBOX_PREFIX_NAME = "pano-inbox"
+PANO_MAX_SIZE = 32 * 1024 * 1024
+HOST_KEY_FILE = "host.json"     # 主办密钥账本文件名, 只落在本机 space_dir 下, 绝不发布
 ROADSHOW_SPACE_ID = (
     os.environ.get("PSM_ROADSHOW_SPACE_ID") or "s900003"
 ).strip() or "s900003"
@@ -202,6 +213,18 @@ def _request_is_trusted_host(request):
         return ipaddress.ip_address(client_host).is_loopback
     except ValueError:
         return False
+
+
+def _host_key_authorized(sid, request):
+    """主办方编辑动作(改标题/换封面/删全景节点)的门槛。
+
+    这是"一把钥匙开一把锁"的单空间凭据, 和 _request_is_trusted_host() 那种
+    "这台电脑/这个全局口令可信"的机器级信任是两件不同的事 —— 所以这里不接受
+    trusted-host 兜底, 密钥不对就是不对(即使从这台 Mac 自己的回环地址发出)。
+    这个函数没有第二条通过路径, 也是它能被 curl 直接验证 401/403 的原因。
+    """
+    supplied = request.headers.get("x-unseen-space-key", "")
+    return bool(supplied) and verify_host_key(sid, supplied)
 
 
 # space.json 读写全局锁。重活(CLIP 编码 / DAP 深度)一律放在锁外面跑,
@@ -621,6 +644,96 @@ def _ensure_private_inbox_prefix(sid, space, now=None):
     return True
 
 
+# ================================================================ 主办密钥(批次E)
+# 建空间时随机发一枚 token, 只在建空间那一次 HTTP 响应里出现一次, 之后的编辑请求
+# (改标题/换封面/删节点)必须带着它才能通过。存储和校验都在这个独立账本文件里,
+# 绝不写进 space.json —— 那份文件的字段最终会被 build_public_space() 逐字段抄一份
+# 发布到 OSS 公网, 账本单独存放在 space_dir 下(和 .published.json 同级、同样不
+# 进发布清单), physically 保证这枚密钥不可能出现在任何发布出去的文件里。
+def _host_key_path(sid):
+    return os.path.join(space_dir(sid), HOST_KEY_FILE)
+
+
+def create_host_key(sid):
+    """建空间时调用一次, 生成并落盘, 返回明文 token(调用方负责把它发给主办方那一次)。"""
+    token = secrets.token_urlsafe(24)
+    path = _host_key_path(sid)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"schema": "psm-host-key/1", "key": token, "createdAt": time.time()}, f)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, path)
+    return token
+
+
+def read_host_key(sid):
+    """账本里的明文 token。只给刚建完空间那一次响应用, 别的任何接口不许转发它。
+    读不到就是 None(老空间从来没建过密钥, 或者账本文件被人手动删了)。"""
+    try:
+        with open(_host_key_path(sid), encoding="utf-8") as f:
+            return (json.load(f) or {}).get("key") or None
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+
+
+def verify_host_key(sid, supplied):
+    """校验编辑请求带来的密钥。空密钥/账本不存在一律不通过, 不抛异常。"""
+    supplied = str(supplied or "")
+    if not supplied:
+        return False
+    real = read_host_key(sid)
+    return bool(real) and hmac.compare_digest(supplied, real)
+
+
+# ================================================================ 全景直传(批次E)
+# 复用宾客照片直传的同一套模式(浏览器直传 OSS, 密钥不落前端), 只是前缀和上限不同:
+# · 前缀固定 spaces/<sid>/pano-inbox/, 不做照片那一套"收件箱代际轮换"—— 那套复杂度
+#   是宾客链接被到处转发/长期留存逼出来的历史包袱, 全景直传只有主办方自己在用,
+#   没有这个前提, 照抄反而是不必要的复杂度。
+# · 上限 32MB(全景实拍常见 10-20MB; 12MB 的照片默认上限会让正常尺寸的全景直传失败)。
+def pano_inbox_prefix(sid):
+    return f"spaces/{sid}/{PANO_INBOX_PREFIX_NAME}/"
+
+
+def _sync_publish_now(sid):
+    """编辑接口(改标题/换封面/删节点)用的同步云发布, 带 stale 重试。
+
+    背景: publish.publish_space() 在"上传期间内容又变了"时会主动跳过覆盖 OSS 的
+    manifest、标记 stale=True(见 server/publish.py, 这是为了不让半新不旧的快照
+    盖掉公网, 完全正确)。worker.py 的 republish() 早就为这个情况写了重试循环
+    ——但那是给"工人轮询"用的。这两个编辑接口各自独立触发同步发布, 如果主办方
+    连续点了两下(比如秒删标题保存后又点删除节点), 两次发布可能并发撞上,
+    其中一次被判 stale 又没人重试, 云端就会停在半旧状态直到下一次编辑才补上。
+    实测踩到过这个坑(2026-07-28 压测:标题保存和删节点两个请求前后脚发出,
+    云端 space.json 的标题落后了一版), 所以这里照抄 republish() 的重试节奏,
+    而不是每个编辑接口各写一份。返回 True 表示已经确认落地(非 stale)。
+    """
+    from server import publish
+    for _attempt in range(3):
+        r = publish.publish_space(sid)
+        if not r.get("stale"):
+            return True
+    return False
+
+
+def pano_upload_policy(sid):
+    """给主办方浏览器的全景直传策略。凭据文件读不到/OSS 连不上都不抛异常出去,
+    诚实降级成 enabled=false, 让前端把"暂时不能传全景"说清楚, 不装死不留白屏。"""
+    try:
+        from server import oss
+        conf = oss.load_conf()
+        policy = oss.post_policy(
+            conf, pano_inbox_prefix(sid),
+            expire_s=INBOX_POLICY_TTL_S, max_size=PANO_MAX_SIZE,
+        )
+        policy["enabled"] = True
+        return policy
+    except Exception as e:
+        return {"enabled": False, "reason": str(e)[:200], "maxSize": PANO_MAX_SIZE}
+
+
 def set_collection_status(sid, status):
     if status not in ("open", "closed"):
         raise ValueError("收集状态只能是 open 或 closed")
@@ -685,15 +798,26 @@ def set_exhibition(sid, payload):
         return copy.deepcopy(exhibition)
 
 
-def create_space(title, couple, date=None, place=None, cover=None, private=None):
+def create_space(title, couple, date=None, place=None, cover=None, private=None, sid=None):
     """建一个新空间, 返回 sid。目录骨架一次建齐, 后面各处就不用到处 makedirs 了。
 
     date / place / cover / private 都是可选的展示字段, 只为了换台设备也还在
     (以前它们只躺在浏览器 localStorage 里)。不传就是空, 不影响任何已有行为。
+
+    sid: 正常产品路径不传, 照旧自动分配 s<n>。压测/自测需要一个能一眼认出、
+    事后好清理的固定编号时才显式传 —— 只认 "stress" 前缀, 且目标目录不能已经
+    存在, 防止测试脚本手滑撞掉真实空间或复用了正在用的编号。
     """
     with _LOCK:
         os.makedirs(SPACES_DIR, exist_ok=True)
-        sid = _next_id("s", _listdir(SPACES_DIR))
+        if sid is not None:
+            sid = str(sid)
+            if not re.fullmatch(r"stress[A-Za-z0-9_-]*", sid):
+                raise ValueError("自定义空间编号只能用于压测,必须以 stress 开头")
+            if os.path.exists(space_dir(sid)):
+                raise ValueError(f"空间编号 {sid} 已经存在,换一个再试")
+        else:
+            sid = _next_id("s", _listdir(SPACES_DIR))
         d = space_dir(sid)
         for sub in ("", "nodes", "photos", "thumbs", "tasks"):
             os.makedirs(os.path.join(d, sub), exist_ok=True)
@@ -720,6 +844,7 @@ def create_space(title, couple, date=None, place=None, cover=None, private=None)
         }
         space.update(_clean_meta(date, place, cover, private))
         save_space(sid, space)
+        create_host_key(sid)    # 批次E: 每个新空间都发一枚主办密钥, 编辑动作靠它校验
         return sid
 
 
@@ -2996,6 +3121,41 @@ def publish_space(sid):
     return guest_url(sid)
 
 
+def update_space_meta(sid, title=None, cover=None):
+    """主办方编辑动作之一:改标题/换封面(批次E)。两个字段都可选,但至少要给一个,
+    不然就是一次什么都没改的"编辑"。
+
+    cover 和建空间时一个路数:可能是模板封面的根相对路径,也可能是前端压过的
+    base64 dataURL,原样存,不截断,不另设大小上限(建空间那条路径也没设)。
+
+    改完顺手同步一次云端:已经发布过的空间才会真的把新标题/封面推到 OSS ——
+    还是草稿的话本地改完就够了,没有已发布的公网快照需要覆盖,勉强发布只会
+    撞上"这份展览还是主办方草稿"的报错。
+    """
+    if title is None and cover is None:
+        raise ValueError("没有可保存的修改")
+    with space_txn(sid) as space:
+        if title is not None:
+            title = title.strip()
+            if not title:
+                raise ValueError("标题不能是空的")
+            space["title"] = title
+        if cover is not None:
+            space["cover"] = cover.strip()
+        _mark_publish_dirty(space)
+        out = {"title": space["title"], "cover": space.get("cover") or ""}
+    synced = False
+    with space_txn(sid, write=False) as cur:
+        should_sync = _cloud_publish_authorized(cur)
+    if should_sync:
+        try:
+            synced = _sync_publish_now(sid)
+        except Exception as e:
+            print(f"== [space {sid}] 编辑后同步云端失败(本地已保存): {e} ==", flush=True)
+    out["synced"] = synced
+    return out
+
+
 # ================================================================ 发布时的机器验收(自检环)
 #
 # 自检环(server/verify.py)在这个产品里有两个角色:
@@ -3393,8 +3553,17 @@ def api_create_space(payload: dict = Body(default={})):
             payload.get("title"), payload.get("couple"),
             date=payload.get("date"), place=payload.get("place"),
             cover=payload.get("cover"), private=payload.get("private"),
+            # sid 只在压测时才会出现在请求体里(见 create_space 的文档字符串),
+            # 正常建空间流程(app/create.html 的默认路径)从不发这个字段。
+            sid=payload.get("sid") or None,
         )
-        return {"ok": True, "spaceId": sid}
+        # 批次E: 主办密钥只在这一次响应里出现,前端自己决定存哪儿(展示+localStorage)。
+        # 全景直传策略跟着一起给,免得主办方刚建完空间还要再打一次往返才能开始传。
+        return {
+            "ok": True, "spaceId": sid,
+            "hostKey": read_host_key(sid),
+            "panoUpload": pano_upload_policy(sid),
+        }
     except Exception as e:
         return _fail_user(e, "空间没建成,稍后再试一次", "建空间")
 
@@ -3509,17 +3678,50 @@ def api_activate_roadshow(
         return _fail_user(e, "这张全景没能处理,请重试", "激活路演空间")
 
 
-@router.delete("/space/{sid}/node/{node_id}")
-def api_delete_node(sid: str, node_id: str, request: Request):
-    # 宾客页和 Studio 共用一个局域网服务,没有服务端登录会话。删除是不可逆的
-    # 主办动作,必须和启动 worker 一样只接受这台主办电脑的回环请求。
-    if not _request_is_trusted_host(request):
+@router.post("/space/{sid}/host/meta")
+def api_host_meta(sid: str, request: Request, payload: dict = Body(default={})):
+    """主办方编辑动作:改标题/换封面(批次E)。只认这个空间自己的主办密钥,
+    请求头 X-Unseen-Space-Key 带对了才放行,和是不是这台电脑的回环请求无关。"""
+    if not _host_key_authorized(sid, request):
         return JSONResponse(
             status_code=403,
-            content={"ok": False, "error": "主办方口令无效"},
+            content={"ok": False, "error": "主办密钥无效,没法编辑这个空间"},
         )
     try:
-        return {"ok": True, **delete_node(sid, node_id)}
+        result = update_space_meta(sid, title=payload.get("title"), cover=payload.get("cover"))
+        return {"ok": True, **result}
+    except FileNotFoundError as e:
+        return _fail_user(e, "找不到这个空间,链接可能已经过期了", "编辑空间")
+    except ValueError as e:
+        return _fail(str(e))
+    except Exception as e:
+        return _fail_user(e, "没保存成功,再试一次", "编辑空间")
+
+
+@router.delete("/space/{sid}/node/{node_id}")
+def api_delete_node(sid: str, node_id: str, request: Request):
+    # 主办方编辑动作之一:删除一个全景节点(批次E 起同时开放给主办密钥,
+    # 不再只认这台电脑的回环请求 —— 这是"这把钥匙开这把锁"的单空间凭据,
+    # 和 worker/start 那种机器级操作是两回事)。
+    if not _host_key_authorized(sid, request):
+        return JSONResponse(
+            status_code=403,
+            content={"ok": False, "error": "主办密钥无效,没法编辑这个空间"},
+        )
+    try:
+        result = delete_node(sid, node_id)
+        # 结构性改动会把 _cloudPublishBlocked 重新钉上(见 delete_node 的
+        # _mark_publish_dirty(require_publish=True)),必须先在本地把它翻回"已发布",
+        # 云端才会被授权覆盖 —— 这一步和批次E的全景自动发布走的是同一套顺序
+        # (activate_roadshow_panorama 也是先 add_node 再 publish_space 再云同步)。
+        if result.get("mustRepublish"):
+            try:
+                publish_space(sid)
+                result["synced"] = _sync_publish_now(sid)
+            except Exception as e:
+                print(f"== [space {sid}] 删节点后同步云端失败(本地已删除): {e} ==", flush=True)
+                result["synced"] = False
+        return {"ok": True, **result}
     except FileNotFoundError as e:
         return _fail_user(e, "找不到这个空间,链接可能已经过期了", "删场景")
     except ValueError as e:

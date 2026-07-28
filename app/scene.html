@@ -83,6 +83,18 @@
   .next-step p{ margin:0 0 13px; font-size:12.5px; color:var(--ink-2); line-height:1.6; }
   .next-step .u-btn{ font-size:14.5px; padding:13px 18px; }
   .next-step .hint{ display:block; margin-top:9px; font-size:11px; color:var(--ink-3); text-align:center; }
+
+  /* ── 主办编辑(批次E):只有这台设备存着这个空间的主办密钥才会出现 ── */
+  .edit-card{ padding:16px; }
+  .edit-card .row-inline{ display:flex; gap:8px; }
+  .edit-card .row-inline input[type=text]{ flex:1; font:inherit; font-size:14px; color:var(--ink);
+    background:rgba(255,255,255,.85); border:1.5px solid var(--line); border-radius:var(--r-sm);
+    padding:11px 13px; outline:none; min-width:0; }
+  .edit-card .row-inline input[type=text]:focus{ border-color:var(--u-pink); box-shadow:0 0 0 4px rgba(255,159,180,.15); }
+  .edit-card input[type=file]{ font:inherit; font-size:12.5px; color:var(--ink-2); }
+  .node-row{ display:flex; align-items:center; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line); font-size:13.5px; }
+  .node-row:last-child{ border-bottom:0; }
+  .node-row .nm{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 </style>
 </head>
 <body class="u-body">
@@ -532,6 +544,109 @@
     return head + '<div id="taskArea">' + body + "</div>";
   }
 
+  // ---------------------------------------------------------------- 主办编辑(批次E)
+  // 只有这台设备的 localStorage 里存着这个空间的主办密钥才会出现(create.html 建
+  // 空间那一刻存的)。外壳先摆"正在读取",真内容等 refreshLive() 拿到最新 space
+  // 之后才画,标题输入框不能用可能过期的本地缓存去预填。
+  function hostEditShellHtml(s) {
+    if (!U.getHostKey(s.id)) return "";
+    return '<div class="u-sec"><h2>主办编辑</h2><span class="u-note">改标题·换封面·删场景</span></div>' +
+      '<div class="u-card edit-card" id="hostEditBody"><div class="u-empty small">正在读取当前状态…</div></div>';
+  }
+  function nodeRowHtml(n) {
+    return '<div class="node-row" data-node="' + esc(n.id) + '"><span class="nm">' +
+      esc(n.name || n.id) + '</span><button type="button" class="u-btn ghost sm btn-inline node-del" ' +
+      'data-node="' + esc(n.id) + '">删除</button></div>';
+  }
+  function hostEditBodyHtml(s, live) {
+    var nodes = (live && live.nodes) || [];
+    var nodeList = nodes.length ? nodes.map(nodeRowHtml).join("")
+      : '<div class="u-empty small">还没有全景节点</div>';
+    return '<div class="u-field"><label class="lab">标题</label>' +
+      '<div class="row-inline"><input type="text" id="editTitle" maxlength="40" value="' +
+      esc(live.title || "") + '"><button class="u-btn sm btn-inline" id="editTitleBtn" type="button">保存</button></div></div>' +
+      '<div class="u-field"><label class="lab">换封面</label>' +
+      '<input type="file" id="editCoverFile" accept="image/*"></div>' +
+      '<div class="lab" style="margin:14px 0 6px;">全景节点</div>' +
+      '<div id="editNodeList">' + nodeList + '</div>' +
+      '<div class="u-note" id="editMsg" style="margin-top:8px;"></div>';
+  }
+  // 编辑请求统一走这里:带主办密钥的请求头,响应不是 {ok:true,...} 一律当失败处理
+  // (401/403 密钥错也是从这条路径冒出来的,调用方拿 e.message 直接给用户看)。
+  function hostEditRequest(url, key, opts) {
+    var init = Object.assign({ headers: {} }, opts || {});
+    init.headers = Object.assign({}, init.headers, { "X-Unseen-Space-Key": key });
+    return fetch(url, init).then(function (r) {
+      return r.json().catch(function () { return null; }).then(function (data) {
+        if (!data || !data.ok) throw new Error((data && data.error) || ("请求失败(HTTP " + r.status + ")"));
+        return data;
+      });
+    });
+  }
+  function bindHostEdit(s, key) {
+    var msgEl = document.getElementById("editMsg");
+    function say(text) { if (msgEl) msgEl.textContent = text; }
+
+    var titleBtn = document.getElementById("editTitleBtn");
+    if (titleBtn) titleBtn.addEventListener("click", function () {
+      var input = document.getElementById("editTitle");
+      var v = (input.value || "").trim();
+      if (!v) { U.toast("标题不能是空的"); return; }
+      titleBtn.disabled = true; say("保存中…");
+      hostEditRequest(
+        U.API + "/api/space/" + encodeURIComponent(s.id) + "/host/meta", key,
+        { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: v }) },
+      ).then(function (data) {
+        U.toast("标题已保存");
+        document.getElementById("sceneTitle").textContent = data.title;
+        say(data.synced ? "已同步到云端" : "已保存到本机(还没发布到云端)");
+      }).catch(function (e) {
+        U.toast(e.message || "没保存成功");
+        say(e.message || "没保存成功");
+      }).then(function () { titleBtn.disabled = false; });
+    });
+
+    var coverInput = document.getElementById("editCoverFile");
+    if (coverInput) coverInput.addEventListener("change", function () {
+      var f = coverInput.files && coverInput.files[0];
+      if (!f) return;
+      say("压缩封面中…");
+      U.compressToDataURL(f, 640, function (durl) {
+        if (!durl) { U.toast("这张图片读取失败,换一张试试"); say(""); return; }
+        say("保存中…");
+        hostEditRequest(
+          U.API + "/api/space/" + encodeURIComponent(s.id) + "/host/meta", key,
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cover: durl }) },
+        ).then(function (data) {
+          U.toast("封面已保存");
+          say(data.synced ? "已同步到云端" : "已保存到本机(还没发布到云端)");
+        }).catch(function (e) {
+          U.toast(e.message || "没保存成功");
+          say(e.message || "没保存成功");
+        });
+      });
+    });
+
+    Array.prototype.forEach.call(document.querySelectorAll(".node-del"), function (btn) {
+      btn.addEventListener("click", function () {
+        var nid = btn.getAttribute("data-node");
+        if (!confirm("确定删除这个全景节点吗?它下面的照片和悬赏任务会一起移除,不能撤销。")) return;
+        btn.disabled = true; say("删除中…");
+        hostEditRequest(
+          U.API + "/api/space/" + encodeURIComponent(s.id) + "/node/" + encodeURIComponent(nid), key,
+          { method: "DELETE" },
+        ).then(function () {
+          U.toast("已删除");
+          refreshLive(s);
+        }).catch(function (e) {
+          U.toast(e.message || "删除失败");
+          say(e.message || "删除失败");
+          btn.disabled = false;
+        });
+      });
+    });
+  }
+
   // ---------------------------------------------------------------- 邀请
   function inviteHtml(s) {
     return '<div class="u-sec"><h2>邀请</h2><span class="u-note">拉更多视角进来</span></div>' +
@@ -573,7 +688,7 @@
       heroHtml(s) + metaHtml(s, live) +
       '<div id="nextStep">' + nextStepHtml(s, live) + "</div>" +
       playGridHtml(s) + momentSectionHtml(s) +
-      taskSectionHtml(s) + inviteHtml(s) + deleteZoneHtml(s);
+      taskSectionHtml(s) + hostEditShellHtml(s) + inviteHtml(s) + deleteZoneHtml(s);
     bindMoments();
     bindDelete(s);
     if (s.kind === "cloud") loadTasks(s);
@@ -604,6 +719,14 @@
           tmp.innerHTML = playGridHtml(rich);
           var fresh = tmp.querySelector("#playGrid");
           if (fresh) grid.innerHTML = fresh.innerHTML;
+        }
+        // 批次E:这台设备存着主办密钥才画编辑区,而且只用这次刚拿到的 live 数据填,
+        // 不用可能过期的本地缓存去预填标题/节点列表。
+        var editBody = document.getElementById("hostEditBody");
+        var key = U.getHostKey(s.id);
+        if (editBody && key) {
+          editBody.innerHTML = hostEditBodyHtml(s, live);
+          bindHostEdit(s, key);
         }
       })
       .catch(function () { clearTimeout(t); });

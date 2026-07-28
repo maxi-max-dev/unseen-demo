@@ -1,0 +1,16 @@
+{
+  "steps": [
+    { "name": "打开scene.html", "metrics": [390, 1400],
+      "go": "http://127.0.0.1:8777/app/scene.html?s=stresse1", "settle": 1500 },
+    { "name": "改标题输入框", "fill": { "selector": "#editTitle", "value": "批次E-UI改标题验证" } },
+    { "name": "点保存标题", "click": "#editTitleBtn", "wait": 2500 },
+    { "name": "读editMsg(标题)", "eval": "(document.getElementById('editMsg')||{}).textContent" },
+    { "name": "截图:标题已保存", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-edit-01-title.png" },
+    { "name": "把confirm自动应答成true(headless没有人能点原生弹窗)",
+      "eval": "(function(){window.confirm=function(){return true};return 'confirm已接管'})()" },
+    { "name": "点删除n2", "click": ".node-del[data-node=\"n2\"]", "wait": 2500 },
+    { "name": "读editMsg(删除)", "eval": "(document.getElementById('editMsg')||{}).textContent" },
+    { "name": "读节点列表剩余", "eval": "Array.prototype.map.call(document.querySelectorAll('.node-row .nm'), function(e){return e.textContent})" },
+    { "name": "截图:删除n2之后", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-edit-02-deleted.png" }
+  ]
+}

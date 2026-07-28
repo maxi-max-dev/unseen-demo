@@ -34,6 +34,13 @@
   .role-pill.on{ color:var(--u-white); background:var(--grad); border-color:transparent; box-shadow:0 8px 18px rgba(242,115,155,.3); }
 
   .btn-row{ margin-bottom:8px; }
+
+  /* ── 主办密钥提醒(批次E):create.html 那一步没截图/没复制的人,这里再给一次机会 ── */
+  .key-card{ padding:14px 16px; margin-bottom:14px; }
+  .key-card .warn{ color:var(--u-pink-deep); font-weight:700; }
+  .key-box{ margin:9px 0; padding:11px 12px; border-radius:var(--r-sm); background:rgba(255,255,255,.7);
+            border:1px dashed var(--line); font-family:ui-monospace,Menlo,Consolas,monospace;
+            font-size:12.5px; word-break:break-all; user-select:all; color:var(--ink); }
 </style>
 </head>
 <body class="u-body">
@@ -63,6 +70,12 @@
       <div class="qr-box" id="qrBox"></div>
       <div class="qr-url" id="qrUrl"></div>
       <div class="qr-caveat" id="qrCaveat" style="display:none;"></div>
+    </div>
+
+    <div class="u-card key-card" id="hostKeyCard" style="display:none;">
+      <div class="u-note">这个空间的主办密钥(改标题/换封面/删场景要用) —— <span class="warn">弄丢了就没法编辑这个空间</span></div>
+      <div class="key-box" id="hostKeyBox"></div>
+      <button class="u-btn sec sm" id="copyHostKeyBtn" type="button">复制密钥</button>
     </div>
 
     <div class="btn-row">
@@ -139,6 +152,20 @@
     }
   }
   renderChip();
+
+  // 主办密钥提醒(批次E):create.html 建空间那一步已经存过一次,这里只是再给一次
+  // 复制机会,不是重新生成 —— 这台设备读不到就老实不显示这张卡,不摆一个空的。
+  (function () {
+    var key = U.getHostKey(id);
+    if (!key) return;
+    var card = document.getElementById("hostKeyCard");
+    card.style.display = "";
+    document.getElementById("hostKeyBox").textContent = key;
+    document.getElementById("copyHostKeyBtn").addEventListener("click", function () {
+      U.copyText(key, function () { U.toast("密钥已复制"); },
+        function () { U.toast("复制失败,长按上面的密钥手动复制"); });
+    });
+  })();
 
   var qrBox = document.getElementById("qrBox");
   var qrUrlEl = document.getElementById("qrUrl");

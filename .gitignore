@@ -14,3 +14,6 @@ film/out/memory-film.mp4
 film/*/_frames/
 film/assets/flythrough.mp4
 film/.hf-tmp/
+
+# 压测截图证据只留本地
+tools/stress/shots/

@@ -1,0 +1,13 @@
+{
+  "steps": [
+    { "name": "打开create.html(带压测sid2)", "metrics": [390, 844],
+      "go": "http://127.0.0.1:8777/app/create.html?sid=stresse2", "settle": 800 },
+    { "name": "填标题", "fill": { "selector": "#fName", "value": "批次E压测-跳过全景流程" } },
+    { "name": "提交建空间", "click": "#submitBtn", "wait": 2500 },
+    { "name": "截图:第2步", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-skip-01-step2.png" },
+    { "name": "读pendingUploads(应为0,没选任何文件)", "eval": "pendingUploads" },
+    { "name": "点跳过", "click": "#uploadSkipBtn", "wait": 1200 },
+    { "name": "截图:invite.html(无全景)", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-skip-02-invite.png" },
+    { "name": "读invite页地址", "eval": "location.href" }
+  ]
+}

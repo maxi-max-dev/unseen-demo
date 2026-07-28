@@ -501,3 +501,219 @@ $ grep -c SENTINEL web/show.html → 0；wc -l → 915(加之前/删之后一致
    (实测 s4 每张都有),但 `app/contract.md` 的云版 photos 字段表没有列这一条,
    任务书明确说"不许用契约里没有的字段"。所以时光轴按数组原始顺序(标题写清楚
    "顺序=数据本身的先后,不是拍摄时间"),没有排序、没有编时刻。
+
+---
+---
+
+# PROGRESS · 压测军团(批次D)
+
+## 任务 0 · 基线 + mock 安全核实(2026-07-28 通过)
+- 理解:领导要"当几十上百个真宾客"把 join→show 动线走烂找真 bug,只许改 join/show/pov/portal.html + 新建 tools/stress/。
+- 顺序:先证 mock 绝不碰真网络(硬性前提,不过这条就立刻停)→ 自建 CDP 压测库(tools/stress/cdp.mjs,读 acceptance.mjs 思路但触摸模拟与宽度解耦,768 宽也能强制开触摸)→ 铺 60+ 变体矩阵找 bug → 白名单内修复 → 回归。
+- 风险:mock 上传结算(resSum)要等 `POLL_MAX_MS`=120 秒超时才会出文案,因为 `MOCK_SPACE.photos` 是静态 fixture、不带 `inboxKey`,`findMine()` 永远配不上刚生成的短 id——这是假数据的天然限制不是 bug,压测把"流程终点"定在收据面板(pending 行)出现,不死等 2 分钟。
+- 核实:join?mock=1 从开场到点「传上去」全程只发生 16 条请求,逐条核对全部是本机静态资源(127.0.0.1:8907)或 blob:/data:(从不出机器的内联资源),**0 条外部 http(s) 请求**(读、写都没有);show.html 五视图(exhibition/journey/timeline/album/machine)+live=1 共 6 项 errs 全空、无横向溢出、`data-photo` 数均为 9(与 s4 真实照片数一致)。证据脚本 `tools/stress/task0-baseline.mjs`,截图 `tools/stress/shots/task0-*.png`。
+
+## 任务 1 · 压测军团 结果(2026-07-28/29)
+- 自建 CDP 压测库(`tools/stress/cdp.mjs` + `matrix.mjs` + `flows.mjs` + `run-all.mjs`),不改
+  `tools/acceptance.mjs` 一个字,独立端口(9471)、独立 Chrome profile,复用其 walk/shot 的调用模式。
+- 变体矩阵 72 个(超过 60 的下限):组 J(join 完整动线)24、组 S(show 五视图+live=1)24、
+  组 R(粗暴操作 10 个具名场景)16、组 P(portal/pov 补充烟测,超出任务书最低要求)8。
+  逐维度覆盖表、每个场景的复现步骤见 `tools/stress/BUGS.md` 与 `tools/stress/runlog.txt`。
+- `runlog.txt` 累计 **221 行**(含每个 bug 的修复前/后重跑对比,不是凑数的 happy path 重复)。
+- 发现 2 个真 bug(超长昵称把头部撑爆致横向溢出 P1、toast 叠加抽屉标题 P2),
+  1 条判断不需要修的观察项,1 条网络抖动型 flake(4 次复测排除),1 条产品功能缺口
+  (show.html 五视图都没有"点开大图"的灯箱交互,任务书预期存在但代码里没做)。
+  全部细节、截图路径、严重度见 `tools/stress/BUGS.md`。
+
+## 任务 2 · 修 bug + 回归 结果(2026-07-28/29)
+- 两个 bug 均在白名单内(`web/join.html`)修完,均为 CSS/极小 JS 改动,没有删除任何功能:
+  ① `.head-me`/`.head-me b` 加 `max-width` + 省略号截断(昵称超宽收敛,短名字零影响)。
+  ② `openSheet()` 开抽屉时主动收起残留的 toast(toast 该出现时照常出现,只是不跟抽屉抢屏幕)。
+- 回归:每个 bug 都重跑了对应复现变体确认转绿(R07/R08/R09 长昵称;J 组全 24 条 + R 组所有
+  开抽屉场景),并重跑了任务 0 的基线(join?mock=1 + show 五视图),确认没有修出新问题。
+- 收尾又跑了一遍全量 72 个变体(`run-all.mjs all`),去重后 **72/72 全部 PASS**。
+- 判断不需要修的一条(toast 短暂盖住背景任务卡按钮,不挡点击、标准 toast 模式)和一条
+  真实数据观察(s4 贡献者名单里的「公网验收员」测试痕迹,只读权限内不能处理)登记在
+  `BLOCKED.md` D-1/D-2,没有动手改。
+
+---
+---
+
+# PROGRESS · 主办方自助建空间(批次E)
+
+## 任务 0 结果(2026-07-28,通过)
+
+理解(≤10行):
+- 目标:主办方(新人/摄影师)自己传全景、自己建空间,建到宾客扫码全程零开发者键盘介入。
+- 现状实测:server/space.py 的 create_space() 能建空间但只认自动编号 sN;照片直传(post_policy)已跑通;全景直传/主办密钥/自助编辑通道都不存在,是本批次要补的。
+- 顺序:先证老链路活着(本任务)→ 全景直传+worker自动建节点+自动发布(任务1)→ 主办密钥+改标题/换封面/删节点(任务2)。
+- 照片直传 policy 生成位置:server/oss.py:207 post_policy(),默认 max_size=12MB;调用处 server/publish.py:352 未覆盖默认值,即照片上限就是 12MB。全景实拍 10-20MB 会超这个上限,任务1给全景单独设 32MB(server/space.py 新增 PANO_MAX_SIZE),不改 post_policy() 本身的默认值(那是给照片用的,不该被这次的需求带着一起变)。
+- 最大风险(两条):① 自助建空间没有独立"发布"按钮,worker 处理完全景必须自动把空间从草稿推成发布,否则宾客扫码看不到任何东西——照抄了 activate_roadshow_panorama() 里"add_node→publish_space→云发布"的既有顺序。② 编辑接口各自独立触发同步云发布,连续快速操作会撞上 publish.py 的 stale 保护而漏同步一次——压测中真实复现并修复,见任务2判断记录3。
+
+命令与输出:
+```
+$ nohup .venv/bin/python -m uvicorn server.compose_server:app --host 127.0.0.1 --port 8777 &
+INFO:     Started server process [88433]
+  路演空间 s900003 已就绪
+== 加载 CLIP (clip-ViT-B-32) ==
+  CLIP 就绪, 耗时 13.1s
+  闭环 API(/api/space/...) 已就绪, CLIP 已注入
+INFO:     Uvicorn running on http://127.0.0.1:8777
+
+$ curl -s -X POST http://127.0.0.1:8777/api/space -H "Content-Type: application/json" \
+    -d '{"title":"批次E任务0验证空间","sid":"stresse0"}'
+{"ok": true, "spaceId": "stresse0", "hostKey": "KFtWaleCzwsOxu_...", "panoUpload": {...32MB策略...}}
+```
+老链路(用现有 API 建空间)证实活着。
+
+## 任务 1 结果(2026-07-28,通过,三条验收全绿)
+
+### 实现(只在白名单文件内)
+- **server/space.py**:新增主办密钥账本(create_host_key/read_host_key/verify_host_key,独立文件 `<space_dir>/host.json`,不进 space.json、不随 build_public_space() 发布);新增 pano_inbox_prefix()/pano_upload_policy()(全景直传前缀 `spaces/<sid>/pano-inbox/` + 32MB 策略);create_space() 加可选 `sid` 参数(只认 `stress` 前缀+目录不能已存在,专供压测复用固定编号,不传时行为和之前完全一样);`POST /api/space` 响应新增 `hostKey`+`panoUpload`。
+- **server/worker.py**:新增 poll_panos_once()(独立台账 `.pano_ingested.json`,和照片收件箱互不干扰、互不去重),run_forever()/`--once` 每轮和 poll_once() 一起跑;新全景调既有的 space.add_node()(标准化+DAP深度+缺口任务)建真节点,成功后自动 space.publish_space() 把草稿推成发布再云同步;purge_inbox() 顺手把 pano-inbox/ 纳入清理范围。
+- **server/compose_server.py**:CORS 头白名单加 `X-Unseen-Space-Key`;新增 `/vendor/qrcode.js` 单文件路由(测试中发现 invite.html 在这台服务下拿不到二维码库返回 404——compose_server 原本没挂 `/vendor`,而 vendor/ 目录下还躺着 vendor/DAP/ 的 `.git` 内部文件和模型权重 weights/model.pth,所以只开这一个文件、不挂整个目录)。
+- **app/create.html**:建空间成功后新增"第2步":展示主办密钥(复制按钮+存 localStorage)+ 传全景(1~4张,直传OSS,照抄 web/join.html 的 policy 直传模式,进度条,太大/失败都有明确文案不静默吞);新增 `pendingUploads` 守卫(点"继续"/关标签页时如果还有上传在飞,先问清楚,不许悄悄腰斩,这是压测中发现的真实问题,见判断记录)。
+- **app/scenes.js**:新增共享的 compressToDataURL(原在 create.html,现给 scene.html 换封面复用)、saveHostKey/getHostKey(localStorage 存取)、copyText(复制到剪贴板)。
+- **app/invite.html**:新增主办密钥提醒卡(读 localStorage,给 create.html 那步没截图的人再一次复制机会)。
+
+### 验收1 · 端到端真跑
+从 create.html(`http://127.0.0.1:8777/app/create.html`,本机服务打开,同源无 CORS 问题)建空间 **stresse5** → 真实文件选择器传 1 张真全景(`assets/panos/expo.jpg`,656KB,4096×2048 等距柱状)→ worker 日志显示切图/深度完成、建成节点、重新发布 → curl OSS space.json 里有 1 个节点 → join.html?s=stresse5 打开显示空间名。全部通过:
+
+```
+$ node tools/acceptance.mjs walk tools/stress-e/walk-final-flow.json   # 真实浏览器点击建空间+选文件上传
+  填标题 → "批次E最终验收空间"
+  提交建空间 → 点了
+  [截图 FINAL-01-step2.png:主办密钥卡+传全景表单]
+  选1张真全景(expo.jpg) → 选了 1 个文件
+  [截图 FINAL-02-uploaded.png:显示 "expo.jpg(0.6MB)" + 进度条 + "上传中…"]
+
+$ tail worker-stresse5.log
+[00:42:50] 新全景 1785249680779_cywjjc.jpg → 建成节点 n1(切图 0.04s, 深度 13.46s, 缺口任务 3 个)
+[00:43:33] 已重新发布 → 新传 7 个文件, 跳过 0 个, 耗时 42.71s
+
+$ curl -s https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com/spaces/stresse5/space.json
+  title: "批次E最终验收空间"
+  nodes: [{"id":"n1","panorama":".../nodes/n1/pano.jpg","depth":".../depth.png","depthJson":".../depth.json"}]
+
+$ node tools/acceptance.mjs shot "file://.../web/join.html?s=stresse5" out.png 390 900
+  {"横向溢出": false, "errs": [], "net404": []}
+  [截图 FINAL-join-stresse5.png:显示"活动现场 / 批次E最终验收空间"]
+```
+(浏览器自动化脚本在"点继续"这一步之后偶发挂起——这不是 bug,是我加的
+pendingUploads 守卫在真实生效:弱网/并发压力下 15 秒还没传完时点继续会弹
+confirm(),无头浏览器没有人能点这个原生对话框,所以脚本卡住;这恰好证明了
+"离开时若有上传在飞会先确认"这条防护线真的在拦。该场景的完整"建空间→传2张
+全景→worker处理→自动发布→scene.html编辑→删节点"全链路已经在压测空间
+stresse1 上用真实浏览器点击完整走通,见任务2验收记录。)
+
+### 验收2 · 凭据检索(零命中)
+```
+$ grep -rn "LTAI\|AccessKey\|accessKeyId\|SecretId" app/ web/ *.html | grep -v 注释
+app/contract.md:41:  OSSAccessKeyId:  "...",             ← 数据契约文档,字段名+占位符,非真实值
+app/create.html:355:  fd.append("OSSAccessKeyId", ...)   ← 表单字段名字符串+变量引用,非硬编码值
+web/join.html:753/858/2308                                ← 既有代码(非本批次改动),同样只引用字段名
+
+$ (另外直接搜真实 accessKeySecret 字符串值,跨 app/ web/ 根html/ server/ tools/)
+0 命中
+```
+`OSSAccessKeyId` 是 OSS 直传签名的公开部分(不是密钥本身),这正是 `post_policy()`
+设计出来发给浏览器用的东西,`web/join.html` 早就在这样做;真正的凭据
+`accessKeySecret` 全仓库零命中。
+
+### 验收3 · acceptance.mjs shot 390宽
+```
+$ node tools/acceptance.mjs shot "http://127.0.0.1:8777/app/create.html" out.png 390 844
+{"横向溢出": false, "errs": [], "net404": ["404 /favicon.ico"]}
+```
+(favicon 404 是既有行为,和本次改动无关,compose_server.py 本来就没提供 favicon.ico)
+第2步(主办密钥+传全景表单)、上传中、超大文件拒绝三种状态也都单独截图核对过,
+同样 `"横向溢出": false`,唯一一次出现在 `errs` 里的是我自己写的
+`console.error("[create] 全景直传失败:...")`(超大文件测试故意触发,验证报错
+文案不是静默失败,不是页面异常)。
+
+## 任务 2 结果(2026-07-28,通过,三条验收全绿)
+
+### 实现
+- **server/space.py**:新增 `_host_key_authorized()`(只认这个空间自己的主办密钥,
+  不接受回环/全局口令兜底,理由见判断记录1);新增 `update_space_meta()`(改标题/
+  换封面,改完按需同步云端,带 stale 重试);`_sync_publish_now()`(带重试的同步
+  云发布,判断记录3详述);新路由 `POST /space/{sid}/host/meta`;`DELETE
+  /space/{sid}/node/{node_id}` 鉴权从"只认回环"改成"只认主办密钥"(全仓库搜索
+  确认当前没有任何活跃前端调用这个接口,改鉴权语义不破坏任何现有调用方)。
+- **app/scene.html**:新增"主办编辑"卡(只有这台设备 localStorage 存着这个空间的
+  主办密钥才出现):改标题(输入框+保存,实时回填最新云端数据)、换封面(文件选择,
+  复用 compressToDataURL)、全景节点列表+逐个删除(confirm 二次确认)。
+
+### 验收(命令与实际输出)
+```
+$ curl -X POST http://127.0.0.1:8777/api/space/stresse1/host/meta \
+    -H "X-Unseen-Space-Key: 明显错误的字符串" -d '{"title":"x"}'
+HTTP_STATUS:403
+{"ok":false,"error":"主办密钥无效,没法编辑这个空间"}
+
+$ curl -X POST .../api/space/stresse1/host/meta   # 不带任何密钥头
+HTTP_STATUS:403
+
+$ curl -X POST .../api/space/stresse1/host/meta -H "X-Unseen-Space-Key: <真密钥>" \
+    -d '{"title":"批次E-UI改标题验证"}'
+{"ok":true,"title":"批次E-UI改标题验证","cover":"","synced":true}
+$ curl .../spaces/stresse1/space.json → title: "批次E-UI改标题验证"        ✅ 标题变了
+
+$ curl -X DELETE .../api/space/stresse1/node/n2 -H "X-Unseen-Space-Key: 错的"
+HTTP_STATUS:403
+$ curl -X DELETE .../api/space/stresse1/node/n2 -H "X-Unseen-Space-Key: <真密钥>"
+{"ok":true,"nodeId":"n2","deletedTasks":3,"remainingNodes":1,"synced":true}
+$ curl .../spaces/stresse1/space.json → nodes: ["n1"]    ✅ 节点数 2→1
+```
+
+浏览器真实点击(非纯 curl)也走通:scene.html 加载后"主办编辑"卡片自动出现
+(标题框预填当前值、节点列表显示 n1/n2 各带删除按钮),点保存/点删除都触发了
+真实的 fetch 请求并按预期更新了后端和 OSS(headless 环境下用
+`window.confirm=()=>true` 顶替原生弹窗,因为无头浏览器点不了系统对话框,
+点击后的真实业务逻辑——校验密钥、调接口、刷新界面——完全没有被绕过)。
+
+### 施工中的判断(任务书没写死,按「有更好的路就走」处理,记一句为什么)
+1. **主办密钥校验不接受回环/全局口令兜底(`_host_key_authorized` 只有一条通过
+   路径)。** 既有的 `_request_is_trusted_host()` 是"这台电脑/这个全局口令可信"
+   的机器级信任,和"这一个空间的钥匙"是不同维度;如果编辑接口 OR 上回环兜底,
+   从这台 Mac 自己发请求测"错密钥应该被拒"永远测不出 403(回环恒真),验收条款
+   本身就没法证伪。改成密钥是唯一凭据后,401/403 才是能直接 curl 证明的东西。
+2. **worker 处理完全景自动发布,不等主办方另外点一次"发布"。** 自助建空间这条
+   产品线上根本没有一个"发布"按钮给主办方点(不在任务书要的三个编辑动作里,
+   目标动线原文也没提这一步),原文是"传全景→worker处理→写space.json发布→
+   宾客可用",中间没有人工确认,所以传第一张全景进去就必须是宾客能看到的那一刻。
+   这和宾客上传照片故意不自动发布草稿(worker.py 原有逻辑)是两回事:那边怕
+   宾客抢跑主办方没准备好的草稿,这边全景是主办方自己上传的,没有"抢跑"这一说。
+3. **发现并修复了一个真实的并发发布 bug。** 压测时连续点了"保存标题"和"删除
+   节点"两个编辑动作,前后脚发出的两个请求各自触发一次同步云发布,其中一次撞上
+   publish.py 的 stale 保护被跳过(这个保护本身是对的,为了不让半新不旧的快照
+   覆盖公网),但两个编辑接口都是"发布一次不重试",于是云端停在了半旧状态
+   (节点数对,标题落后一版,实测复现)。worker.py 的 republish() 早就有重试
+   3 次的写法,只是给"工人轮询"用的,两个编辑接口独立发布时没人抄这一份。
+   加了 `_sync_publish_now()` 共享重试逻辑后,用两个并发 curl 请求实测复现又
+   实测修复:
+   ```
+   $ (两个并发请求几乎同时改标题)
+   本地最终标题: 竞态测试A
+   OSS  最终标题: 竞态测试A         ← 一致,不再停在中间态
+   ```
+4. **全景直传前缀不做照片那一套"收件箱代际轮换"。** 那套复杂度是宾客链接被
+   到处转发、旧签名长期留存逼出来的历史包袱;全景直传只有主办方自己在用,
+   不具备这个前提,照抄反而是不必要的复杂度,登记在 BLOCKED.md E-3。
+5. **compose_server.py 新增 `/vendor/qrcode.js` 单文件路由,没有挂
+   `app.mount("/vendor", ...)`。** 发现 invite.html 在这台服务下拿不到二维码库
+   (404),但整个 vendor/ 目录下还躺着 vendor/DAP/(含 `.git` 内部文件和模型
+   权重),挂整个目录会把这些也公开,不是"白名单目录"该干的事,照抄
+   `SERVER_UI_FILES` 的路数按文件名精确开路由。这个缺口是既有的、任务书没预料
+   到的,但会挡住"从建空间到宾客扫码全程不需要开发者碰键盘"这条完成条件
+   (邀请卡出不了二维码),判断为必须顺手修。
+
+## 完成条件核对
+1. 端到端闭环证据链完整——✅ 见任务1验收1、任务2验收(创建→直传全景→worker真
+   处理→space.json真发布→join/show/scene编辑→宾客侧刷新可见),全程无人肉搬
+   文件(全部改动落盘都经过 create.html 表单提交→浏览器直传OSS→worker轮询→
+   publish.py 网络上传这条链路,我作为执行者只用浏览器自动化和 curl 验证,
+   没有手工复制过一个文件)。
+2. 凭据检索零命中(任务1验收2)、s4 的 space.json md5 前后一致、测试残留已清
+   (均见下方"批次E收尾"专项记录)。
+3. git status 改动只落白名单(见下方"批次E收尾"记录)。

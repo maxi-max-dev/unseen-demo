@@ -1,0 +1,13 @@
+{
+  "steps": [
+    { "name": "打开create.html(sid4)", "metrics": [390, 844],
+      "go": "http://127.0.0.1:8777/app/create.html?sid=stresse4", "settle": 800 },
+    { "name": "填标题", "fill": { "selector": "#fName", "value": "批次E-DOM检查" } },
+    { "name": "提交建空间", "click": "#submitBtn", "wait": 2500 },
+    { "name": "选超大文件", "file": { "selector": "#panoFiles",
+        "paths": ["/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/oversized_pano.jpg"] } },
+    { "name": "等一下", "wait": 500 },
+    { "name": "读.nm完整文本", "eval": "(document.querySelector('.pano-row .nm')||{}).textContent" },
+    { "name": "读整行outerHTML", "eval": "(document.querySelector('.pano-row')||{}).outerHTML" }
+  ]
+}

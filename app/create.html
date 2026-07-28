@@ -46,6 +46,27 @@
   .priv-row .tag{ display:inline-block; margin-left:6px; padding:1px 7px; border-radius:999px;
                   border:1px solid var(--line); font-size:11px; font-weight:600; color:var(--ink-3);
                   vertical-align:1px; white-space:nowrap; }
+
+  /* ── 第 2 步:主办密钥 + 传全景(批次E)── */
+  .key-card{ padding:16px; margin-bottom:16px; border:1.5px solid var(--u-line-strong); }
+  .key-card .tt{ font-size:14.5px; font-weight:700; margin-bottom:4px; }
+  .key-card .warn{ color:var(--u-pink-deep); font-weight:700; }
+  .key-box{ margin:10px 0; padding:12px 13px; border-radius:var(--r-sm); background:rgba(255,255,255,.7);
+            border:1px dashed var(--line); font-family:ui-monospace,Menlo,Consolas,monospace;
+            font-size:13px; word-break:break-all; user-select:all; color:var(--ink); }
+
+  .pano-field input[type=file]{ font:inherit; font-size:13px; color:var(--ink-2); }
+  .pano-row{ display:flex; align-items:center; gap:10px; padding:11px 13px; margin-top:8px; }
+  .pano-row .nm{ flex:1; min-width:0; font-size:12.5px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pano-row .bar-wrap{ width:74px; height:6px; border-radius:99px; background:var(--line); overflow:hidden; flex:none; }
+  .pano-row .bar{ height:100%; width:0%; background:var(--grad); transition:width .2s linear; }
+  .pano-row .st{ flex:none; font-size:11.5px; color:var(--ink-2); white-space:nowrap; }
+  .pano-row.err .st{ color:var(--u-pink-deep); font-weight:700; }
+  .pano-row.ok .st{ color:var(--ok); font-weight:700; }
+
+  .step-actions{ display:flex; flex-direction:column; gap:10px; margin-top:18px; }
+  .step-actions .skip{ text-align:center; font-size:12.5px; color:var(--ink-3); background:none; border:0;
+                        text-decoration:underline; cursor:pointer; padding:6px; }
 </style>
 </head>
 <body class="u-body">
@@ -93,6 +114,30 @@
     <button class="u-btn" id="submitBtn" type="submit">继续</button>
   </form>
 
+  <div id="stepUpload" style="display:none;">
+    <div class="u-card key-card">
+      <div class="tt">主办密钥</div>
+      <div class="u-note">这是这个空间唯一的编辑密钥,已经帮你存在这台设备上;
+        换设备或者清过浏览器数据的话,只能靠它找回编辑权限 ——
+        <span class="warn">弄丢了就没法再编辑这个空间</span>,请先截图或复制保存好。</div>
+      <div class="key-box" id="hostKeyBox"></div>
+      <button class="u-btn sec sm" id="copyHostKeyBtn" type="button">复制密钥</button>
+    </div>
+
+    <div class="u-field pano-field">
+      <label class="lab" for="panoFiles">传全景图(1~4 张,等距柱状 2:1 画幅,jpg)</label>
+      <input type="file" id="panoFiles" accept="image/*" multiple>
+      <div class="u-note" id="panoNote">传完主办电脑上的处理工人会自动切好方向、建好空间,
+        不用等,直接点下面"继续"就行。</div>
+    </div>
+    <div id="panoList"></div>
+
+    <div class="step-actions">
+      <button class="u-btn" id="uploadDoneBtn" type="button">继续</button>
+      <button class="skip" id="uploadSkipBtn" type="button">先不传,以后再补</button>
+    </div>
+  </div>
+
 </div>
 <script src="scenes.js"></script>
 <script>
@@ -101,6 +146,9 @@
   var U = window.UNSEEN;
   var qs = new URLSearchParams(location.search);
   var tplKey = qs.get("template");
+  // 压测钩子(批次E):?sid=stressXXX 时把这个编号带给后端,落地到"stress"前缀的
+  // 测试空间里,方便测完按前缀整批清理。正常用户从不会带这个参数,不影响任何人。
+  var stressSid = /^stress[A-Za-z0-9_-]*$/.test(qs.get("sid") || "") ? qs.get("sid") : "";
 
   // 场景对象要存进 localStorage、跨页面(首页在根目录,这里在 app/ 下)反复读取,
   // 所以封面存的必须是网站根相对路径(前导 "/"),不能用 U.PREFIX 拼出的 "../xxx" ——
@@ -165,7 +213,7 @@
     fileInput.addEventListener("change", function () {
       var f = fileInput.files && fileInput.files[0];
       if (!f) return;
-      compressToDataURL(f, 640, function (durl) {
+      U.compressToDataURL(f, 640, function (durl) {
         if (!durl) { U.toast("这张图片读取失败,换一张试试"); return; }
         state.cover = durl;
         state.custom = true;
@@ -175,35 +223,6 @@
     });
   }
   renderCovers();
-
-  // 自传封面:压到 640 宽,jpeg dataURL,直接存进场景对象当封面预览用
-  function compressToDataURL(file, maxW, cb) {
-    function draw(src, w, h) {
-      var scale = Math.min(1, maxW / w);
-      var cw = Math.max(1, Math.round(w * scale));
-      var ch = Math.max(1, Math.round(h * scale));
-      var canvas = document.createElement("canvas");
-      canvas.width = cw; canvas.height = ch;
-      var ctx = canvas.getContext("2d");
-      ctx.drawImage(src, 0, 0, cw, ch);
-      try { cb(canvas.toDataURL("image/jpeg", 0.82)); }
-      catch (e) { cb(null); }
-    }
-    function fallback() {
-      var url = URL.createObjectURL(file);
-      var img = new Image();
-      img.onload = function () { draw(img, img.naturalWidth, img.naturalHeight); URL.revokeObjectURL(url); };
-      img.onerror = function () { cb(null); URL.revokeObjectURL(url); };
-      img.src = url;
-    }
-    if (window.createImageBitmap) {
-      createImageBitmap(file, { imageOrientation: "from-image" })
-        .then(function (bmp) { draw(bmp, bmp.width, bmp.height); })
-        .catch(fallback);
-    } else {
-      fallback();
-    }
-  }
 
   function baseFields() {
     return {
@@ -251,7 +270,8 @@
         date: scene.date,
         place: scene.place,
         cover: scene.cover,
-        private: !!(fPrivate && fPrivate.checked)
+        private: !!(fPrivate && fPrivate.checked),
+        sid: stressSid || undefined
       })
     }).then(function (r) { return r.json(); })
       .then(function (data) {
@@ -274,13 +294,145 @@
           // 而场景页那张卡的开关就是这个字段,不写它就永远是灰的,传了全景也点不亮。
           walk: "/viewer/walk.html?space=" + encodeURIComponent(data.spaceId)
         };
-        finishScene(scene);
+        // 批次E:主办密钥只在这一次建空间的响应里出现,先存本机(scene.html 改标题/
+        // 换封面/删节点要靠它校验),再带主办方去传全景。本地模式(createLocal)
+        // 没有这一步:没有后端就没有全景直传通道,也没有密钥这回事。
+        if (data.hostKey) U.saveHostKey(data.spaceId, data.hostKey);
+        enterUploadStep(scene, data.hostKey || "", data.panoUpload || { enabled: false });
       })
       .catch(function (err) {
         console.error("[create] 后端建空间失败, 退回本地模式", err);
         U.toast("后端连不上,先用本地模式继续");
         createLocal();
       });
+  }
+
+  // ── 第 2 步:展示主办密钥 + 传全景(批次E)──────────────────────────
+  var PANO_MAX_FILES = 4;
+  // 离开这一页(点"继续"/"跳过")会调 location.href 整页跳转,进行中的 XHR
+  // 会被浏览器直接砍断——现场弱网时全景传到一半、用户手一抖点了继续,
+  // 那张图就悄悄传丢了。这个计数器就是挡这件事的:非 0 就先问一句再走。
+  var pendingUploads = 0;
+
+  function shortId() { return Math.random().toString(36).slice(2, 8); }
+  function extOf(file) {
+    var m = /\.[a-zA-Z0-9]+$/.exec((file && file.name) || "");
+    var ext = m ? m[0].toLowerCase() : "";
+    return (ext === ".jpg" || ext === ".jpeg" || ext === ".png" || ext === ".webp") ? ext : ".jpg";
+  }
+
+  // 全景直传 OSS,和 web/join.html 的照片直传是同一套模式(policy 里没有凭据本身,
+  // 只有一次性签好的表单字段;file 必须是表单最后一个字段,这是 OSS 的硬要求)。
+  // 太大/传失败都要在这一行明明白白写出来,不许只在 console 里喊一声就算了。
+  function uploadOnePano(file, policy, listEl) {
+    var row = document.createElement("div");
+    row.className = "u-card pano-row";
+    row.innerHTML = '<span class="nm"></span><span class="bar-wrap"><span class="bar"></span></span><span class="st"></span>';
+    row.querySelector(".nm").textContent = file.name + "(" + (file.size / 1024 / 1024).toFixed(1) + "MB)";
+    listEl.appendChild(row);
+    var bar = row.querySelector(".bar");
+    var st = row.querySelector(".st");
+
+    function fail(msg) {
+      row.classList.add("err");
+      st.textContent = msg;
+      console.error("[create] 全景直传失败:", file.name, msg);
+    }
+
+    var maxSize = policy.maxSize || (32 * 1024 * 1024);
+    if (file.size > maxSize) {
+      fail("这张全景太大(上限 " + Math.round(maxSize / 1024 / 1024) + "MB),请压缩或换一张");
+      return;
+    }
+    if (!/^image\//.test(file.type || "") && !/\.(jpe?g|png|webp)$/i.test(file.name || "")) {
+      fail("这不是图片文件");
+      return;
+    }
+
+    var key = policy.keyPrefix + Date.now() + "_" + shortId() + extOf(file);
+    var fd = new FormData();
+    fd.append("key", key);
+    fd.append("OSSAccessKeyId", policy.accessKeyId || policy.OSSAccessKeyId);
+    fd.append("policy", policy.policy);
+    // post_policy() 里叫 signature,OSS 表单字段叫 Signature,两种写法都认(照抄 join.html)
+    fd.append("Signature", policy.signature || policy.Signature);
+    fd.append("x-oss-object-acl", "private");
+    fd.append("file", file);   // file 必须是最后一个字段,这是 OSS 的硬要求
+
+    var xhr = new XMLHttpRequest();
+    xhr.open("POST", policy.host, true);
+    xhr.timeout = 180000;   // 全景比宾客照片大得多,超时给足,免得弱网现场半路判死
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) bar.style.width = Math.round((e.loaded / e.total) * 100) + "%";
+    };
+    pendingUploads++;
+    function settle() { pendingUploads = Math.max(0, pendingUploads - 1); }
+    xhr.onload = function () {
+      settle();
+      if (xhr.status >= 200 && xhr.status < 300) {
+        bar.style.width = "100%";
+        row.classList.add("ok");
+        st.textContent = "已传,等处理";
+        return;
+      }
+      fail("上传失败(HTTP " + xhr.status + "),换一张或检查网络后重试");
+    };
+    xhr.onerror = function () { settle(); fail("网络错误,上传没成功,检查网络后重试"); };
+    xhr.ontimeout = function () { settle(); fail("上传超时,网络可能太慢,重试一次"); };
+    st.textContent = "上传中…";
+    xhr.send(fd);
+  }
+
+  // "继续"/"跳过"都要过这一关:有全景还在传,先问清楚再走,不许静默丢传了一半的图。
+  function leaveUploadStep(scene) {
+    if (pendingUploads > 0 &&
+        !confirm("还有 " + pendingUploads + " 张全景没传完,现在离开会中断上传。确定要走吗?")) {
+      return;
+    }
+    finishScene(scene);
+  }
+
+  function enterUploadStep(scene, hostKey, panoUpload) {
+    form.style.display = "none";
+    var step = document.getElementById("stepUpload");
+    step.style.display = "";
+
+    var keyBox = document.getElementById("hostKeyBox");
+    keyBox.textContent = hostKey || "(没拿到密钥,这个空间以后可能没法编辑,建议稍后回本机重建)";
+    document.getElementById("copyHostKeyBtn").addEventListener("click", function () {
+      if (!hostKey) { U.toast("没有密钥可复制"); return; }
+      U.copyText(hostKey,
+        function () { U.toast("密钥已复制"); },
+        function () { U.toast("复制失败,长按上面的密钥手动复制"); });
+    });
+
+    var fileInput = document.getElementById("panoFiles");
+    var panoNote = document.getElementById("panoNote");
+    var listEl = document.getElementById("panoList");
+
+    if (!panoUpload || !panoUpload.enabled) {
+      fileInput.disabled = true;
+      panoNote.textContent = "这台电脑现在传不了全景(云存储没配好),可以先跳过,以后请主办方在本机后台补传。";
+    }
+
+    fileInput.addEventListener("change", function () {
+      var files = Array.prototype.slice.call(fileInput.files || []);
+      fileInput.value = "";   // 清空选择,允许重复选同一批文件重试
+      if (!files.length) return;
+      if (files.length > PANO_MAX_FILES) {
+        U.toast("一次最多传 " + PANO_MAX_FILES + " 张,请分批传");
+        return;
+      }
+      files.forEach(function (f) { uploadOnePano(f, panoUpload, listEl); });
+    });
+
+    document.getElementById("uploadDoneBtn").addEventListener("click", function () { leaveUploadStep(scene); });
+    document.getElementById("uploadSkipBtn").addEventListener("click", function () { leaveUploadStep(scene); });
+    // 浏览器整页跳转外的另一条离开路径:直接关标签页/刷新。beforeunload 只能弹
+    // 系统自带的确认条,文案由浏览器决定,但至少不会毫无预兆地把上传腰斩。
+    window.addEventListener("beforeunload", function (e) {
+      if (pendingUploads > 0) { e.preventDefault(); e.returnValue = ""; }
+    });
   }
 
   form.addEventListener("submit", function (ev) {

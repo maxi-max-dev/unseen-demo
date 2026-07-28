@@ -1,0 +1,20 @@
+{
+  "steps": [
+    { "name": "打开create.html(带压测sid)", "metrics": [390, 844],
+      "go": "http://127.0.0.1:8777/app/create.html?sid=stresse1", "settle": 800 },
+    { "name": "填标题", "fill": { "selector": "#fName", "value": "批次E压测-完整UI流程" } },
+    { "name": "提交建空间", "click": "#submitBtn", "wait": 2500 },
+    { "name": "截图:第2步(主办密钥+传全景)", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-01-step2.png" },
+    { "name": "读主办密钥文本", "eval": "document.getElementById('hostKeyBox').textContent" },
+    { "name": "选2张全景图上传", "file": { "selector": "#panoFiles",
+        "paths": ["/Users/max/code/spatial-memory/assets/panos/yishi.jpg",
+                  "/Users/max/code/spatial-memory/assets/panos/stage.jpg"] } },
+    { "name": "等上传(给足20秒)", "wait": 20000 },
+    { "name": "读上传行状态", "eval": "Array.prototype.map.call(document.querySelectorAll('.pano-row'), function(r){return r.className + ' | ' + r.querySelector('.st').textContent})" },
+    { "name": "读pendingUploads计数", "eval": "typeof pendingUploads" },
+    { "name": "截图:上传完成态", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-02-uploaded.png" },
+    { "name": "点继续", "click": "#uploadDoneBtn", "wait": 1200 },
+    { "name": "截图:invite.html", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/e2e-03-invite.png" },
+    { "name": "读invite页地址", "eval": "location.href" }
+  ]
+}

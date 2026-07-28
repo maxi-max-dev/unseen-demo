@@ -1,0 +1,18 @@
+{
+  "steps": [
+    { "name": "打开create.html(sid=stresse5)", "metrics": [390, 844],
+      "go": "http://127.0.0.1:8777/app/create.html?sid=stresse5", "settle": 800 },
+    { "name": "填标题", "fill": { "selector": "#fName", "value": "批次E最终验收空间" } },
+    { "name": "提交建空间", "click": "#submitBtn", "wait": 2500 },
+    { "name": "截图:第2步", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/FINAL-01-step2.png" },
+    { "name": "选1张真全景(expo.jpg)", "file": { "selector": "#panoFiles",
+        "paths": ["/Users/max/code/spatial-memory/assets/panos/expo.jpg"] } },
+    { "name": "等上传(给足15秒)", "wait": 15000 },
+    { "name": "读该行状态", "eval": "(document.querySelector('.pano-row .st')||{}).textContent" },
+    { "name": "读该行样式(应含ok)", "eval": "(document.querySelector('.pano-row')||{}).className" },
+    { "name": "截图:上传完成", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/FINAL-02-uploaded.png" },
+    { "name": "点继续", "click": "#uploadDoneBtn", "wait": 1200 },
+    { "name": "截图:invite.html", "shot": "/private/tmp/claude-501/-/12c7c2dc-b0ab-4856-aaa2-cabefdac33a8/scratchpad/FINAL-03-invite.png" },
+    { "name": "读地址栏", "eval": "location.href" }
+  ]
+}

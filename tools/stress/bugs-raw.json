@@ -1,0 +1,4904 @@
+[
+ {
+  "id": "P01-portal-w320",
+  "group": "P",
+  "meta": {
+   "seq": 1,
+   "group": "P",
+   "page": "portal",
+   "width": 320,
+   "height": 690,
+   "id": "P01-portal-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 2839,
+  "shot": "P01-portal-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P02-portal-w390",
+  "group": "P",
+  "meta": {
+   "seq": 2,
+   "group": "P",
+   "page": "portal",
+   "width": 390,
+   "height": 844,
+   "id": "P02-portal-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 3006,
+  "shot": "P02-portal-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P03-portal-w430",
+  "group": "P",
+  "meta": {
+   "seq": 3,
+   "group": "P",
+   "page": "portal",
+   "width": 430,
+   "height": 932,
+   "id": "P03-portal-w430"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 3060,
+  "shot": "P03-portal-w430.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P04-portal-w768",
+  "group": "P",
+  "meta": {
+   "seq": 4,
+   "group": "P",
+   "page": "portal",
+   "width": 768,
+   "height": 1024,
+   "id": "P04-portal-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 3694,
+  "shot": "P04-portal-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P05-pov-w320",
+  "group": "P",
+  "meta": {
+   "seq": 5,
+   "group": "P",
+   "page": "pov",
+   "width": 320,
+   "height": 690,
+   "id": "P05-pov-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 2883,
+  "shot": "P05-pov-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P06-pov-w390",
+  "group": "P",
+  "meta": {
+   "seq": 6,
+   "group": "P",
+   "page": "pov",
+   "width": 390,
+   "height": 844,
+   "id": "P06-pov-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 3023,
+  "shot": "P06-pov-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P07-pov-w430",
+  "group": "P",
+  "meta": {
+   "seq": 7,
+   "group": "P",
+   "page": "pov",
+   "width": 430,
+   "height": 932,
+   "id": "P07-pov-w430"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 3087,
+  "shot": "P07-pov-w430.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P08-pov-w768",
+  "group": "P",
+  "meta": {
+   "seq": 8,
+   "group": "P",
+   "page": "pov",
+   "width": 768,
+   "height": 1024,
+   "id": "P08-pov-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 3642,
+  "shot": "P08-pov-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R01-same-button-3x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 1,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 390,
+   "height": 844,
+   "id": "R01-same-button-3x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5412,
+  "shot": "R01-same-button-3x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R02-same-button-3x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 2,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 768,
+   "height": 1024,
+   "id": "R02-same-button-3x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5708,
+  "shot": "R02-same-button-3x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R03-refresh-mid-flow-w390",
+  "group": "R",
+  "meta": {
+   "seq": 3,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 390,
+   "height": 844,
+   "id": "R03-refresh-mid-flow-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5124,
+  "shot": "R03-refresh-mid-flow-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R04-refresh-mid-flow-w320",
+  "group": "R",
+  "meta": {
+   "seq": 4,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 320,
+   "height": 690,
+   "id": "R04-refresh-mid-flow-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5011,
+  "shot": "R04-refresh-mid-flow-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R05-browser-back-w390",
+  "group": "R",
+  "meta": {
+   "seq": 5,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 390,
+   "height": 844,
+   "id": "R05-browser-back-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 4770,
+  "shot": "R05-browser-back-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R06-browser-back-w768",
+  "group": "R",
+  "meta": {
+   "seq": 6,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 768,
+   "height": 1024,
+   "id": "R06-browser-back-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 5446,
+  "shot": "R06-browser-back-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R07-long-nickname-emoji-w320",
+  "group": "R",
+  "meta": {
+   "seq": 7,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 320,
+   "height": 690,
+   "id": "R07-long-nickname-emoji-w320"
+  },
+  "bugs": [
+   "头部昵称 pill 右边缘(437.25px)超出视口(320px),长昵称把头部撑爆",
+   "回访长昵称: 首屏横向溢出 scrollW=437",
+   "首访强灌 30 字昵称提交后横向溢出 scrollW=437"
+  ],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=437.25, width=409.25; .head-row right=302; 视口宽=320",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": false,
+  "ms": 4738,
+  "shot": "R07-long-nickname-emoji-w320.png",
+  "errsCount": 0,
+  "overflow": 437
+ },
+ {
+  "id": "R08-long-nickname-emoji-w390",
+  "group": "R",
+  "meta": {
+   "seq": 8,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 390,
+   "height": 844,
+   "id": "R08-long-nickname-emoji-w390"
+  },
+  "bugs": [
+   "头部昵称 pill 右边缘(437.25px)超出视口(390px),长昵称把头部撑爆",
+   "回访长昵称: 首屏横向溢出 scrollW=437",
+   "首访强灌 30 字昵称提交后横向溢出 scrollW=437"
+  ],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=437.25, width=409.25; .head-row right=372; 视口宽=390",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": false,
+  "ms": 4803,
+  "shot": "R08-long-nickname-emoji-w390.png",
+  "errsCount": 0,
+  "overflow": 437
+ },
+ {
+  "id": "R09-long-nickname-emoji-w768",
+  "group": "R",
+  "meta": {
+   "seq": 9,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 768,
+   "height": 1024,
+   "id": "R09-long-nickname-emoji-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=596, width=409.25; .head-row right=596; 视口宽=768",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 5268,
+  "shot": "R09-long-nickname-emoji-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R10-zero-photo-upload-w390",
+  "group": "R",
+  "meta": {
+   "seq": 10,
+   "group": "R",
+   "name": "zero-photo-upload",
+   "desc": "选 0 张照片点「传上去」",
+   "width": 390,
+   "height": 844,
+   "id": "R10-zero-photo-upload-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "0 张图时 btnSend.disabled=true(应为 true)",
+   "原生 disabled 状态下点击结果=clicked:, 点击后选择器仍存在(仍在选图面板)=true",
+   "强摘 disabled 后点击,是否仍停留在选图面板=true(doUpload 应静默 return,不崩不跳转)"
+  ],
+  "pass": true,
+  "ms": 4000,
+  "shot": "R10-zero-photo-upload-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R11-rapid-view-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 11,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 390,
+   "height": 844,
+   "id": "R11-rapid-view-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 6761,
+  "shot": "R11-rapid-view-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R12-rapid-view-switch-10x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 12,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 768,
+   "height": 1024,
+   "id": "R12-rapid-view-switch-10x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 7373,
+  "shot": "R12-rapid-view-switch-10x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R13-reopen-name-editor-w390",
+  "group": "R",
+  "meta": {
+   "seq": 13,
+   "group": "R",
+   "name": "reopen-name-editor",
+   "desc": "回访点头部「你好」pill 重新编辑昵称",
+   "width": 390,
+   "height": 844,
+   "id": "R13-reopen-name-editor-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "点开重新编辑后输入框预填值=\"阿哲\"(期望\"阿哲\")"
+  ],
+  "pass": true,
+  "ms": 3131,
+  "shot": "R13-reopen-name-editor-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R14-rapid-tab-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 14,
+   "group": "R",
+   "name": "rapid-tab-switch-10x",
+   "desc": "join.html 任务墙/我的贡献 连续切 10 次",
+   "width": 390,
+   "height": 844,
+   "id": "R14-rapid-tab-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连续切 10 次 tab 后最终态=tasks, viewMine.display=none, viewTasks.display=block"
+  ],
+  "pass": true,
+  "ms": 4154,
+  "shot": "R14-rapid-tab-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R15-reopen-sheet-different-task-w390",
+  "group": "R",
+  "meta": {
+   "seq": 15,
+   "group": "R",
+   "name": "reopen-sheet-different-task",
+   "desc": "打开抽屉→取消→换一个任务卡再开",
+   "width": 390,
+   "height": 844,
+   "id": "R15-reopen-sheet-different-task-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "任务A标题=\"缺这个角度\" 抽屉A标题=\"缺这个角度\" 抽屉B标题=\"我想要一张我妈妈笑的照片\"",
+   "发送后收据面板标题=\"收到了,一共 1 张\"(确认没有卡在旧抽屉内容上)"
+  ],
+  "pass": true,
+  "ms": 5350,
+  "shot": "R15-reopen-sheet-different-task-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R16-double-cancel-cycle-w320",
+  "group": "R",
+  "meta": {
+   "seq": 16,
+   "group": "R",
+   "name": "double-cancel-cycle",
+   "desc": "打开抽屉→取消,连续 4 轮",
+   "width": 320,
+   "height": 690,
+   "id": "R16-double-cancel-cycle-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "4 轮开合完成, toast 元素数量=1"
+  ],
+  "pass": true,
+  "ms": 4699,
+  "shot": "R16-double-cancel-cycle-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R01-same-button-3x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 1,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 390,
+   "height": 844,
+   "id": "R01-same-button-3x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5455,
+  "shot": "R01-same-button-3x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R02-same-button-3x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 2,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 768,
+   "height": 1024,
+   "id": "R02-same-button-3x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5749,
+  "shot": "R02-same-button-3x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R03-refresh-mid-flow-w390",
+  "group": "R",
+  "meta": {
+   "seq": 3,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 390,
+   "height": 844,
+   "id": "R03-refresh-mid-flow-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5201,
+  "shot": "R03-refresh-mid-flow-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R04-refresh-mid-flow-w320",
+  "group": "R",
+  "meta": {
+   "seq": 4,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 320,
+   "height": 690,
+   "id": "R04-refresh-mid-flow-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5050,
+  "shot": "R04-refresh-mid-flow-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R05-browser-back-w390",
+  "group": "R",
+  "meta": {
+   "seq": 5,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 390,
+   "height": 844,
+   "id": "R05-browser-back-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 4750,
+  "shot": "R05-browser-back-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R06-browser-back-w768",
+  "group": "R",
+  "meta": {
+   "seq": 6,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 768,
+   "height": 1024,
+   "id": "R06-browser-back-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 5449,
+  "shot": "R06-browser-back-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R07-long-nickname-emoji-w320",
+  "group": "R",
+  "meta": {
+   "seq": 7,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 320,
+   "height": 690,
+   "id": "R07-long-nickname-emoji-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=302, width=147.671875; .head-row right=302; 视口宽=320",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4602,
+  "shot": "R07-long-nickname-emoji-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R08-long-nickname-emoji-w390",
+  "group": "R",
+  "meta": {
+   "seq": 8,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 390,
+   "height": 844,
+   "id": "R08-long-nickname-emoji-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=372, width=184.078125; .head-row right=372; 视口宽=390",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 5910,
+  "shot": "R08-long-nickname-emoji-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R09-long-nickname-emoji-w768",
+  "group": "R",
+  "meta": {
+   "seq": 9,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 768,
+   "height": 1024,
+   "id": "R09-long-nickname-emoji-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=596, width=220.46875; .head-row right=596; 视口宽=768",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 5423,
+  "shot": "R09-long-nickname-emoji-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R10-zero-photo-upload-w390",
+  "group": "R",
+  "meta": {
+   "seq": 10,
+   "group": "R",
+   "name": "zero-photo-upload",
+   "desc": "选 0 张照片点「传上去」",
+   "width": 390,
+   "height": 844,
+   "id": "R10-zero-photo-upload-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "0 张图时 btnSend.disabled=true(应为 true)",
+   "原生 disabled 状态下点击结果=clicked:, 点击后选择器仍存在(仍在选图面板)=true",
+   "强摘 disabled 后点击,是否仍停留在选图面板=true(doUpload 应静默 return,不崩不跳转)"
+  ],
+  "pass": true,
+  "ms": 3986,
+  "shot": "R10-zero-photo-upload-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R11-rapid-view-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 11,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 390,
+   "height": 844,
+   "id": "R11-rapid-view-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 6743,
+  "shot": "R11-rapid-view-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R12-rapid-view-switch-10x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 12,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 768,
+   "height": 1024,
+   "id": "R12-rapid-view-switch-10x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 7458,
+  "shot": "R12-rapid-view-switch-10x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R13-reopen-name-editor-w390",
+  "group": "R",
+  "meta": {
+   "seq": 13,
+   "group": "R",
+   "name": "reopen-name-editor",
+   "desc": "回访点头部「你好」pill 重新编辑昵称",
+   "width": 390,
+   "height": 844,
+   "id": "R13-reopen-name-editor-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "点开重新编辑后输入框预填值=\"阿哲\"(期望\"阿哲\")"
+  ],
+  "pass": true,
+  "ms": 3118,
+  "shot": "R13-reopen-name-editor-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R14-rapid-tab-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 14,
+   "group": "R",
+   "name": "rapid-tab-switch-10x",
+   "desc": "join.html 任务墙/我的贡献 连续切 10 次",
+   "width": 390,
+   "height": 844,
+   "id": "R14-rapid-tab-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连续切 10 次 tab 后最终态=tasks, viewMine.display=none, viewTasks.display=block"
+  ],
+  "pass": true,
+  "ms": 4198,
+  "shot": "R14-rapid-tab-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R15-reopen-sheet-different-task-w390",
+  "group": "R",
+  "meta": {
+   "seq": 15,
+   "group": "R",
+   "name": "reopen-sheet-different-task",
+   "desc": "打开抽屉→取消→换一个任务卡再开",
+   "width": 390,
+   "height": 844,
+   "id": "R15-reopen-sheet-different-task-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "任务A标题=\"缺这个角度\" 抽屉A标题=\"缺这个角度\" 抽屉B标题=\"我想要一张我妈妈笑的照片\"",
+   "发送后收据面板标题=\"收到了,一共 1 张\"(确认没有卡在旧抽屉内容上)"
+  ],
+  "pass": true,
+  "ms": 5245,
+  "shot": "R15-reopen-sheet-different-task-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R16-double-cancel-cycle-w320",
+  "group": "R",
+  "meta": {
+   "seq": 16,
+   "group": "R",
+   "name": "double-cancel-cycle",
+   "desc": "打开抽屉→取消,连续 4 轮",
+   "width": 320,
+   "height": 690,
+   "id": "R16-double-cancel-cycle-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "4 轮开合完成, toast 元素数量=1"
+  ],
+  "pass": true,
+  "ms": 4667,
+  "shot": "R16-double-cancel-cycle-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R01-same-button-3x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 1,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 390,
+   "height": 844,
+   "id": "R01-same-button-3x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5415,
+  "shot": "R01-same-button-3x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R02-same-button-3x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 2,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 768,
+   "height": 1024,
+   "id": "R02-same-button-3x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5693,
+  "shot": "R02-same-button-3x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R03-refresh-mid-flow-w390",
+  "group": "R",
+  "meta": {
+   "seq": 3,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 390,
+   "height": 844,
+   "id": "R03-refresh-mid-flow-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5116,
+  "shot": "R03-refresh-mid-flow-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R04-refresh-mid-flow-w320",
+  "group": "R",
+  "meta": {
+   "seq": 4,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 320,
+   "height": 690,
+   "id": "R04-refresh-mid-flow-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 4988,
+  "shot": "R04-refresh-mid-flow-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R05-browser-back-w390",
+  "group": "R",
+  "meta": {
+   "seq": 5,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 390,
+   "height": 844,
+   "id": "R05-browser-back-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 4717,
+  "shot": "R05-browser-back-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R06-browser-back-w768",
+  "group": "R",
+  "meta": {
+   "seq": 6,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 768,
+   "height": 1024,
+   "id": "R06-browser-back-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 5419,
+  "shot": "R06-browser-back-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R07-long-nickname-emoji-w320",
+  "group": "R",
+  "meta": {
+   "seq": 7,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 320,
+   "height": 690,
+   "id": "R07-long-nickname-emoji-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=302, width=147.671875; .head-row right=302; 视口宽=320",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4536,
+  "shot": "R07-long-nickname-emoji-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R08-long-nickname-emoji-w390",
+  "group": "R",
+  "meta": {
+   "seq": 8,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 390,
+   "height": 844,
+   "id": "R08-long-nickname-emoji-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=372, width=184.078125; .head-row right=372; 视口宽=390",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4776,
+  "shot": "R08-long-nickname-emoji-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R09-long-nickname-emoji-w768",
+  "group": "R",
+  "meta": {
+   "seq": 9,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 768,
+   "height": 1024,
+   "id": "R09-long-nickname-emoji-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=596, width=220.46875; .head-row right=596; 视口宽=768",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 5341,
+  "shot": "R09-long-nickname-emoji-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R10-zero-photo-upload-w390",
+  "group": "R",
+  "meta": {
+   "seq": 10,
+   "group": "R",
+   "name": "zero-photo-upload",
+   "desc": "选 0 张照片点「传上去」",
+   "width": 390,
+   "height": 844,
+   "id": "R10-zero-photo-upload-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "0 张图时 btnSend.disabled=true(应为 true)",
+   "原生 disabled 状态下点击结果=clicked:, 点击后选择器仍存在(仍在选图面板)=true",
+   "强摘 disabled 后点击,是否仍停留在选图面板=true(doUpload 应静默 return,不崩不跳转)"
+  ],
+  "pass": true,
+  "ms": 3980,
+  "shot": "R10-zero-photo-upload-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R11-rapid-view-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 11,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 390,
+   "height": 844,
+   "id": "R11-rapid-view-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 6731,
+  "shot": "R11-rapid-view-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R12-rapid-view-switch-10x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 12,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 768,
+   "height": 1024,
+   "id": "R12-rapid-view-switch-10x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 7668,
+  "shot": "R12-rapid-view-switch-10x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R13-reopen-name-editor-w390",
+  "group": "R",
+  "meta": {
+   "seq": 13,
+   "group": "R",
+   "name": "reopen-name-editor",
+   "desc": "回访点头部「你好」pill 重新编辑昵称",
+   "width": 390,
+   "height": 844,
+   "id": "R13-reopen-name-editor-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "点开重新编辑后输入框预填值=\"阿哲\"(期望\"阿哲\")"
+  ],
+  "pass": true,
+  "ms": 3803,
+  "shot": "R13-reopen-name-editor-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R14-rapid-tab-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 14,
+   "group": "R",
+   "name": "rapid-tab-switch-10x",
+   "desc": "join.html 任务墙/我的贡献 连续切 10 次",
+   "width": 390,
+   "height": 844,
+   "id": "R14-rapid-tab-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连续切 10 次 tab 后最终态=tasks, viewMine.display=none, viewTasks.display=block"
+  ],
+  "pass": true,
+  "ms": 4214,
+  "shot": "R14-rapid-tab-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R15-reopen-sheet-different-task-w390",
+  "group": "R",
+  "meta": {
+   "seq": 15,
+   "group": "R",
+   "name": "reopen-sheet-different-task",
+   "desc": "打开抽屉→取消→换一个任务卡再开",
+   "width": 390,
+   "height": 844,
+   "id": "R15-reopen-sheet-different-task-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "任务A标题=\"缺这个角度\" 抽屉A标题=\"缺这个角度\" 抽屉B标题=\"我想要一张我妈妈笑的照片\"",
+   "发送后收据面板标题=\"收到了,一共 1 张\"(确认没有卡在旧抽屉内容上)"
+  ],
+  "pass": true,
+  "ms": 5254,
+  "shot": "R15-reopen-sheet-different-task-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R16-double-cancel-cycle-w320",
+  "group": "R",
+  "meta": {
+   "seq": 16,
+   "group": "R",
+   "name": "double-cancel-cycle",
+   "desc": "打开抽屉→取消,连续 4 轮",
+   "width": 320,
+   "height": 690,
+   "id": "R16-double-cancel-cycle-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "4 轮开合完成, toast 元素数量=1"
+  ],
+  "pass": true,
+  "ms": 4642,
+  "shot": "R16-double-cancel-cycle-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J01-w320-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 1,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J01-w320-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3839,
+  "shot": "J01-w320-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J02-w320-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 2,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J02-w320-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3786,
+  "shot": "J02-w320-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J03-w320-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 3,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J03-w320-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3757,
+  "shot": "J03-w320-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J04-w320-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 4,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J04-w320-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3770,
+  "shot": "J04-w320-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J05-w320-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 5,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J05-w320-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4496,
+  "shot": "J05-w320-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J06-w320-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 6,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J06-w320-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4471,
+  "shot": "J06-w320-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J07-w390-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 7,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J07-w390-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3892,
+  "shot": "J07-w390-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J08-w390-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 8,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J08-w390-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3899,
+  "shot": "J08-w390-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J09-w390-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 9,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J09-w390-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3908,
+  "shot": "J09-w390-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J10-w390-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 10,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J10-w390-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3896,
+  "shot": "J10-w390-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J11-w390-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 11,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J11-w390-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4542,
+  "shot": "J11-w390-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J12-w390-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 12,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J12-w390-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4523,
+  "shot": "J12-w390-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J13-w430-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 13,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J13-w430-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3953,
+  "shot": "J13-w430-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J14-w430-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 14,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J14-w430-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3974,
+  "shot": "J14-w430-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J15-w430-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 15,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J15-w430-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3944,
+  "shot": "J15-w430-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J16-w430-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 16,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J16-w430-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 3940,
+  "shot": "J16-w430-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J17-w430-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 17,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J17-w430-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4577,
+  "shot": "J17-w430-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J18-w430-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 18,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J18-w430-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4559,
+  "shot": "J18-w430-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J19-w768-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 19,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J19-w768-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4194,
+  "shot": "J19-w768-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J20-w768-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 20,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J20-w768-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4218,
+  "shot": "J20-w768-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J21-w768-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 21,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J21-w768-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4204,
+  "shot": "J21-w768-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J22-w768-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 22,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J22-w768-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4173,
+  "shot": "J22-w768-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J23-w768-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 23,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J23-w768-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4846,
+  "shot": "J23-w768-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J24-w768-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 24,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J24-w768-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4840,
+  "shot": "J24-w768-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S01-w320-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 1,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "exhibition",
+   "id": "S01-w320-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3862,
+  "shot": "S01-w320-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S02-w320-journey",
+  "group": "S",
+  "meta": {
+   "seq": 2,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "journey",
+   "id": "S02-w320-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3216,
+  "shot": "S02-w320-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S03-w320-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 3,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "timeline",
+   "id": "S03-w320-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3253,
+  "shot": "S03-w320-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S04-w320-album",
+  "group": "S",
+  "meta": {
+   "seq": 4,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "album",
+   "id": "S04-w320-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3170,
+  "shot": "S04-w320-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S05-w320-machine",
+  "group": "S",
+  "meta": {
+   "seq": 5,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "machine",
+   "id": "S05-w320-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3264,
+  "shot": "S05-w320-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S06-w320-live1",
+  "group": "S",
+  "meta": {
+   "seq": 6,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "live1",
+   "id": "S06-w320-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 8875,
+  "shot": "S06-w320-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S07-w390-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 7,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "exhibition",
+   "id": "S07-w390-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4064,
+  "shot": "S07-w390-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S08-w390-journey",
+  "group": "S",
+  "meta": {
+   "seq": 8,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "journey",
+   "id": "S08-w390-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3367,
+  "shot": "S08-w390-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S09-w390-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 9,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "timeline",
+   "id": "S09-w390-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3315,
+  "shot": "S09-w390-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S10-w390-album",
+  "group": "S",
+  "meta": {
+   "seq": 10,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "album",
+   "id": "S10-w390-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3318,
+  "shot": "S10-w390-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S11-w390-machine",
+  "group": "S",
+  "meta": {
+   "seq": 11,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "machine",
+   "id": "S11-w390-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3393,
+  "shot": "S11-w390-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S12-w390-live1",
+  "group": "S",
+  "meta": {
+   "seq": 12,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "live1",
+   "id": "S12-w390-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 8992,
+  "shot": "S12-w390-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S13-w430-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 13,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "exhibition",
+   "id": "S13-w430-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4357,
+  "shot": "S13-w430-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S14-w430-journey",
+  "group": "S",
+  "meta": {
+   "seq": 14,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "journey",
+   "id": "S14-w430-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3426,
+  "shot": "S14-w430-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S15-w430-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 15,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "timeline",
+   "id": "S15-w430-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3378,
+  "shot": "S15-w430-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S16-w430-album",
+  "group": "S",
+  "meta": {
+   "seq": 16,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "album",
+   "id": "S16-w430-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3357,
+  "shot": "S16-w430-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S17-w430-machine",
+  "group": "S",
+  "meta": {
+   "seq": 17,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "machine",
+   "id": "S17-w430-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3452,
+  "shot": "S17-w430-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S18-w430-live1",
+  "group": "S",
+  "meta": {
+   "seq": 18,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "live1",
+   "id": "S18-w430-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 9099,
+  "shot": "S18-w430-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S19-w768-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 19,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "exhibition",
+   "id": "S19-w768-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4721,
+  "shot": "S19-w768-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S20-w768-journey",
+  "group": "S",
+  "meta": {
+   "seq": 20,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "journey",
+   "id": "S20-w768-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3822,
+  "shot": "S20-w768-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S21-w768-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 21,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "timeline",
+   "id": "S21-w768-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3838,
+  "shot": "S21-w768-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S22-w768-album",
+  "group": "S",
+  "meta": {
+   "seq": 22,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "album",
+   "id": "S22-w768-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3798,
+  "shot": "S22-w768-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S23-w768-machine",
+  "group": "S",
+  "meta": {
+   "seq": 23,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "machine",
+   "id": "S23-w768-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3842,
+  "shot": "S23-w768-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S24-w768-live1",
+  "group": "S",
+  "meta": {
+   "seq": 24,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "live1",
+   "id": "S24-w768-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 9627,
+  "shot": "S24-w768-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J01-w320-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 1,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J01-w320-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4884,
+  "shot": "J01-w320-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J02-w320-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 2,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J02-w320-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4868,
+  "shot": "J02-w320-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J03-w320-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 3,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J03-w320-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4852,
+  "shot": "J03-w320-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J04-w320-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 4,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J04-w320-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4857,
+  "shot": "J04-w320-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J05-w320-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 5,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J05-w320-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4445,
+  "shot": "J05-w320-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J06-w320-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 6,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J06-w320-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4452,
+  "shot": "J06-w320-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J07-w390-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 7,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J07-w390-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4956,
+  "shot": "J07-w390-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J08-w390-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 8,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J08-w390-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4952,
+  "shot": "J08-w390-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J09-w390-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 9,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J09-w390-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4928,
+  "shot": "J09-w390-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J10-w390-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 10,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J10-w390-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4922,
+  "shot": "J10-w390-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J11-w390-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 11,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J11-w390-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4537,
+  "shot": "J11-w390-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J12-w390-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 12,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J12-w390-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4534,
+  "shot": "J12-w390-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J13-w430-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 13,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J13-w430-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4993,
+  "shot": "J13-w430-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J14-w430-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 14,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J14-w430-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5141,
+  "shot": "J14-w430-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J15-w430-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 15,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J15-w430-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5018,
+  "shot": "J15-w430-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J16-w430-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 16,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J16-w430-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4974,
+  "shot": "J16-w430-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J17-w430-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 17,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J17-w430-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4574,
+  "shot": "J17-w430-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J18-w430-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 18,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J18-w430-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4586,
+  "shot": "J18-w430-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J19-w768-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 19,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J19-w768-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5252,
+  "shot": "J19-w768-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J20-w768-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 20,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J20-w768-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5225,
+  "shot": "J20-w768-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J21-w768-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 21,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J21-w768-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5207,
+  "shot": "J21-w768-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J22-w768-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 22,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J22-w768-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5223,
+  "shot": "J22-w768-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J23-w768-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 23,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J23-w768-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4838,
+  "shot": "J23-w768-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J24-w768-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 24,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J24-w768-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4831,
+  "shot": "J24-w768-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R01-same-button-3x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 1,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 390,
+   "height": 844,
+   "id": "R01-same-button-3x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5705,
+  "shot": "R01-same-button-3x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R02-same-button-3x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 2,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 768,
+   "height": 1024,
+   "id": "R02-same-button-3x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 5734,
+  "shot": "R02-same-button-3x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R03-refresh-mid-flow-w390",
+  "group": "R",
+  "meta": {
+   "seq": 3,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 390,
+   "height": 844,
+   "id": "R03-refresh-mid-flow-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5124,
+  "shot": "R03-refresh-mid-flow-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R04-refresh-mid-flow-w320",
+  "group": "R",
+  "meta": {
+   "seq": 4,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 320,
+   "height": 690,
+   "id": "R04-refresh-mid-flow-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5013,
+  "shot": "R04-refresh-mid-flow-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R05-browser-back-w390",
+  "group": "R",
+  "meta": {
+   "seq": 5,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 390,
+   "height": 844,
+   "id": "R05-browser-back-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 4813,
+  "shot": "R05-browser-back-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R06-browser-back-w768",
+  "group": "R",
+  "meta": {
+   "seq": 6,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 768,
+   "height": 1024,
+   "id": "R06-browser-back-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 5452,
+  "shot": "R06-browser-back-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R07-long-nickname-emoji-w320",
+  "group": "R",
+  "meta": {
+   "seq": 7,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 320,
+   "height": 690,
+   "id": "R07-long-nickname-emoji-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=302, width=147.671875; .head-row right=302; 视口宽=320",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4567,
+  "shot": "R07-long-nickname-emoji-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R08-long-nickname-emoji-w390",
+  "group": "R",
+  "meta": {
+   "seq": 8,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 390,
+   "height": 844,
+   "id": "R08-long-nickname-emoji-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=372, width=184.078125; .head-row right=372; 视口宽=390",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4897,
+  "shot": "R08-long-nickname-emoji-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R09-long-nickname-emoji-w768",
+  "group": "R",
+  "meta": {
+   "seq": 9,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 768,
+   "height": 1024,
+   "id": "R09-long-nickname-emoji-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=596, width=220.46875; .head-row right=596; 视口宽=768",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 5394,
+  "shot": "R09-long-nickname-emoji-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R10-zero-photo-upload-w390",
+  "group": "R",
+  "meta": {
+   "seq": 10,
+   "group": "R",
+   "name": "zero-photo-upload",
+   "desc": "选 0 张照片点「传上去」",
+   "width": 390,
+   "height": 844,
+   "id": "R10-zero-photo-upload-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "0 张图时 btnSend.disabled=true(应为 true)",
+   "原生 disabled 状态下点击结果=clicked:, 点击后选择器仍存在(仍在选图面板)=true",
+   "强摘 disabled 后点击,是否仍停留在选图面板=true(doUpload 应静默 return,不崩不跳转)"
+  ],
+  "pass": true,
+  "ms": 4009,
+  "shot": "R10-zero-photo-upload-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R11-rapid-view-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 11,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 390,
+   "height": 844,
+   "id": "R11-rapid-view-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 6975,
+  "shot": "R11-rapid-view-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R12-rapid-view-switch-10x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 12,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 768,
+   "height": 1024,
+   "id": "R12-rapid-view-switch-10x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 7718,
+  "shot": "R12-rapid-view-switch-10x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R13-reopen-name-editor-w390",
+  "group": "R",
+  "meta": {
+   "seq": 13,
+   "group": "R",
+   "name": "reopen-name-editor",
+   "desc": "回访点头部「你好」pill 重新编辑昵称",
+   "width": 390,
+   "height": 844,
+   "id": "R13-reopen-name-editor-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "点开重新编辑后输入框预填值=\"阿哲\"(期望\"阿哲\")"
+  ],
+  "pass": true,
+  "ms": 3263,
+  "shot": "R13-reopen-name-editor-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R14-rapid-tab-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 14,
+   "group": "R",
+   "name": "rapid-tab-switch-10x",
+   "desc": "join.html 任务墙/我的贡献 连续切 10 次",
+   "width": 390,
+   "height": 844,
+   "id": "R14-rapid-tab-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连续切 10 次 tab 后最终态=tasks, viewMine.display=none, viewTasks.display=block"
+  ],
+  "pass": true,
+  "ms": 4202,
+  "shot": "R14-rapid-tab-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R15-reopen-sheet-different-task-w390",
+  "group": "R",
+  "meta": {
+   "seq": 15,
+   "group": "R",
+   "name": "reopen-sheet-different-task",
+   "desc": "打开抽屉→取消→换一个任务卡再开",
+   "width": 390,
+   "height": 844,
+   "id": "R15-reopen-sheet-different-task-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "任务A标题=\"缺这个角度\" 抽屉A标题=\"缺这个角度\" 抽屉B标题=\"我想要一张我妈妈笑的照片\"",
+   "发送后收据面板标题=\"收到了,一共 1 张\"(确认没有卡在旧抽屉内容上)"
+  ],
+  "pass": true,
+  "ms": 5308,
+  "shot": "R15-reopen-sheet-different-task-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R16-double-cancel-cycle-w320",
+  "group": "R",
+  "meta": {
+   "seq": 16,
+   "group": "R",
+   "name": "double-cancel-cycle",
+   "desc": "打开抽屉→取消,连续 4 轮",
+   "width": 320,
+   "height": 690,
+   "id": "R16-double-cancel-cycle-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "4 轮开合完成, toast 元素数量=1"
+  ],
+  "pass": true,
+  "ms": 4661,
+  "shot": "R16-double-cancel-cycle-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J01-w320-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 1,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J01-w320-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5721,
+  "shot": "J01-w320-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J02-w320-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 2,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J02-w320-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5204,
+  "shot": "J02-w320-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J03-w320-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 3,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J03-w320-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5080,
+  "shot": "J03-w320-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J04-w320-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 4,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J04-w320-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5096,
+  "shot": "J04-w320-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J05-w320-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 5,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J05-w320-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5216,
+  "shot": "J05-w320-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J06-w320-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 6,
+   "group": "J",
+   "width": 320,
+   "height": 690,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J06-w320-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4816,
+  "shot": "J06-w320-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J07-w390-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 7,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J07-w390-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5681,
+  "shot": "J07-w390-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J08-w390-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 8,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J08-w390-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5612,
+  "shot": "J08-w390-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J09-w390-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 9,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J09-w390-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5261,
+  "shot": "J09-w390-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J10-w390-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 10,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J10-w390-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5413,
+  "shot": "J10-w390-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J11-w390-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 11,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J11-w390-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5069,
+  "shot": "J11-w390-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J12-w390-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 12,
+   "group": "J",
+   "width": 390,
+   "height": 844,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J12-w390-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4897,
+  "shot": "J12-w390-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J13-w430-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 13,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J13-w430-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5627,
+  "shot": "J13-w430-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J14-w430-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 14,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J14-w430-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5382,
+  "shot": "J14-w430-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J15-w430-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 15,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J15-w430-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5533,
+  "shot": "J15-w430-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J16-w430-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 16,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J16-w430-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5429,
+  "shot": "J16-w430-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J17-w430-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 17,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J17-w430-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4979,
+  "shot": "J17-w430-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J18-w430-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 18,
+   "group": "J",
+   "width": 430,
+   "height": 932,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J18-w430-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 4775,
+  "shot": "J18-w430-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J19-w768-first-fill-free",
+  "group": "J",
+  "meta": {
+   "seq": 19,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "free",
+   "id": "J19-w768-first-fill-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5773,
+  "shot": "J19-w768-first-fill-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J20-w768-first-fill-task",
+  "group": "J",
+  "meta": {
+   "seq": 20,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "fill",
+   "uploadpath": "task",
+   "id": "J20-w768-first-fill-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5878,
+  "shot": "J20-w768-first-fill-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J21-w768-first-skip-free",
+  "group": "J",
+  "meta": {
+   "seq": 21,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "free",
+   "id": "J21-w768-first-skip-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 6130,
+  "shot": "J21-w768-first-skip-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J22-w768-first-skip-task",
+  "group": "J",
+  "meta": {
+   "seq": 22,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "first",
+   "namemode": "skip",
+   "uploadpath": "task",
+   "id": "J22-w768-first-skip-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5515,
+  "shot": "J22-w768-first-skip-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J23-w768-return-na-free",
+  "group": "J",
+  "meta": {
+   "seq": 23,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "free",
+   "id": "J23-w768-return-na-free"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5433,
+  "shot": "J23-w768-return-na-free.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "J24-w768-return-na-task",
+  "group": "J",
+  "meta": {
+   "seq": 24,
+   "group": "J",
+   "width": 768,
+   "height": 1024,
+   "visit": "return",
+   "namemode": "na",
+   "uploadpath": "task",
+   "id": "J24-w768-return-na-task"
+  },
+  "bugs": [],
+  "notes": [],
+  "pass": true,
+  "ms": 5202,
+  "shot": "J24-w768-return-na-task.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S01-w320-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 1,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "exhibition",
+   "id": "S01-w320-exhibition"
+  },
+  "bugs": [
+   "这个视图 data-photo 数量为 0(期望 s4 的 9 张)"
+  ],
+  "notes": [
+   "data-photo 数量=0",
+   "灯箱测试: 页面没有 .photo 元素可点(可能无照片)"
+  ],
+  "pass": false,
+  "ms": 3377,
+  "shot": "S01-w320-exhibition.png",
+  "dataPhotoCount": 0,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S02-w320-journey",
+  "group": "S",
+  "meta": {
+   "seq": 2,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "journey",
+   "id": "S02-w320-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3352,
+  "shot": "S02-w320-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S03-w320-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 3,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "timeline",
+   "id": "S03-w320-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3570,
+  "shot": "S03-w320-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S04-w320-album",
+  "group": "S",
+  "meta": {
+   "seq": 4,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "album",
+   "id": "S04-w320-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3241,
+  "shot": "S04-w320-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S05-w320-machine",
+  "group": "S",
+  "meta": {
+   "seq": 5,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "machine",
+   "id": "S05-w320-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3391,
+  "shot": "S05-w320-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S06-w320-live1",
+  "group": "S",
+  "meta": {
+   "seq": 6,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "live1",
+   "id": "S06-w320-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 9514,
+  "shot": "S06-w320-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S07-w390-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 7,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "exhibition",
+   "id": "S07-w390-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4814,
+  "shot": "S07-w390-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S08-w390-journey",
+  "group": "S",
+  "meta": {
+   "seq": 8,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "journey",
+   "id": "S08-w390-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3598,
+  "shot": "S08-w390-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S09-w390-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 9,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "timeline",
+   "id": "S09-w390-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3815,
+  "shot": "S09-w390-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S10-w390-album",
+  "group": "S",
+  "meta": {
+   "seq": 10,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "album",
+   "id": "S10-w390-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3560,
+  "shot": "S10-w390-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S11-w390-machine",
+  "group": "S",
+  "meta": {
+   "seq": 11,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "machine",
+   "id": "S11-w390-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3742,
+  "shot": "S11-w390-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S12-w390-live1",
+  "group": "S",
+  "meta": {
+   "seq": 12,
+   "group": "S",
+   "width": 390,
+   "height": 844,
+   "view": "live1",
+   "id": "S12-w390-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 9586,
+  "shot": "S12-w390-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S13-w430-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 13,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "exhibition",
+   "id": "S13-w430-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4624,
+  "shot": "S13-w430-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S14-w430-journey",
+  "group": "S",
+  "meta": {
+   "seq": 14,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "journey",
+   "id": "S14-w430-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3578,
+  "shot": "S14-w430-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S15-w430-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 15,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "timeline",
+   "id": "S15-w430-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3806,
+  "shot": "S15-w430-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S16-w430-album",
+  "group": "S",
+  "meta": {
+   "seq": 16,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "album",
+   "id": "S16-w430-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3533,
+  "shot": "S16-w430-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S17-w430-machine",
+  "group": "S",
+  "meta": {
+   "seq": 17,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "machine",
+   "id": "S17-w430-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3568,
+  "shot": "S17-w430-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S18-w430-live1",
+  "group": "S",
+  "meta": {
+   "seq": 18,
+   "group": "S",
+   "width": 430,
+   "height": 932,
+   "view": "live1",
+   "id": "S18-w430-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 9653,
+  "shot": "S18-w430-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S19-w768-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 19,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "exhibition",
+   "id": "S19-w768-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 5771,
+  "shot": "S19-w768-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S20-w768-journey",
+  "group": "S",
+  "meta": {
+   "seq": 20,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "journey",
+   "id": "S20-w768-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4155,
+  "shot": "S20-w768-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S21-w768-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 21,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "timeline",
+   "id": "S21-w768-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4000,
+  "shot": "S21-w768-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S22-w768-album",
+  "group": "S",
+  "meta": {
+   "seq": 22,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "album",
+   "id": "S22-w768-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3959,
+  "shot": "S22-w768-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S23-w768-machine",
+  "group": "S",
+  "meta": {
+   "seq": 23,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "machine",
+   "id": "S23-w768-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4182,
+  "shot": "S23-w768-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S24-w768-live1",
+  "group": "S",
+  "meta": {
+   "seq": 24,
+   "group": "S",
+   "width": 768,
+   "height": 1024,
+   "view": "live1",
+   "id": "S24-w768-live1"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 10102,
+  "shot": "S24-w768-live1.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R01-same-button-3x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 1,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 390,
+   "height": 844,
+   "id": "R01-same-button-3x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 6004,
+  "shot": "R01-same-button-3x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R02-same-button-3x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 2,
+   "group": "R",
+   "name": "same-button-3x",
+   "desc": "同一按钮(传上去)连点/连按 3 次",
+   "width": 768,
+   "height": 1024,
+   "id": "R02-same-button-3x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "连点 3 次后收据行数=1(只选了 1 张图,期望仍是 1 行,>1 说明重复提交)"
+  ],
+  "pass": true,
+  "ms": 6973,
+  "shot": "R02-same-button-3x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R03-refresh-mid-flow-w390",
+  "group": "R",
+  "meta": {
+   "seq": 3,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 390,
+   "height": 844,
+   "id": "R03-refresh-mid-flow-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5289,
+  "shot": "R03-refresh-mid-flow-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R04-refresh-mid-flow-w320",
+  "group": "R",
+  "meta": {
+   "seq": 4,
+   "group": "R",
+   "name": "refresh-mid-flow",
+   "desc": "动线中途(选图后未传)刷新页面再继续",
+   "width": 320,
+   "height": 690,
+   "id": "R04-refresh-mid-flow-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "中途状态: 抽屉打开、已选 1 张图、尚未点传上去",
+   "刷新后: welcomeOff=true sheetOn=false maskOn=false"
+  ],
+  "pass": true,
+  "ms": 5072,
+  "shot": "R04-refresh-mid-flow-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R05-browser-back-w390",
+  "group": "R",
+  "meta": {
+   "seq": 5,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 390,
+   "height": 844,
+   "id": "R05-browser-back-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 4856,
+  "shot": "R05-browser-back-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R06-browser-back-w768",
+  "group": "R",
+  "meta": {
+   "seq": 6,
+   "group": "R",
+   "name": "browser-back",
+   "desc": "浏览器后退(portal→join 后退)",
+   "width": 768,
+   "height": 1024,
+   "id": "R06-browser-back-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "后退后 url=http://127.0.0.1:8907/portal.html title=UNSEEN · 产品入口"
+  ],
+  "pass": true,
+  "ms": 5701,
+  "shot": "R06-browser-back-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R07-long-nickname-emoji-w320",
+  "group": "R",
+  "meta": {
+   "seq": 7,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 320,
+   "height": 690,
+   "id": "R07-long-nickname-emoji-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=302, width=147.671875; .head-row right=302; 视口宽=320",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4971,
+  "shot": "R07-long-nickname-emoji-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R08-long-nickname-emoji-w390",
+  "group": "R",
+  "meta": {
+   "seq": 8,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 390,
+   "height": 844,
+   "id": "R08-long-nickname-emoji-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=372, width=184.078125; .head-row right=372; 视口宽=390",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 4972,
+  "shot": "R08-long-nickname-emoji-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R09-long-nickname-emoji-w768",
+  "group": "R",
+  "meta": {
+   "seq": 9,
+   "group": "R",
+   "name": "long-nickname-emoji",
+   "desc": "超长昵称 30 字 emoji 混排(回访 localStorage 直灌,真实向量)",
+   "width": 768,
+   "height": 1024,
+   "id": "R09-long-nickname-emoji-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "真实字符数(Array.from().length)=28",
+   "头部昵称pill: right=596, width=220.46875; .head-row right=596; 视口宽=768",
+   "首访强灌后 localStorage 实际存的值=\"小明😀🎉🚀测试嘉宾超级无敌长昵称走过路过别错过呀哈哈哈哈\"(长度 31)"
+  ],
+  "pass": true,
+  "ms": 5769,
+  "shot": "R09-long-nickname-emoji-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R10-zero-photo-upload-w390",
+  "group": "R",
+  "meta": {
+   "seq": 10,
+   "group": "R",
+   "name": "zero-photo-upload",
+   "desc": "选 0 张照片点「传上去」",
+   "width": 390,
+   "height": 844,
+   "id": "R10-zero-photo-upload-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "0 张图时 btnSend.disabled=true(应为 true)",
+   "原生 disabled 状态下点击结果=clicked:, 点击后选择器仍存在(仍在选图面板)=true",
+   "强摘 disabled 后点击,是否仍停留在选图面板=true(doUpload 应静默 return,不崩不跳转)"
+  ],
+  "pass": true,
+  "ms": 4097,
+  "shot": "R10-zero-photo-upload-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R11-rapid-view-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 11,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 390,
+   "height": 844,
+   "id": "R11-rapid-view-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 7026,
+  "shot": "R11-rapid-view-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R12-rapid-view-switch-10x-w768",
+  "group": "R",
+  "meta": {
+   "seq": 12,
+   "group": "R",
+   "name": "rapid-view-switch-10x",
+   "desc": "show.html 快速连续切视图 10 次(真实整页跳转竞态)",
+   "width": 768,
+   "height": 1024,
+   "id": "R12-rapid-view-switch-10x-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "药丸导航共 5 个: [\"/web/show.html?s=s4\",\"/web/show.html?s=s4&view=journey\",\"/web/show.html?s=s4&view=timeline\",\"/web/show.html?s=s4&view=album\",\"/web/show.html?s=s4&view=machine\"]",
+   "连续切视图 10 次后: url=http://127.0.0.1:8907/web/show.html?s=s4&view=machine title=婚礼 · 那一天 · 监控墙 · UNSEEN appHtml长度=3736"
+  ],
+  "pass": true,
+  "ms": 7883,
+  "shot": "R12-rapid-view-switch-10x-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R13-reopen-name-editor-w390",
+  "group": "R",
+  "meta": {
+   "seq": 13,
+   "group": "R",
+   "name": "reopen-name-editor",
+   "desc": "回访点头部「你好」pill 重新编辑昵称",
+   "width": 390,
+   "height": 844,
+   "id": "R13-reopen-name-editor-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "点开重新编辑后输入框预填值=\"阿哲\"(期望\"阿哲\")"
+  ],
+  "pass": true,
+  "ms": 3351,
+  "shot": "R13-reopen-name-editor-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R14-rapid-tab-switch-10x-w390",
+  "group": "R",
+  "meta": {
+   "seq": 14,
+   "group": "R",
+   "name": "rapid-tab-switch-10x",
+   "desc": "join.html 任务墙/我的贡献 连续切 10 次",
+   "width": 390,
+   "height": 844,
+   "id": "R14-rapid-tab-switch-10x-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "连续切 10 次 tab 后最终态=tasks, viewMine.display=none, viewTasks.display=block"
+  ],
+  "pass": true,
+  "ms": 4241,
+  "shot": "R14-rapid-tab-switch-10x-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R15-reopen-sheet-different-task-w390",
+  "group": "R",
+  "meta": {
+   "seq": 15,
+   "group": "R",
+   "name": "reopen-sheet-different-task",
+   "desc": "打开抽屉→取消→换一个任务卡再开",
+   "width": 390,
+   "height": 844,
+   "id": "R15-reopen-sheet-different-task-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "任务A标题=\"缺这个角度\" 抽屉A标题=\"缺这个角度\" 抽屉B标题=\"我想要一张我妈妈笑的照片\"",
+   "发送后收据面板标题=\"收到了,一共 1 张\"(确认没有卡在旧抽屉内容上)"
+  ],
+  "pass": true,
+  "ms": 5659,
+  "shot": "R15-reopen-sheet-different-task-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "R16-double-cancel-cycle-w320",
+  "group": "R",
+  "meta": {
+   "seq": 16,
+   "group": "R",
+   "name": "double-cancel-cycle",
+   "desc": "打开抽屉→取消,连续 4 轮",
+   "width": 320,
+   "height": 690,
+   "id": "R16-double-cancel-cycle-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "4 轮开合完成, toast 元素数量=1"
+  ],
+  "pass": true,
+  "ms": 4897,
+  "shot": "R16-double-cancel-cycle-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P01-portal-w320",
+  "group": "P",
+  "meta": {
+   "seq": 1,
+   "group": "P",
+   "page": "portal",
+   "width": 320,
+   "height": 690,
+   "id": "P01-portal-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 2927,
+  "shot": "P01-portal-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P02-portal-w390",
+  "group": "P",
+  "meta": {
+   "seq": 2,
+   "group": "P",
+   "page": "portal",
+   "width": 390,
+   "height": 844,
+   "id": "P02-portal-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 3246,
+  "shot": "P02-portal-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P03-portal-w430",
+  "group": "P",
+  "meta": {
+   "seq": 3,
+   "group": "P",
+   "page": "portal",
+   "width": 430,
+   "height": 932,
+   "id": "P03-portal-w430"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 3187,
+  "shot": "P03-portal-w430.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P04-portal-w768",
+  "group": "P",
+  "meta": {
+   "seq": 4,
+   "group": "P",
+   "page": "portal",
+   "width": 768,
+   "height": 1024,
+   "id": "P04-portal-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "宾客入口href=web/join.html?s=s4&back=portal.html 展览入口href=web/show.html?s=s4&back=portal.html"
+  ],
+  "pass": true,
+  "ms": 4017,
+  "shot": "P04-portal-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P05-pov-w320",
+  "group": "P",
+  "meta": {
+   "seq": 5,
+   "group": "P",
+   "page": "pov",
+   "width": 320,
+   "height": 690,
+   "id": "P05-pov-w320"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 2991,
+  "shot": "P05-pov-w320.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P06-pov-w390",
+  "group": "P",
+  "meta": {
+   "seq": 6,
+   "group": "P",
+   "page": "pov",
+   "width": 390,
+   "height": 844,
+   "id": "P06-pov-w390"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 3137,
+  "shot": "P06-pov-w390.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P07-pov-w430",
+  "group": "P",
+  "meta": {
+   "seq": 7,
+   "group": "P",
+   "page": "pov",
+   "width": 430,
+   "height": 932,
+   "id": "P07-pov-w430"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 3212,
+  "shot": "P07-pov-w430.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "P08-pov-w768",
+  "group": "P",
+  "meta": {
+   "seq": 8,
+   "group": "P",
+   "page": "pov",
+   "width": 768,
+   "height": 1024,
+   "id": "P08-pov-w768"
+  },
+  "bugs": [],
+  "notes": [
+   "goDemo href=http://127.0.0.1:8907/viewer/walk.html?demo=1&back=web%2Fpov.html%3Fb%3Dhttps%253A%252F%252Fpsm-advx-2026.oss-cn-hangzhou.aliyuncs.com"
+  ],
+  "pass": true,
+  "ms": 3929,
+  "shot": "P08-pov-w768.png",
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S01-w320-exhibition",
+  "group": "S",
+  "meta": {
+   "seq": 1,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "exhibition",
+   "id": "S01-w320-exhibition"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .photo 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 4437,
+  "shot": "S01-w320-exhibition.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S02-w320-journey",
+  "group": "S",
+  "meta": {
+   "seq": 2,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "journey",
+   "id": "S02-w320-journey"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .jr-shot 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3296,
+  "shot": "S02-w320-journey.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S03-w320-timeline",
+  "group": "S",
+  "meta": {
+   "seq": 3,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "timeline",
+   "id": "S03-w320-timeline"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .tl-card 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3340,
+  "shot": "S03-w320-timeline.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S04-w320-album",
+  "group": "S",
+  "meta": {
+   "seq": 4,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "album",
+   "id": "S04-w320-album"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .al-plate 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3248,
+  "shot": "S04-w320-album.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ },
+ {
+  "id": "S05-w320-machine",
+  "group": "S",
+  "meta": {
+   "seq": 5,
+   "group": "S",
+   "width": 320,
+   "height": 690,
+   "view": "machine",
+   "id": "S05-w320-machine"
+  },
+  "bugs": [],
+  "notes": [
+   "data-photo 数量=9",
+   "灯箱测试: 点击 .mc-tile 前后 body.innerHTML 长度差=0(接近0=确认无灯箱反应/no-op)"
+  ],
+  "pass": true,
+  "ms": 3434,
+  "shot": "S05-w320-machine.png",
+  "dataPhotoCount": 9,
+  "errsCount": 0,
+  "overflow": false
+ }
+]
