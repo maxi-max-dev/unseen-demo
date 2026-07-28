@@ -42,7 +42,7 @@
   .mthumb{ border:2px solid transparent; border-radius:12px; overflow:hidden; padding:0; background:none;
     cursor:pointer; position:relative; display:block; }
   .mthumb img{ width:100%; aspect-ratio:4/3; object-fit:cover; display:block; }
-  .mthumb span{ position:absolute; left:0; right:0; bottom:0; font-size:10.5px; font-weight:700; color:#fff;
+  .mthumb span{ position:absolute; left:0; right:0; bottom:0; font-size:10.5px; font-weight:700; color:var(--u-white);
     background:linear-gradient(0deg,rgba(30,15,20,.62),transparent); padding:4px 0 5px; text-align:center; }
   .mthumb.on{ border-color:var(--pink); }
 
@@ -66,17 +66,17 @@
   .wish-add{ display:flex; gap:8px; margin-top:8px; }
   .wish-add input{ flex:1; font:inherit; font-size:14px; color:var(--ink); background:rgba(255,255,255,.85);
     border:1.5px solid var(--line); border-radius:var(--r-sm); padding:11px 13px; outline:none; }
-  .wish-add input:focus{ border-color:#ff9fb4; box-shadow:0 0 0 4px rgba(255,159,180,.15); }
+  .wish-add input:focus{ border-color:var(--u-pink); box-shadow:0 0 0 4px rgba(255,159,180,.15); }
   .wish-add button{ flex:none; }
 
   .danger-zone{ margin:30px 2px 6px; text-align:center; }
-  .u-btn.danger{ color:#c0392b; }
+  .u-btn.danger{ color:var(--u-ai-error); }
 
   /* ── 下一步:空间还没立起来时,告诉人该干哪一件事 ── */
   .u-card.next-step{ display:block; padding:18px 17px; margin:0 0 16px;
-    border:1.5px solid #ffd6e0; background:linear-gradient(95deg,rgba(255,240,244,.92),rgba(255,246,235,.92)); }
+    border:1.5px solid var(--u-line-strong); background:linear-gradient(95deg,rgba(255,240,244,.92),rgba(255,246,235,.92)); }
   .next-step .st{ display:flex; align-items:center; gap:8px; font-size:11.5px; font-weight:700;
-    color:#c25a76; letter-spacing:.04em; margin-bottom:7px; }
+    color:var(--u-pink-deep); letter-spacing:.04em; margin-bottom:7px; }
   .next-step .st .dot{ width:7px; height:7px; border-radius:50%; background:var(--pink); flex:none;
     box-shadow:0 0 0 4px rgba(242,115,155,.16); }
   .next-step h3{ margin:0 0 4px; font-size:16px; font-weight:700; }
@@ -125,7 +125,7 @@
       id: x.id, kind: "backend", title: x.title || x.id,
       date: "", place: "", cover: "", junk: !!x._junk,
       stats: {},
-      links: { studio: U.PREFIX + "server/host.html?space=" + encodeURIComponent(x.id) }
+      links: { studio: U.PREFIX + "web/studio-login.html" }
     };
   }
   // 下拉里不摆开发期留下的测试空间(标题带"测试/验收/勿用/阈值"那些),
@@ -167,9 +167,10 @@
   // 以前这一页对这种空间只会诚实地灰掉一堆入口,但不告诉人下一件事该干什么,
   // 于是"新建场景"点完就是死路。这一段负责把死路接上:立起来 → 发布 → 发邀请。
   // live = 后端 /api/space/{id} 的真状态,拿不到就是 null,那就只按前端已知的说话。
-  function studioHref(s) {
-    var back = "app/scene.html?s=" + encodeURIComponent(s.id);
-    return "../server/host.html?space=" + encodeURIComponent(s.id) + "&back=" + encodeURIComponent(back);
+  // 主办入口只剩 Studio 登录页:本机版主办台已随断网现场那条线退役(见 archive/)。
+  // 它不认 space/back 参数,登录后统一落工作台,所以这里不再拼参数。
+  function studioHref() {
+    return "../web/studio-login.html";
   }
   function stepBox(o) {
     return '<div class="u-card next-step"><div class="st"><span class="dot"></span>' + esc(o.stage) + "</div>" +
@@ -224,7 +225,9 @@
 
   // ---------------------------------------------------------------- 封面 hero
   function heroHtml(s) {
-    var story = s.links && s.links.story;
+    // story 入口整条去掉:它在 scenes.js 里指的那张看展皮已经退役进 archive/,
+    // 那份数据源不在本次施工范围里改不了,只能在消费端不认这个字段
+    var story = "";
     var img = s.cover
       ? '<img class="hero-img" src="' + esc(s.cover) + '" alt="" onerror="this.style.display=\'none\'">'
       : "";
@@ -267,9 +270,8 @@
       L.walk
         ? playCard({ href: L.walk, icon: "🚶", label: "走进空间", sub: "3D 全景漫游" })
         : playCard({ off: true, icon: "🚶", label: "走进空间", sub: "传了全景就能走进去" }),
-      L.story
-        ? playCard({ href: L.story, icon: "🎬", label: "看故事", sub: "跟着六幕走一遍" })
-        : playCard({ off: true, icon: "🎬", label: "看故事", sub: "剪出故事线就能看" }),
+      // 同上:不读 L.story,统一落它本来就有的诚实空态,不摆一个点了 404 的按钮
+      playCard({ off: true, icon: "🎬", label: "看故事", sub: "剪出故事线就能看" }),
       L.join
         ? playCard({ href: L.join, icon: "📷", label: "交一张照片", sub: "邀请宾客上传视角" })
         : playCard({ off: true, icon: "📷", label: "交一张照片", sub: "开放上传后才能收" }),
@@ -292,7 +294,7 @@
     if (live.published && !L.join) {
       L.join = live.ossSpaceJson
         ? CLOUD_JOIN_BASE + "?s=" + encodeURIComponent(s.id)
-        : U.PREFIX + "server/join.html?space=" + encodeURIComponent(s.id);
+        : U.PREFIX + "web/join.html?s=" + encodeURIComponent(s.id);
     }
     return Object.assign({}, s, { links: L });
   }
@@ -426,7 +428,7 @@
     return '<div class="u-card ring-card">' +
       '<div class="u-ring"><svg viewBox="0 0 150 150">' +
       '<defs><linearGradient id="uRingGrad" x1="0" y1="0" x2="1" y2="1">' +
-      '<stop offset="0%" style="stop-color:#f2739b"/><stop offset="100%" style="stop-color:#f5a66b"/>' +
+      '<stop offset="0%" style="stop-color:var(--u-pink)"/><stop offset="100%" style="stop-color:var(--u-gold-deep)"/>' +
       "</linearGradient></defs>" +
       '<circle class="bgc" cx="75" cy="75" r="64" fill="none" stroke-width="14"/>' +
       '<circle class="fgc" cx="75" cy="75" r="64" fill="none" stroke-width="14" stroke-dasharray="' +

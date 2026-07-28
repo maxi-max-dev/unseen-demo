@@ -16,7 +16,7 @@
   .tpl img{ position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   .tpl::after{ content:""; position:absolute; inset:0;
                background:linear-gradient(180deg,rgba(60,30,40,0) 42%,rgba(60,30,40,.55) 100%); }
-  .tpl b{ position:relative; z-index:1; color:#fff; font-size:14.5px; padding:12px 14px;
+  .tpl b{ position:relative; z-index:1; color:var(--u-white); font-size:14.5px; padding:12px 14px;
           text-shadow:0 1px 8px rgba(0,0,0,.35); }
   .sc-wrap{ position:relative; margin:0 0 14px; }
   .sc-card{ padding:12px; margin:0; }
@@ -26,7 +26,7 @@
            color:var(--ink-2); font:inherit; font-size:13px; line-height:1; cursor:pointer;
            display:grid; place-items:center; box-shadow:0 4px 10px rgba(60,30,40,.14);
            -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px); }
-  .sc-del:hover{ color:#c25a76; border-color:#ffd6e0; }
+  .sc-del:hover{ color:var(--u-pink-deep); border-color:var(--u-line-strong); }
   .sc-del:active{ transform:scale(.94); }
   .sc-cover{ display:block; width:100%; aspect-ratio:16/9; border-radius:18px;
              overflow:hidden; position:relative; }
@@ -41,7 +41,7 @@
   /* 用复合选择器压过 theme 里 a.u-card 的 display:block(工兵抓出的特异性坑) */
   .u-card.demo-strip{ display:flex; align-items:center; gap:13px; padding:15px 16px; }
   .demo-strip .play{ width:40px; height:40px; border-radius:50%; flex:none; display:grid;
-                     place-items:center; color:#fff; font-size:14px; background:var(--grad);
+                     place-items:center; color:var(--u-white); font-size:14px; background:var(--grad);
                      box-shadow:0 8px 18px rgba(242,115,155,.35); }
   .demo-strip .tx{ flex:1; min-width:0; }
   .demo-strip .tx b{ display:block; font-size:15px; }
@@ -97,14 +97,14 @@
     </a>
     <div style="height:10px"></div>
     <a class="u-card demo-strip" href="web/show.html?s=s4">
-      <span class="play" style="background:linear-gradient(95deg,#c9a2ff,#9fb8ff)">✦</span>
+      <span class="play" style="background:linear-gradient(95deg,var(--u-ai-accent),var(--u-role-admin-fg))">✦</span>
       <span class="tx"><b>只读展览</b><span>主办方选择内容,观众只负责观看</span></span>
       <span class="go">→</span>
     </a>
     <div style="height:10px"></div>
     <a class="u-card demo-strip" data-ai-show
        href="web/show.html?s=s900001&amp;back=workspace.html">
-      <span class="play" style="background:linear-gradient(105deg,#65518c,#e1778c)">◎</span>
+      <span class="play" style="background:linear-gradient(105deg,var(--u-ai-accent),var(--u-pink))">◎</span>
       <span class="tx"><b>AI 全景回顾 · 已上传</b><span>4 个全景场景、8 张照片，完整走一遍展示流程</span></span>
       <span class="go">→</span>
     </a>
@@ -129,9 +129,8 @@
   var U = window.UNSEEN;
   var isLocalOrigin = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(location.hostname);
 
-  document.querySelectorAll("[data-studio-entry]").forEach(function(link){
-    link.href = isLocalOrigin ? "server/host.html" : "web/studio-login.html";
-  });
+  // Studio 入口只剩 web/studio-login.html 这一个:本机版主办台已随断网现场那条线
+  // 整体退役(见 archive/),再按 origin 分叉就是指向一个不存在的页
   document.querySelectorAll("[data-ai-show]").forEach(function(link){
     link.href = "web/show.html?s=s900001" + (isLocalOrigin ? "&mode=local" : "") +
       "&back=workspace.html";
@@ -206,11 +205,12 @@
     var del = BUILTIN_IDS[s.id] ? "" :
       '<button type="button" class="sc-del" data-del="' + esc(s.id) +
       '" title="从这台设备移除" aria-label="从这台设备移除">✕</button>';
+    // 本地场景进 app 壳自己的详情页,其余(cloud/backend)一律走 Studio 登录页。
+    // 不再读 s.links.studio:那字段在旧 localStorage 里存的是已退役的本机版主办台,
+    // 读出来就是死链
     var target = s.kind === "local"
       ? ("app/scene.html?s=" + encodeURIComponent(s.id))
-      : (!isLocalOrigin && s.kind === "cloud"
-        ? "web/studio-login.html"
-        : ((s.links && s.links.studio) || ("server/host.html?space=" + encodeURIComponent(s.id))));
+      : "web/studio-login.html";
     return '<div class="sc-wrap">' +
       '<a class="u-card sc-card" href="' + esc(target) + '">' +
       '<span class="sc-cover">' + cover + '</span>' +

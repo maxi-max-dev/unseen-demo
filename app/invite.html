@@ -24,14 +24,14 @@
                    color:var(--ink-3); font-size:12.5px; line-height:1.65; text-align:center; }
   .qr-placeholder .ph-ico{ font-size:26px; opacity:.55; }
   .qr-url{ margin-top:14px; font-size:11.5px; color:var(--ink-3); word-break:break-all; user-select:all; }
-  .qr-caveat{ margin-top:10px; font-size:12px; color:#c07a3d; }
+  .qr-caveat{ margin-top:10px; font-size:12px; color:var(--u-gold-ink); }
 
   .role-row{ display:flex; gap:8px; flex-wrap:wrap; margin:2px 0 26px; }
   .role-pill{ padding:9px 16px; border-radius:999px; font-size:13px; font-weight:700;
               background:var(--card); border:1px solid var(--card-line); color:var(--ink-2);
               cursor:pointer; user-select:none; transition:transform .15s, background .15s, color .15s; }
   .role-pill:active{ transform:scale(.96); }
-  .role-pill.on{ color:#fff; background:var(--grad); border-color:transparent; box-shadow:0 8px 18px rgba(242,115,155,.3); }
+  .role-pill.on{ color:var(--u-white); background:var(--grad); border-color:transparent; box-shadow:0 8px 18px rgba(242,115,155,.3); }
 
   .btn-row{ margin-bottom:8px; }
 </style>
@@ -217,7 +217,8 @@
             }
             targetUrl = sp.ossSpaceJson
               ? (publicUrl || DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id))
-              : (url || U.API + "/server/join.html?space=" + encodeURIComponent(scene.id));
+              // 后端给不出地址就退到云端宾客页:本机那份宾客页已退役(见 archive/)
+              : (url || DEPLOY + "/web/join.html?s=" + encodeURIComponent(scene.id));
             if (publicUrl && window.UNSEEN_SET_CLOUD_ORIGIN) window.UNSEEN_SET_CLOUD_ORIGIN(publicUrl);
             joinable = true;
           });

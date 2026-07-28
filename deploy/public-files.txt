@@ -148,18 +148,8 @@ matches.json
 portal.html
 roadshow.html
 workspace.html
-server/host.html
-server/join.html
-server/qr.js
-server/report.html
 tour.js
 vendor/qrcode.js
-viewer/album.html
-viewer/index.html
-viewer/journey.html
-viewer/machine.html
-viewer/online.html
-viewer/timeline.html
 viewer/vendor/three.min.js
 viewer/walk.html
 web/demo-assets/pano.jpg
@@ -183,7 +173,6 @@ web/demo-assets/task_t6.jpg
 web/demo-assets/task_t7.jpg
 web/demo-data.js
 web/demo.html
-web/doors.html
 web/join.html
 web/pov.html
 web/show.html

@@ -580,7 +580,7 @@ body.pov-on .mobile-hint { display: none !important; }
   // 只在 boot() 这两处加，makePhotoSprite/openPhotoLightbox 全程直接用 photo.src 原样加载，
   // 不会重复加前缀，三种模式互不干扰）。
   function bootCompose(manifestUrl) {
-    var backHref = backTarget("../server/upload.html");
+    var backHref = backTarget("../web/join.html");
     fetch(manifestUrl, { cache: "no-store" }).then(function (r) {
       if (!r.ok) throw new Error("http " + r.status);
       return r.json();
@@ -741,7 +741,7 @@ body.pov-on .mobile-hint { display: none !important; }
     // 不带 b 时保留原本的本机 API，两个入口互不冒充。
     var cloudBase = remoteSpaceBase(qs("b"));
     var cloudMode = !!cloudBase;
-    var localBack = "../server/join.html?space=" + encodeURIComponent(sid);
+    var localBack = "../web/join.html?s=" + encodeURIComponent(sid);
     var cloudBack = "../web/join.html?s=" + encodeURIComponent(sid) +
       "&b=" + encodeURIComponent(cloudBase);
     var backHref = backTarget(cloudMode ? cloudBack : localBack);

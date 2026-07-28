@@ -1,21 +1,11 @@
 /*
- * UNSEEN 产品层共享组件。
- * 各页面可以保留自己的场景皮肤，这里只统一品牌出口、AI 状态和点击尺寸。
+ * UNSEEN 产品层共享组件：品牌出口、AI 状态、点击尺寸。
+ *
+ * 2026-07-28：本文件不再自己定义颜色。原来这里有一份 --u-ai-* 色板（紫/绿/琥珀/红），
+ * 和 app/theme.css 的色板是两套在打架，而且 product-ui.css 在每一页都排在 theme.css
+ * 之后，它那份会把 theme 的同名 token 压掉。现在 --u-ai-* 全部由 app/theme.css 定义
+ * （取规格 §1 角色药丸那一列），这里只消费。改色请改 theme.css。
  */
-:root{
-  --u-ai-accent:#8a62d5;
-  --u-ai-accent-soft:rgba(138,98,213,.12);
-  --u-ai-line:rgba(138,98,213,.22);
-  --u-ai-success:#3f9a6d;
-  --u-ai-success-soft:rgba(63,154,109,.11);
-  --u-ai-success-line:rgba(63,154,109,.22);
-  --u-ai-review:#b7772f;
-  --u-ai-review-soft:rgba(183,119,47,.11);
-  --u-ai-review-line:rgba(183,119,47,.24);
-  --u-ai-error:#b75267;
-  --u-ai-error-soft:rgba(183,82,103,.10);
-  --u-ai-error-line:rgba(183,82,103,.23);
-}
 
 .u-product-back{
   width:44px;
@@ -24,16 +14,16 @@
   min-height:44px;
   display:inline-grid;
   place-items:center;
-  border:1px solid rgba(255,255,255,.82);
+  border:1px solid var(--u-card-line);
   border-radius:50%;
   color:inherit;
-  background:rgba(255,255,255,.76);
-  box-shadow:0 8px 24px rgba(137,79,99,.12);
+  background:var(--u-glass);
+  box-shadow:var(--u-shadow);
   text-decoration:none;
   font-size:18px;
   line-height:1;
-  -webkit-backdrop-filter:blur(14px);
-  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:var(--u-glass-blur);
+  backdrop-filter:var(--u-glass-blur);
 }
 .u-product-back:hover{ transform:translateY(-1px); }
 .u-product-back:active{ transform:scale(.97); }
@@ -45,7 +35,7 @@
   border-width:1px;
   border-style:solid;
   border-color:var(--u-ai-current-line)!important;
-  border-radius:16px;
+  border-radius:var(--u-r-card);
   box-shadow:inset 3px 0 0 var(--u-ai-current);
 }
 .u-ai-card[data-ai-state="success"]{
@@ -64,7 +54,7 @@
   --u-ai-current-line:var(--u-ai-error-line);
 }
 .u-ai-card[data-ai-state="processing"]{
-  background-image:linear-gradient(110deg,var(--u-ai-current-soft),rgba(255,255,255,0));
+  background-image:linear-gradient(110deg,var(--u-ai-current-soft),transparent);
 }
 .u-ai-head{
   display:flex;
@@ -85,7 +75,7 @@
   place-items:center;
   flex:none;
   border:1px solid var(--u-ai-current-line);
-  border-radius:7px;
+  border-radius:8px;
   background:var(--u-ai-current-soft);
   color:var(--u-ai-current);
   font-size:11px;
@@ -108,13 +98,13 @@
 }
 
 .u-ai-dark{
-  color:#fff!important;
-  background:rgba(28,20,31,.74)!important;
-  border-color:rgba(255,255,255,.22)!important;
-  box-shadow:inset 3px 0 0 #c7a8ff,0 12px 30px rgba(0,0,0,.28)!important;
+  color:var(--u-white)!important;
+  background:var(--u-scrim)!important;
+  border-color:var(--u-card-line)!important;
+  box-shadow:inset 3px 0 0 var(--u-ai-accent),var(--u-shadow-lg)!important;
 }
-.u-ai-dark .u-ai-head{ color:#e4d6ff; }
-.hud-badge.u-ai-card{ border-radius:999px; }
+.u-ai-dark .u-ai-head{ color:var(--u-role-editor-bg); }
+.hud-badge.u-ai-card{ border-radius:var(--u-r-pill); }
 
 .u-back{
   width:44px!important;

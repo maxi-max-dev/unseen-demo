@@ -24,11 +24,10 @@
     stats: {},   /* 照片数一律读云端真数,不在这里写死(旧值 40 是占位素材的数,云端真值只有个位数) */
     links: {
       join:   PREFIX + "web/join.html?s=s4",
-      story:  PREFIX + "viewer/journey.html",
       walk:   PREFIX + "viewer/walk.html?demo=1",
       film:   PREFIX + "film/out/memory-film-web.mp4",
       show:   PREFIX + "web/show.html?s=s4",
-      studio: PREFIX + (LOCAL_ORIGIN ? "server/host.html?space=s4" : "web/studio-login.html")
+      studio: PREFIX + "web/studio-login.html"
     }
   }];
 

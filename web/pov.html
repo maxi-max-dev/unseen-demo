@@ -3,57 +3,57 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#fff8f5">
+<meta name="theme-color" content="#FFF3F1">
 <title>回到 TA 的视角 · UNSEEN</title>
 <link rel="stylesheet" href="../app/theme.css">
 <style>
-/* 只加本页新类,不碰 theme.css 里的任何变量(--ink/--line/--card 等一律沿用) */
+/* 只加本页新类。颜色/圆角/阴影一律取 app/theme.css 的 --u- token,本页不定义任何颜色。 */
 .pov-page{ padding-bottom:calc(40px + env(safe-area-inset-bottom,0)); }
 
 .lead{ margin:16px 2px 0; }
 .lead h2{ font-size:23px; line-height:1.45; letter-spacing:-.01em; margin:0 0 12px; font-weight:700;
           text-wrap:balance; }
-.lead h2 b{ display:block; color:#c2536f; font-weight:700; }
-.lead p{ margin:0 0 10px; font-size:14.5px; color:var(--ink-2); }
+.lead h2 b{ display:block; color:var(--u-pink-deep); font-weight:700; }
+.lead p{ margin:0 0 10px; font-size:14.5px; color:var(--u-ink-2); }
 
 .gauge{ display:flex; gap:10px; align-items:flex-start; margin:14px 0 0; padding:12px 14px;
-        border-radius:var(--r-sm); background:rgba(255,255,255,.55); border:1px solid var(--card-line); }
-.gauge .n{ flex:none; font-size:13px; font-weight:800; color:#c2536f; line-height:1.5; }
-.gauge .t{ font-size:12.5px; color:var(--ink-2); line-height:1.6; }
+        border-radius:var(--u-r-card); background:var(--u-glass-soft); border:1px solid var(--u-card-line); }
+.gauge .n{ flex:none; font-size:13px; font-weight:800; color:var(--u-pink-deep); line-height:1.5; }
+.gauge .t{ font-size:12.5px; color:var(--u-ink-2); line-height:1.6; }
 
 .cta{ margin:18px 0 0; }
 .cta .u-btn{ padding:17px 22px; font-size:17px; }
 .cta .alt{ display:flex; gap:8px; margin-top:9px; }
 .cta .alt .u-btn{ padding:12px 14px; font-size:13.5px; }
-.cta .hint{ margin:9px 4px 0; font-size:11.5px; color:var(--ink-3); text-align:center; }
+.cta .hint{ margin:9px 4px 0; font-size:11.5px; color:var(--u-ink-3); text-align:center; }
 
 .shot{ display:block; width:100%; max-width:240px; margin:0 auto; height:auto;
-       border-radius:16px; border:1px solid var(--card-line); box-shadow:var(--shadow); background:#1a1418; }
-.shot.wide{ max-width:100%; border-radius:12px; }
-.cap{ margin:8px 2px 0; font-size:11px; color:var(--ink-3); text-align:center; line-height:1.55; }
+       border-radius:var(--u-r-card); border:1px solid var(--u-card-line); box-shadow:var(--u-shadow); background:var(--u-ink); }
+.shot.wide{ max-width:100%; border-radius:var(--u-r-chip); }
+.cap{ margin:8px 2px 0; font-size:11px; color:var(--u-ink-3); text-align:center; line-height:1.55; }
 
 .steps{ display:grid; gap:12px; }
 .step{ padding:16px 15px 18px; }
 .step .no{ display:inline-flex; align-items:center; gap:7px; font-size:11px; font-weight:800;
-           color:#c2536f; letter-spacing:.06em; }
+           color:var(--u-pink-deep); letter-spacing:.06em; }
 .step .no i{ display:grid; place-items:center; width:22px; height:22px; border-radius:8px;
-             background:var(--grad-soft); font-style:normal; font-size:11px; }
+             background:var(--u-grad-soft); font-style:normal; font-size:11px; }
 .step h3{ font-size:15.5px; margin:9px 0 5px; font-weight:700; }
-.step p{ margin:0 0 13px; font-size:13px; color:var(--ink-2); line-height:1.7; }
+.step p{ margin:0 0 13px; font-size:13px; color:var(--u-ink-2); line-height:1.7; }
 .step .pair{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
 .step .pair .shot{ max-width:100%; }
 
 .truth{ padding:16px 15px; }
 .truth h3{ margin:0 0 6px; font-size:14.5px; font-weight:700; }
-.truth p{ margin:0; font-size:12.5px; color:var(--ink-2); line-height:1.75; }
+.truth p{ margin:0; font-size:12.5px; color:var(--u-ink-2); line-height:1.75; }
 .truth p + p{ margin-top:8px; }
-.truth .ev{ margin-top:11px; padding:10px 12px; border-radius:12px; font-size:11.5px; line-height:1.7;
-            color:var(--ink-2); background:rgba(255,255,255,.5); border:1px solid var(--card-line); }
-.truth .ev b{ color:var(--ink); font-weight:700; }
-.truth.bad{ border-color:#ffd0dc; background:linear-gradient(180deg,rgba(255,241,245,.9),rgba(255,255,255,.72)); }
-.truth.bad h3{ color:#c2536f; }
+.truth .ev{ margin-top:11px; padding:10px 12px; border-radius:var(--u-r-chip); font-size:11.5px; line-height:1.7;
+            color:var(--u-ink-2); background:var(--u-glass-soft); border:1px solid var(--u-card-line); }
+.truth .ev b{ color:var(--u-ink); font-weight:700; }
+.truth.bad{ border-color:var(--u-line-strong); background:linear-gradient(180deg,var(--u-wash-pink),var(--u-glass)); }
+.truth.bad h3{ color:var(--u-pink-deep); }
 
-.foot{ margin:22px 2px 0; font-size:11px; color:var(--ink-3); line-height:1.7; }
+.foot{ margin:22px 2px 0; font-size:11px; color:var(--u-ink-3); line-height:1.7; }
 
 @media (min-width:900px){
   .lead h2{ font-size:27px; }
