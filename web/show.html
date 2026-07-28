@@ -294,11 +294,31 @@
       background:var(--u-scrim); color:var(--u-on-dark); font-size:8.5px; letter-spacing:.03em;
       white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
+    /* 灯箱:五种视图共用,点 [data-photo] 卡片放大看原图 */
+    [data-photo]{ cursor:pointer; }
+    .lb-mask{ position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center;
+      padding:20px; background:var(--u-grad-ink); opacity:0; pointer-events:none; transition:opacity .22s ease; }
+    .lb-mask.on{ opacity:.985; pointer-events:auto; }
+    .lb-figure{ margin:0; max-width:min(94vw,980px); display:flex; flex-direction:column; gap:10px; }
+    .lb-figure img{ max-width:100%; max-height:76vh; object-fit:contain; border-radius:14px;
+      background:var(--u-ink); box-shadow:var(--u-shadow-lg); }
+    .lb-cap{ display:flex; justify-content:space-between; gap:14px; color:var(--u-on-dark);
+      font-size:13px; opacity:.94; }
+    .lb-cap i{ font-style:normal; opacity:.75; }
+    .lb-close{ position:absolute; top:14px; right:14px; width:40px; height:40px; border:0; border-radius:50%;
+      background:var(--u-card); color:var(--u-ink); font-size:18px; line-height:1; cursor:pointer;
+      box-shadow:var(--u-shadow); }
+    .lb-nav{ position:absolute; top:50%; transform:translateY(-50%); width:42px; height:58px; border:0;
+      border-radius:12px; background:var(--u-scrim); color:var(--u-on-dark); font-size:20px; cursor:pointer; }
+    .lb-nav.prev{ left:10px; } .lb-nav.next{ right:10px; }
+    .lb-nav[disabled]{ opacity:.3; cursor:default; }
+
     @media(min-width:720px){
       .jr-grid{ grid-template-columns:repeat(4,minmax(0,1fr)); }
       .al-plates{ grid-template-columns:repeat(3,minmax(0,1fr)); }
       .mc-grid{ grid-template-columns:repeat(5,minmax(0,1fr)); }
     }
+    @media(max-width:719px){ .lb-nav{ width:34px; height:48px; } .lb-close{ top:10px; right:10px; } }
     @media(prefers-reduced-motion:reduce){
       .mc-rec i{ animation:none; } .mc-tile.target .mc-frame{ animation:none; opacity:.85; }
     }
@@ -446,6 +466,63 @@
         var yaw = typeof p.yaw === "number" ? p.yaw : parseFloat(p.yaw);
         var dir = isFinite(yaw) ? dirWord(yaw) : "";
         return { name:name, dir:dir };
+      }
+      // ============================================================
+      // 灯箱:五种视图共用。data-photo=当前视图 photos 下标;渲染时把 photos/cfg 存进 LB。
+      // caption 与卡片同一套隐私口径(photoLabel),不读契约外字段;原图挂了就回落缩略图。
+      // ============================================================
+      var LB = { photos:[], cfg:null, idx:-1 };
+      function lbRemember(sp,cfg){ LB.photos = sp.photos || []; LB.cfg = cfg; }
+      function lbEnsureDom(){
+        if (document.getElementById("lbMask")) return;
+        var mask = document.createElement("div");
+        mask.id = "lbMask"; mask.className = "lb-mask";
+        mask.setAttribute("role","dialog"); mask.setAttribute("aria-modal","true");
+        mask.setAttribute("aria-label","查看照片大图");
+        mask.innerHTML = '<figure class="lb-figure"><img id="lbImg" alt="照片大图">' +
+          '<figcaption class="lb-cap"><span id="lbCapL"></span><i id="lbCapR"></i></figcaption></figure>' +
+          '<button class="lb-close" id="lbClose" aria-label="关闭大图">✕</button>' +
+          '<button class="lb-nav prev" id="lbPrev" aria-label="上一张">‹</button>' +
+          '<button class="lb-nav next" id="lbNext" aria-label="下一张">›</button>';
+        document.body.appendChild(mask);
+        mask.addEventListener("click",function(e){ if (e.target === mask) lbClose(); });
+        document.getElementById("lbClose").addEventListener("click",lbClose);
+        document.getElementById("lbPrev").addEventListener("click",function(){ lbStep(-1); });
+        document.getElementById("lbNext").addEventListener("click",function(){ lbStep(1); });
+        document.addEventListener("keydown",function(e){
+          if (!mask.classList.contains("on")) return;
+          if (e.key === "Escape") lbClose();
+          else if (e.key === "ArrowLeft") lbStep(-1);
+          else if (e.key === "ArrowRight") lbStep(1);
+        });
+      }
+      function lbOpen(i){
+        var p = LB.photos[i];
+        if (!p) return;
+        lbEnsureDom();
+        LB.idx = i;
+        var img = document.getElementById("lbImg");
+        var full = assetUrl(p.src || p.thumb), thumb = assetUrl(p.thumb || p.src);
+        img.onerror = function(){ if (img.src !== thumb) { img.onerror = null; img.src = thumb; } };
+        if (img.src !== full) img.src = full;
+        var lbl = photoLabel(p,LB.cfg || {});
+        var left = String(p.title || "").trim() || lbl.name || "";
+        var right = [String(p.timeLabel || "").trim(),lbl.dir].filter(Boolean).join(" · ");
+        document.getElementById("lbCapL").textContent = left || ("照片 " + (i + 1));
+        document.getElementById("lbCapR").textContent = right;
+        document.getElementById("lbPrev").disabled = i <= 0;
+        document.getElementById("lbNext").disabled = i >= LB.photos.length - 1;
+        document.getElementById("lbMask").classList.add("on");
+        document.body.style.overflow = "hidden";
+      }
+      function lbClose(){
+        var mask = document.getElementById("lbMask");
+        if (mask) mask.classList.remove("on");
+        document.body.style.overflow = "";
+      }
+      function lbStep(d){
+        var next = LB.idx + d;
+        if (next >= 0 && next < LB.photos.length) lbOpen(next);
       }
       function loadSpace(){
         var url = LOCAL
@@ -707,6 +784,7 @@
       }
       var ALT_TITLE = { journey:"旅程", timeline:"时光轴", album:"画册", machine:"监控墙" };
       function renderAlt(sp,cfg,topView){
+        lbRemember(sp,cfg);
         document.title = (sp.title || "我们的展览") + " · " + ALT_TITLE[topView] + " · UNSEEN";
         var mode = LOCAL ? '<span class="u-chip hot mode-chip">草稿预览</span>'
           : '<span class="u-chip ok mode-chip">只读展览</span>';
@@ -741,6 +819,7 @@
       }
       function render(sp){
         var cfg = configOf(sp);
+        lbRemember(sp,cfg);
         var requested = Q.get("view");
         var entry = cfg.views.indexOf(requested) >= 0 ? requested : cfg.entryView;
         var photos = sp.photos || [], nodes = sp.nodes || [], people = sp.contributors || [];
@@ -900,6 +979,13 @@
         }
         scheduleLive();
       }
+
+      document.getElementById("app").addEventListener("click",function(e){
+        var card = e.target.closest ? e.target.closest("[data-photo]") : null;
+        if (!card) return;
+        var i = parseInt(card.getAttribute("data-photo"),10);
+        if (isFinite(i)) lbOpen(i);
+      });
 
       loadSpace().then(function(sp){
         if (!LIVE && ALT_VIEWS.indexOf(TOP_VIEW) >= 0) {
