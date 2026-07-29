@@ -1,0 +1,39 @@
+# UNSEEN 照片处理工人 · 一个空间一个服务
+#
+# 名字里的 @ 表示「一个模板配多个空间」：
+#   systemctl start unseen-worker@s4     → 处理 s4 这个空间
+#   systemctl start unseen-worker@s7     → 同时再处理 s7，互不干扰
+#
+# 婚礼当天要的就是这个：进程挂了 systemd 自动拉起来，服务器重启也会自己回来。
+
+[Unit]
+Description=UNSEEN 照片处理工人 (空间 %i)
+# 网络没通就别急着启动：worker 一上来就要连阿里云 OSS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/unseen
+ExecStart=/opt/unseen/.venv/bin/python -m server.worker %i --interval 5
+
+# 挂了就重启，永不放弃。婚礼当天没人盯着，这条是关键。
+Restart=always
+RestartSec=5
+
+# 避免疯狂重启打爆机器：10 分钟内最多重启 20 次，超了就停下等人看
+StartLimitIntervalSec=600
+StartLimitBurst=20
+
+# 日志进 journal，用 journalctl -u unseen-worker@s4 -f 看
+StandardOutput=journal
+StandardError=journal
+# CLIP 加载有进度输出，关掉缓冲才能实时看到
+Environment=PYTHONUNBUFFERED=1
+
+# 实测 CLIP 加载后常驻约 425MB。给到 1.5G 留足余量，
+# 万一哪天内存泄漏也不至于把整台机器拖死。
+MemoryMax=1536M
+
+[Install]
+WantedBy=multi-user.target
