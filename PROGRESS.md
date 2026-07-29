@@ -717,3 +717,119 @@ $ curl .../spaces/stresse1/space.json → nodes: ["n1"]    ✅ 节点数 2→1
 2. 凭据检索零命中(任务1验收2)、s4 的 space.json md5 前后一致、测试残留已清
    (均见下方"批次E收尾"专项记录)。
 3. git status 改动只落白名单(见下方"批次E收尾"记录)。
+
+## 批次F(2026-07-29,看展页灯箱,通过,五条验收全绿)
+
+### 开工先发现的事
+开工前 `git log -- web/show.html` 一看,发现上一句"压测发现 24 处点了无反应"
+的缺口其实已经被**上一次会话**(commit `7ee62bd`,同一天 01:59)修过一遍,
+灯箱骨架(`LB`/`lbOpen`/`lbClose`/`lbStep`/`lbEnsureDom`)、五视图 caption、
+委托点击全在。但那一版没补三件任务书明确要的东西,所以这次实际是"体检+补漏",
+不是从零写:
+1. **live 大屏模式点击行为没做判断**——委托是全局绑的,大屏上点照片卡会跟宾客页
+   一样弹灯箱,任务书要求"保持原样或禁用,二选一"没人选。
+2. **"加载中占位态"和"加载失败诚实报错"两句没做**——原实现原图挂了只会默默切
+   缩略图,两个都挂时图片元素直接留白/浏览器默认坏图标,不算"诚实报错文案"。
+3. **"手机上禁止背景滚动穿透"没写验证**——原实现锁了 `body.style.overflow`,
+   任务书明确要这一条,之前没人验过是否真的挡得住(见下方判断记录2,验完发现
+   原实现这条其实已经是对的)。
+
+### 本次改动(只碰 web/show.html)
+- 点击委托里加 `if (LIVE) return;`,大屏模式点照片卡维持"加了灯箱之前"的无反应
+  行为(判断记录1)。
+- `lbOpen` 加载态改造:开图前显示占位卡(复用页面已有的 `.spinner` 转圈 + "照片
+  加载中…"文字),`onload` 清占位显图,`onerror` 走完 原图→缩略图 两级回退后仍失败
+  就显示"这张照片暂时加载不出来,可能是网络不稳定",全程不出现白屏/坏图标;
+  加了一个递增 `lbLoadToken`,防止 prev/next 连点时上一张图迟到的回调盖掉当前这
+  张的占位/报错状态。配套 CSS 新增 `.lb-frame`/`.lb-state`,给加载态一个不塌陷的
+  最小尺寸(`min-width:min(70vw,480px); min-height:240px`),颜色全部用已有
+  `--u-on-dark-2`/`--u-ink` token,没引入新色号。
+- 滚动锁(`body.style.overflow`)**没有改动**——查过之后发现原实现已经是对的,
+  详见判断记录2,这里特意写清楚是为了不让人以为漏改。
+
+### 施工中的判断
+1. **LIVE 模式点击行为选"禁用灯箱"这一档,不选"和其他视图一样弹"。** 理由:大屏
+   是无人值守的现场展示屏,不是宾客交互设备;真弹出一个要手动点 X 才能关掉的全屏
+   遮罩,会挡住 `pollLive()` 每 5 秒轮询到新照片时的 `liveFocus` 高亮反馈,现场没人
+   会去点关闭。验收4 已用真实点击实测确认:`live=1` 时点 `[data-photo]`,
+   `maskExistsAndOn:false`,和加灯箱之前的行为一致。
+2. **滚动穿透验了一圈,最后结论是"原实现本来就对,没有改代码"——过程记下来防止
+   下一个人重复踩同一个假警报。** 一开始用 `window.scrollTo(0,600)` 探测灯箱开着
+   时会不会拖动背景,结果显示"锁不住"(`scrollY` 真的变了),我一度以为只锁
+   `body.style.overflow` 不够,还改成 `documentElement` + `body` 一起锁,复测
+   `scrollTo()` 依然显示"锁不住"——这才发现问题出在**测的工具不对**:
+   `window.scrollTo()` 是命令式 API,Chrome 里这类调用本来就不受 `overflow:hidden`
+   约束,跟锁一个元素还是两个元素无关,这是浏览器本身的行为,不是页面 bug,也测不出
+   真实情况。换成真实滚轮事件(`Input.dispatchMouseEvent` 的 `mouseWheel` 类型,
+   写了个一次性诊断脚本,不是调用 API)重新对照:**只锁 `body` 一个元素时**,真实
+   滚轮事件已经被完全挡住(`wheelBlockedWhileOpen:true`,`overflowWhileOpen:
+   "visible/hidden"` 即 html 没锁、body 锁了),关闭灯箱后同样的滚轮动作又能正常
+   滚动(`wheelWorksAfterClose:true`,证明不是滚动本身坏了,是锁生效了)。也就是说
+   **原实现的单锁 `body` 从一开始就是对的**,我加的 `documentElement` 双锁属于
+   多余改动(现有功能没坏,只是没必要),已经撤回,`web/show.html` 里这两行和批次F
+   开工前完全一致。
+
+### 验收(命令与实际输出)
+
+**验收1・五视图开灯箱**(工具:`node tools/acceptance.mjs walk <spec.json>`,
+剧本对每个视图执行 go→click `[data-photo]`→eval→shot):
+```
+exhibition: {"maskOn":true,"opacity":"0.985","imgSrc":"https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com/spaces/s4/photos/p1.jpg","imgSrcNonEmpty":true,"dataPhotoCount":9}  errs:[]
+journey:    同上 imgSrcNonEmpty:true dataPhotoCount:9  errs:[]
+timeline:   同上 imgSrcNonEmpty:true dataPhotoCount:9  errs:[]
+album:      同上 imgSrcNonEmpty:true dataPhotoCount:9  errs:[]
+machine:    同上 imgSrcNonEmpty:true dataPhotoCount:9  errs:[]
+```
+五张截图路径(桌面视口,实拍验证过灯箱内容非空白):
+`/private/tmp/claude-501/-/26aee43f-87bc-4314-8448-fe560ac9283d/scratchpad/batchF/{1-exhibition,2-journey,3-timeline,4-album,5-machine}.png`
+
+**验收2・关闭动作**:
+```
+open  -> {"maskOnAfterOpen":true}
+close -> {"maskOnAfterClose":false,"dataPhotoCount":9,"bodyOverflow":"visible","htmlOverflow":"visible"}
+errs:[] net404:[]
+```
+
+**验收3・色数**:
+```
+$ grep -hoE "#[0-9a-fA-F]{3,6}\b" web/show.html | tr 'a-f' 'A-F' | sort -u | wc -l
+1   (#FFF3F1,改动前后没变化)
+```
+
+**验收4・移动端 390×844 + live 模式**:
+```
+$ node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4" out.png 390 844
+{"横向溢出":false,"errs":[],"net404":[]}
+$ node tools/acceptance.mjs shot "file://$PWD/web/show.html?s=s4&live=1" out.png 390 844
+{"横向溢出":false,"errs":[],"net404":[]}
+```
+live 模式点击 `[data-photo]` 额外验证(见上方判断记录1):
+`{"maskExistsAndOn":false,"dataPhotoCount":9,"bodyOverflow":"visible"}` errs:[]
+
+**验收5・反向验证**(临时把 `function lbOpen(i){` 改名成
+`function lbOpenBROKEN_TEMP(i){`,不改调用点):
+```
+改名后(红): exhibition/journey/timeline/album/machine 五个视图全部
+  maskOn:false, imgSrcNonEmpty:false,
+  errs:["EXC ReferenceError: lbOpen is not defined ..."]
+改回后(绿): 五个视图全部 maskOn:true, imgSrcNonEmpty:true, dataPhotoCount:9, errs:[]
+```
+
+### 额外核实(任务书正文提到但不在五条验收里,顺手拿真实数据验证掉)
+- 加载占位态:0 等待立刻查 DOM,`{"stateOn":true,"stateText":"照片加载中…",
+  "imgOn":false,"frameBg":"rgb(62, 36, 48)"}`(= `--u-ink`,不是白屏),截图
+  `.../batchF/10-loading-instant.png` / 手机宽 `.../batchF/11-loading-mobile.png`
+  (390 宽同样 `溢出:false`)。
+- 诚实报错文案:搭了一个本机回环静态服务器(同源,避免 file:// 跨域误报),塞一张
+  src/thumb 都指向不存在文件的照片,实测 `{"stateText":"这张照片暂时加载不出来,
+  可能是网络不稳定","imgOn":false,"frameBg":"rgb(62, 36, 48)"}`,截图
+  `.../batchF/13-error-honest-text.png`。测试服务器验证完已 kill,没有残留进程。
+- 背景滚动穿透:见上方判断记录2,真实滚轮事件验证原实现(单锁 `body`)已经挡得住,
+  没有改代码。
+
+### git status
+```
+M web/show.html
+```
+(PROGRESS.md/BLOCKED.md 本段追加不算改动文件本身的功能)。BLOCKED.md 本次没有
+需要 Max 拍板的悬留项,未追加。

@@ -300,8 +300,15 @@
       padding:20px; background:var(--u-grad-ink); opacity:0; pointer-events:none; transition:opacity .22s ease; }
     .lb-mask.on{ opacity:.985; pointer-events:auto; }
     .lb-figure{ margin:0; max-width:min(94vw,980px); display:flex; flex-direction:column; gap:10px; }
-    .lb-figure img{ max-width:100%; max-height:76vh; object-fit:contain; border-radius:14px;
-      background:var(--u-ink); box-shadow:var(--u-shadow-lg); }
+    .lb-frame{ position:relative; min-width:min(70vw,480px); min-height:240px; border-radius:14px;
+      overflow:hidden; background:var(--u-ink); box-shadow:var(--u-shadow-lg); }
+    .lb-frame img{ display:block; max-width:100%; max-height:76vh; object-fit:contain; opacity:0;
+      transition:opacity .18s ease; }
+    .lb-frame img.on{ opacity:1; }
+    .lb-state{ position:absolute; inset:0; z-index:1; display:none; align-items:center; justify-content:center;
+      gap:8px; padding:26px; text-align:center; color:var(--u-on-dark-2); font-size:13px; line-height:1.7; }
+    .lb-state.on{ display:flex; }
+    .lb-state .spinner{ margin:0; }
     .lb-cap{ display:flex; justify-content:space-between; gap:14px; color:var(--u-on-dark);
       font-size:13px; opacity:.94; }
     .lb-cap i{ font-style:normal; opacity:.75; }
@@ -479,7 +486,8 @@
         mask.id = "lbMask"; mask.className = "lb-mask";
         mask.setAttribute("role","dialog"); mask.setAttribute("aria-modal","true");
         mask.setAttribute("aria-label","查看照片大图");
-        mask.innerHTML = '<figure class="lb-figure"><img id="lbImg" alt="照片大图">' +
+        mask.innerHTML = '<figure class="lb-figure"><div class="lb-frame"><img id="lbImg" alt="照片大图">' +
+          '<div class="lb-state" id="lbState" role="status" aria-live="polite"></div></div>' +
           '<figcaption class="lb-cap"><span id="lbCapL"></span><i id="lbCapR"></i></figcaption></figure>' +
           '<button class="lb-close" id="lbClose" aria-label="关闭大图">✕</button>' +
           '<button class="lb-nav prev" id="lbPrev" aria-label="上一张">‹</button>' +
@@ -496,6 +504,15 @@
           else if (e.key === "ArrowRight") lbStep(1);
         });
       }
+      // 加载态用同一个递增 token 认领:prev/next 连点时,上一张图迟到的 onload/onerror
+      // 不能盖掉当前这张的占位态/报错文案(否则会出现"明明看的是第2张,提示却是第1张挂了")。
+      var lbLoadToken = 0;
+      function lbSetState(html){
+        var el = document.getElementById("lbState");
+        if (!el) return;
+        if (html) { el.innerHTML = html; el.classList.add("on"); }
+        else { el.classList.remove("on"); el.innerHTML = ""; }
+      }
       function lbOpen(i){
         var p = LB.photos[i];
         if (!p) return;
@@ -503,8 +520,21 @@
         LB.idx = i;
         var img = document.getElementById("lbImg");
         var full = assetUrl(p.src || p.thumb), thumb = assetUrl(p.thumb || p.src);
-        img.onerror = function(){ if (img.src !== thumb) { img.onerror = null; img.src = thumb; } };
+        var token = ++lbLoadToken;
+        img.classList.remove("on");
+        lbSetState('<span class="spinner" aria-hidden="true"></span><span>照片加载中…</span>');
+        img.onload = function(){
+          if (token !== lbLoadToken) return;
+          lbSetState("");
+          img.classList.add("on");
+        };
+        img.onerror = function(){
+          if (token !== lbLoadToken) return;
+          if (img.src !== thumb) { img.src = thumb; return; }
+          lbSetState("这张照片暂时加载不出来,可能是网络不稳定");
+        };
         if (img.src !== full) img.src = full;
+        else if (img.complete) { if (img.naturalWidth > 0) img.onload(); else img.onerror(); }
         var lbl = photoLabel(p,LB.cfg || {});
         var left = String(p.title || "").trim() || lbl.name || "";
         var right = [String(p.timeLabel || "").trim(),lbl.dir].filter(Boolean).join(" · ");
@@ -980,7 +1010,12 @@
         scheduleLive();
       }
 
+      // LIVE(大屏)模式点击行为保持原样:这块委托加进来之前,大屏上点照片卡本来就没反应,
+      // 灯箱是给宾客翻看展览用的,大屏是无人值守的现场屏幕。真开出一个要手动关闭的全屏遮罩,
+      // 会挡住 pollLive() 每 5 秒轮询到新照片时的 liveFocus 高亮反馈,没人会去点右上角 X 关掉它。
+      // 所以 LIVE 分支直接短路,不开灯箱,行为和加灯箱之前完全一样。
       document.getElementById("app").addEventListener("click",function(e){
+        if (LIVE) return;
         var card = e.target.closest ? e.target.closest("[data-photo]") : null;
         if (!card) return;
         var i = parseInt(card.getAttribute("data-photo"),10);
