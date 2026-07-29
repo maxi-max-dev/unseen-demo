@@ -471,3 +471,45 @@ $ git status --short
 模式和展示逻辑当参照,验证我的新代码渲染是否正常),从未写入。
 `theme.css`/`acceptance.mjs`/`web/pov.html`/`portal.html` 同理,全程只读或
 完全没碰。
+
+## G-1. 微信开发者工具 cli 从未登录过,验收5 的 IDE 冒烟测不了,需要 Max 扫码后人工验
+
+**背景**:批次G(UNSEEN 小程序只读看展壳)任务书验收5要求,若开发者工具装好且 cli 可用,
+跑一次 `cli auto-preview` 级别的冒烟;工具没装好或 cli 要扫码登录,就记 BLOCKED,不算
+失败。
+
+**实测**:
+```
+$ ls /Applications | grep -i wechat
+wechatwebdevtools.app
+
+$ /Applications/wechatwebdevtools.app/Contents/MacOS/cli -v
+(能正常列出全部子命令,说明 App 本体装好了)
+
+$ /Applications/wechatwebdevtools.app/Contents/MacOS/cli islogin
+[error] Please ensure that the IDE has been properly installed
+✖ #initialize-error: Error: ENOENT: no such file or directory, open
+  '/Users/max/Library/Application Support/微信开发者工具/50a7d9210159a32f006158795f893857/Default/.cli'
+
+$ /Applications/wechatwebdevtools.app/Contents/MacOS/cli auto-preview --project /Users/max/code/spatial-memory/miniapp
+(同一个 initialize-error)
+
+$ ls -la "/Users/max/Library/Application Support/微信开发者工具/"
+只有一个 profile 目录,里面只有 WeappLog,没有 Default/、没有 .cli 标记文件
+——这个 profile 目录的 mtime 是本次会话开工的时间点,说明是我这几条 cli 命令
+自己触发生成的空壳,不是之前就有登录过的痕迹。
+```
+
+**结论**:App 装了,但从来没有经过一次完整的 GUI 打开+微信扫码登录。`cli` 的所有子命令
+都依赖 IDE 主进程写的 `.cli` 握手文件,这一步只能靠人在界面上用手机扫码完成,没有任何
+命令行/API 能绕过。本任务也没有配到 GUI 自动化工具,而且就算有,扫码这一步本来就必须
+是 Max 本人的微信。
+
+**需要 Max 做的**:手动打开一次「微信开发者工具」App,用微信扫码登录,然后可以选择:
+(a) 让我再跑一次 `cli auto-preview --project /Users/max/code/spatial-memory/miniapp`
+    做冒烟;或
+(b) 直接在 GUI 里「导入项目」选 `/Users/max/code/spatial-memory/miniapp` 这个目录,
+    AppID 已经写在 `project.config.json` 里(`wx551ef9eb67257f96`),不需要额外填。
+
+**不影响的部分**:验收1-4(JSON 解析/文件齐全/无 secret 泄露/js 语法)全部已跑通,
+详见 PROGRESS.md「批次G」。小程序代码本身的静态正确性不依赖这一步。

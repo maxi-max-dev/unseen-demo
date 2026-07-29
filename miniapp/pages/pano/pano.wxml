@@ -1,0 +1,52 @@
+<!-- 02 · 全景环视屏。渲染方案见 pano.js 顶部注释：手写 WebGL 全屏四边形 + 等距柱状
+     raymarch shader，不用 threejs-miniprogram（选型理由记在 PROGRESS.md 批次G）。 -->
+<view class="pano-page">
+  <canvas
+    type="webgl"
+    id="glcanvas"
+    class="gl-canvas"
+    bindtouchstart="onTouchStart"
+    bindtouchmove="onTouchMove"
+    bindtouchend="onTouchEnd"
+  ></canvas>
+
+  <view class="pano-wash" aria-hidden="true"></view>
+
+  <view wx:if="{{loadError}}" class="pano-error">
+    <text>全景加载不出来，可能是网络或素材路径问题。</text>
+  </view>
+
+  <view class="pano-top" style="margin-top:{{statusBarHeight + 12}}px">
+    <button class="round-btn" bindtap="onBack" aria-label="返回">‹</button>
+    <view class="pano-title">
+      <text class="pano-title-main">{{spaceTitle}}</text>
+      <text class="pano-title-sub">{{spaceCouple}}{{nodeName ? ' · ' + nodeName : ''}}</text>
+    </view>
+    <button class="photo-total" bindtap="goPhotos">{{photoCount}} 张</button>
+  </view>
+
+  <view class="pano-reticle" aria-hidden="true"></view>
+  <text class="pano-hint" wx:if="{{showHint}}">拖动环视 · 点照片回到方位</text>
+
+  <button class="gyro-btn {{gyroOn ? 'gyro-btn--on' : ''}}" bindtap="onToggleGyro" aria-label="陀螺仪开关">
+    <view class="gyro-ring"></view>
+  </button>
+
+  <view class="photo-rail" wx:if="{{photos.length}}">
+    <view class="rail-head">
+      <text class="rail-head-b">照片回到拍下它的方向</text>
+      <text class="rail-head-r">当前 · {{currentDirWord}} {{currentYawDeg}}°</text>
+    </view>
+    <scroll-view scroll-x class="thumbs" show-scrollbar="{{false}}">
+      <view
+        wx:for="{{photos}}"
+        wx:key="id"
+        class="thumb {{index === activeIndex ? 'thumb--active' : ''}}"
+        data-index="{{index}}"
+        bindtap="onTapThumb"
+      >
+        <image src="{{item.thumb || item.src}}" mode="aspectFill" />
+      </view>
+    </scroll-view>
+  </view>
+</view>

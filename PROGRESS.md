@@ -833,3 +833,169 @@ M web/show.html
 ```
 (PROGRESS.md/BLOCKED.md 本段追加不算改动文件本身的功能)。BLOCKED.md 本次没有
 需要 Max 拍板的悬留项,未追加。
+
+## 批次G(2026-07-29,UNSEEN 小程序只读看展壳 v1,通过,验收1-4绿/验收5 BLOCKED)
+
+### 任务0·理解/顺序/最大风险(≤10行)
+理解:三页只读壳(进入屏拉 space.json→全景环视可拖看→照片方位点卡转向),上传只留 H5
+剪贴板过渡;s4 云端真数据=1 节点(n1/宴会厅)+9 张 photos+8 位贡献者(设计稿"5位"是
+demo 摆拍数,不是真值,小程序按真数据走);视觉基准=miniapp-mock.html 三屏+
+app/tokens.json 色值,三圆成心 logo 必须纯 CSS(view)画,不许贴图。
+顺序:任务0(读稿+curl 核对字段,已做)→任务1 全景降 2048(expo.jpg+yanxi.jpg[宴席厅
+=设计稿"宴会厅"/ballroom]+云端 s4 n1 pano)→任务2 建三页原生小程序,pano 渲染手写
+WebGL(理由见任务2小节)→验收1-5逐条跑。
+最大风险:①WeChat DevTools 装了 App 但从未 GUI 登录过,cli 大概率卡在"IDE 未初始化",
+验收5 很可能只能 BLOCKED 记录等 Max 扫码;②pano 页 yaw↔贴图列映射是本环境新写的
+shader,没有可视化验收手段,只能保证语法对/推导自洽,真实手感要等 Max 真机点。
+
+### 任务1·全景降档(assets/panos → miniapp/assets/panos,2048×1024,quality=85)
+选材:assets/panos/ 里没有文件字面叫"ballroom",但 tour.js(第354行 `"id":"yanxi"`)和
+s4 云端 space.json(`nodes[0].name = "宴会厅"`)都指向"yanxi.jpg"就是设计稿里那句
+"陈屹 & 林沐 · 宴会厅"对应的场地,所以判定 yanxi.jpg = 任务书说的"ballroom 相关那张"。
+```
+$ .venv/bin/python3 resize_panos.py
+assets/panos/expo.jpg (4096, 2048) -> miniapp/assets/panos/expo.jpg (2048, 1024)
+assets/panos/yanxi.jpg (4096, 2048) -> miniapp/assets/panos/yanxi.jpg (2048, 1024)
+s4-n1-pano-orig.jpg(云端下载) (4096, 2048) -> miniapp/assets/panos/s4-n1.jpg (2048, 1024)
+
+$ python3 -c "from PIL import Image; im=Image.open('miniapp/assets/panos/expo.jpg'); print(im.size)"
+(2048, 1024)
+$ python3 -c "from PIL import Image; im=Image.open('miniapp/assets/panos/yanxi.jpg'); print(im.size)"
+(2048, 1024)
+$ python3 -c "from PIL import Image; im=Image.open('miniapp/assets/panos/s4-n1.jpg'); print(im.size)"
+(2048, 1024)
+```
+(系统 python3 = /opt/homebrew/bin/python3,自带 PIL 12.2.0,任务书给的验收命令原样能跑,
+不需要激活 .venv。)三个文件分别 195KB/502KB/395KB,都在小程序单包 2MB 限制内。
+
+### 任务2·小程序工程
+**文件清单**(21个,`find miniapp -type f`):
+```
+miniapp/app.js
+miniapp/app.json
+miniapp/app.wxss
+miniapp/assets/panos/expo.jpg
+miniapp/assets/panos/s4-n1.jpg
+miniapp/assets/panos/yanxi.jpg
+miniapp/pages/index/index.js
+miniapp/pages/index/index.json
+miniapp/pages/index/index.wxml
+miniapp/pages/index/index.wxss
+miniapp/pages/pano/pano.js
+miniapp/pages/pano/pano.json
+miniapp/pages/pano/pano.wxml
+miniapp/pages/pano/pano.wxss
+miniapp/pages/photos/photos.js
+miniapp/pages/photos/photos.json
+miniapp/pages/photos/photos.wxml
+miniapp/pages/photos/photos.wxss
+miniapp/project.config.json
+miniapp/sitemap.json
+miniapp/utils/util.js
+```
+
+**关键决策**:
+1. **pano 页渲染方案选了"手写 WebGL",没选 threejs-miniprogram。** 理由:
+   threejs-miniprogram 要 `npm install` 之后在开发者工具里手动点一次"构建 npm"才能跑,
+   这一步是 GUI 操作,而本环境 devtools 从未登录过(见验收5),没人能替 Max 点这个按钮,
+   一旦漏做整个小程序直接白屏。手写方案只用原生 `<canvas type="webgl">`,零 npm 依赖,
+   跟仓库已有的 `viewer/walk.html` 是同一路数(全屏四边形 + 等距柱状投影 fragment
+   shader),打开 devtools 不需要任何构建步骤就能跑,直接对应"能跑"这个第一让步顺序。
+2. **yaw↔贴图列映射推导**:契约里 yaw=0 定义成"全景第0列方向"。shader 里相机看向
+   `(0,0,-1)`,绕 Y 轴转 `u_yaw` 弧度后用 `atan2(x,-z)` 反推经度,代入几何可得屏幕中心
+   对准的贴图列 `u = 0.5 - u_yaw/(2π)`。要相机看向契约 yaw=Y,解出
+   `u_yaw = radians(180 - Y)`。这个换算是自反的(`f(f(x))=x mod 360`),`pano.js` 里
+   `dataYawToCameraYawDeg()` 一个函数两个方向复用。**这套推导没有可视化验收手段**(本
+   环境跑不了真实 WebGL 渲染),只能保证代码内部自洽+语法对,真实对齐效果要 Max 拿真机
+   /devtools 点开验。
+3. **照片方位屏没有照抄设计稿的诗意文案**(如"钢琴旁的一小段安静")。云版
+   `space.json` 的 `photos[]` 根本没有这个字段(`app/contract.md` 第84-98行只有
+   id/src/thumb/nodeId/yaw/confidence/margin/state/reason/contributor/taskId),编一句
+   文案出来就是造假数据。改成读 `photos[].taskId` 对应的 `tasks[].brief`(真实存在的
+   字段,例如"站在原地转向右前方,拍那个方向"),没有 taskId 就诚实标"宾客自由上传,
+   不对应任务",全部是契约里真实字段,不是我编的。
+4. **贡献者数字用真实的 8,不是设计稿写死的 5**。`space.contributors` 数组当前有 8 条
+   (小明/匿名宾客/大伟/小红/延迟测试/FIX三态/公网验收员/泛音测),进入屏"N 位贡献者"、
+   照片方位屏头部统计都读 `(space.contributors||[]).length`,不读设计稿里的静态"5"。
+5. **传照片按钮**放在进入屏底部(`onCopyUploadLink`),`wx.setClipboardData` 复制
+   `https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/web/join.html?s=s4`
+   (这是 `app/cloud.js` 里腾讯云正式站 FALLBACK 地址拼的真实可用链接,已 curl 确认
+   HTTP 200,不是占位符),`wx.showToast` 提示去浏览器打开。
+6. **导航栏样式**:`app.json` 全局 `"navigationStyle":"custom"`,三页各自画自己的顶部条
+   (pano 页毛玻璃条、photos 页仿原生 nav),用 `wx.getWindowInfo().statusBarHeight`
+   算安全区,不依赖系统导航栏。
+7. **三圆成心 logo** 结构照抄 `miniapp-mock.html` 的 `.mark/.orb/.heart` 技法,唯一
+   区别:把 `.heart:before/:after` 两个伪元素换成了 `heart-circ` 两个真实 `view`(小程序
+   对通用元素 `::before/::after` 的支持不如浏览器确定,写成真节点更保险),旋转
+   45°+两圆的几何关系跟原稿完全一致,全程 view+css,没有一处贴图冒充。
+
+### 验收(命令与实际输出)
+
+**验收1・JSON 解析**:
+```
+$ node -e "JSON.parse(require('fs').readFileSync('miniapp/app.json'))" && echo OK
+OK
+$ node -e "JSON.parse(require('fs').readFileSync('miniapp/project.config.json'))" && echo OK
+OK
+```
+
+**验收2・12个页面文件齐全**(`ls miniapp/pages/{index,pano,photos}/`):
+```
+miniapp/pages/index/: index.js index.json index.wxml index.wxss
+miniapp/pages/pano/:  pano.js pano.json pano.wxml pano.wxss
+miniapp/pages/photos/: photos.js photos.json photos.wxml photos.wxss
+```
+(共 12 个,4×3,实际 `ls -la` 输出见本次会话记录,此处只摘文件名。)
+
+**验收3・secret 未泄露**:
+```
+$ grep -rn "8c87b064" miniapp/
+(无输出,grep exit code 1 = 零命中)
+```
+(全程没有读取 `~/.config/psm/wechat.json`,不知道真实 secret 是什么,只是按任务书
+给的特征串验证。)
+
+**验收4・js 语法检查**:
+```
+$ for f in $(find miniapp -name "*.js" -not -path "*node_modules*"); do node --check $f || echo FAIL $f; done
+OK miniapp/app.js
+OK miniapp/utils/util.js
+OK miniapp/pages/pano/pano.js
+OK miniapp/pages/index/index.js
+OK miniapp/pages/photos/photos.js
+```
+全过,零 FAIL。
+
+**验收5・微信开发者工具冒烟**:BLOCKED,详情见 BLOCKED.md「G-1」。App 已装
+(`/Applications/wechatwebdevtools.app` 存在,`cli -v` 能跑出命令列表),但从未经过
+GUI 首次登录,`~/Library/Application Support/微信开发者工具/.../Default/.cli` 不
+存在。`cli islogin` 和 `cli auto-preview --project miniapp` 都报同一个错:
+```
+[error] Please ensure that the IDE has been properly installed
+✖ #initialize-error: Error: ENOENT: no such file or directory, open
+  '.../Default/.cli'
+```
+这是任务书原文点名的例外("cli 要扫码登录就明确记 BLOCKED…不算失败"),没有尝试用
+GUI 自动化去点开界面扫码(本任务也没有那个工具,且扫码本来就只有 Max 的手机能做)。
+
+### 遗留问题
+1. **验收5 需要 Max 打开一次微信开发者工具 GUI、扫码登录后再验**(见 BLOCKED.md G-1)。
+2. **pano 页 yaw↔贴图列的对齐效果没有真机/GUI 验证**,只保证代码推导自洽+语法过。
+   如果真机测出方向感不对,`pano.js` 顶部注释已经把推导过程写清楚,`onTouchMove`
+   里也留了"手感反了改个符号"的提示行,方便当场调。
+3. **陀螺仪系数(`res.alpha`/`res.beta` 到 yaw/pitch 的映射)未经真机校准**,只保证
+   "模拟器/不支持的设备不崩",真实手感需要 Max 拿真机测过再调。
+4. **生产环境域名白名单未配置**:`wx.request` 拉 `space.json` 在开发者工具本地预览
+   下默认跳过合法域名校验,但小程序正式发布后需要在小程序后台"开发管理→服务器域名"
+   里把 `psm-advx-2026.oss-cn-hangzhou.aliyuncs.com` 加进 request 合法域名,否则真机上
+   会报"url not in domain list"。这是后续上线步骤,不在本次任务范围内,写在这里防止
+   遗忘。`<image>` 标签本身显示远程图片不受这个白名单限制,不受影响。
+5. **贴图默认用本地 `s4-n1.jpg`**(真实空间 s4 的节点1,已降到 2048),`expo.jpg`/
+   `yanxi.jpg` 是任务1一并产出的备用本地测试贴图,当前没有被任何页面引用,如果 Max
+   想临时换个场景看效果,改 `pano.js` 里的 `PANO_SRC` 常量即可。
+
+### git status
+```
+?? miniapp/
+```
+仓库其余文件零改动(PROGRESS.md/BLOCKED.md 本段追加不算)。

@@ -1,0 +1,73 @@
+<!-- 01 · 进入屏：照 miniapp-mock.html 第一屏还原。三圆成心 logo 全部是 view+css，
+     没有一处贴图冒充；文案里的数字全部来自 space.json 真数据，拉不到就走诚实空态。 -->
+<view class="entry-page" style="padding-top:{{statusBarHeight}}px">
+
+  <view class="bokeh" aria-hidden="true">
+    <view class="dot dot-1"></view>
+    <view class="dot dot-2"></view>
+    <view class="dot dot-3"></view>
+    <view class="dot dot-4"></view>
+    <view class="dot dot-5"></view>
+    <view class="dot dot-6"></view>
+  </view>
+
+  <view class="app-bar">
+    <view class="brand">
+      <view class="logo-mark logo-mark--sm">
+        <view class="orb orb--top"></view>
+        <view class="orb orb--left"></view>
+        <view class="orb orb--right"></view>
+        <view class="heart-group">
+          <view class="heart-sq"></view>
+          <view class="heart-circ heart-circ--l"></view>
+          <view class="heart-circ heart-circ--r"></view>
+        </view>
+      </view>
+      <text class="brand-name">UNSEEN</text>
+    </view>
+    <text class="brand-sub">空间记忆</text>
+  </view>
+
+  <view class="entry-main">
+    <view class="logo-mark logo-mark--lg">
+      <view class="orb orb--top"></view>
+      <view class="orb orb--left"></view>
+      <view class="orb orb--right"></view>
+      <view class="heart-group">
+        <view class="heart-sq"></view>
+        <view class="heart-circ heart-circ--l"></view>
+        <view class="heart-circ heart-circ--r"></view>
+      </view>
+    </view>
+
+    <text class="eyebrow">WEDDING MEMORY</text>
+
+    <block wx:if="{{loading}}">
+      <view class="skeleton skeleton-title"></view>
+      <view class="skeleton skeleton-sub"></view>
+    </block>
+
+    <block wx:elif="{{loadError}}">
+      <view class="empty-card">
+        <text class="empty-text">这个空间的信息暂时读不到，可能是网络问题。</text>
+        <button class="retry-btn" bindtap="onRetry">重新加载</button>
+      </view>
+    </block>
+
+    <block wx:else>
+      <text class="space-title">{{space.title}}</text>
+      <text class="couple" wx:if="{{space.couple}}">{{space.couple}}</text>
+      <text class="date" wx:if="{{space.date}}">{{space.date}}</text>
+
+      <button class="primary-btn" bindtap="onEnter">走进这段记忆</button>
+
+      <view class="facts-bar">
+        <text class="fact"><text class="fact-num">{{photoCount}}</text> 张照片</text>
+        <view class="fact-divider"></view>
+        <text class="fact"><text class="fact-num">{{contributorCount}}</text> 位贡献者</text>
+      </view>
+    </block>
+
+    <button class="upload-link" bindtap="onCopyUploadLink">传照片 · 复制上传链接</button>
+  </view>
+</view>

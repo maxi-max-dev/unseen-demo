@@ -1,0 +1,218 @@
+/* ============================================================
+   Logo：三圆成心，view+css，两处（顶部小标 + 中央大标）复用同一套类名。
+   结构照抄 miniapp-mock.html 的 .mark/.orb/.heart 技法，唯一的区别是把
+   .heart:before/:after 两个伪元素换成了 heart-circ 两个真实 view ——
+   小程序对通用元素的 ::before/::after 支持不如浏览器稳，写成真节点更保险，
+   几何关系（正方形转45°+两个圆，摆放位置一致）完全没变。
+   ============================================================ */
+.logo-mark {
+  position: relative;
+  flex: none;
+}
+.logo-mark--sm { width: 44rpx; height: 44rpx; }
+.logo-mark--lg {
+  width: 200rpx;
+  height: 200rpx;
+  margin-top: 24rpx;
+}
+.orb {
+  position: absolute;
+  width: 60%;
+  height: 60%;
+  border-radius: 50%;
+  opacity: 0.55;
+}
+.orb--top { left: 20%; top: 0; background: #FF9FC0; }
+.orb--left { left: 2%; top: 35%; background: #FF6E9E; }
+.orb--right { right: 2%; top: 35%; background: #FFC26B; }
+
+.heart-group {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  top: 53%;
+  width: 18%;
+  height: 18%;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+.heart-sq, .heart-circ {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: var(--u-card);
+}
+.heart-sq {
+  border-radius: 18% 0;
+  box-shadow: 0 0 7px var(--u-card);
+}
+.heart-circ { border-radius: 50%; }
+.heart-circ--l { left: -54%; top: 0; }
+.heart-circ--r { left: 0; top: -54%; }
+
+/* ============================================================
+   页面整体：粉金渐变底 + 大留白，一屏放完，不滚动
+   ============================================================ */
+.entry-page {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 4%, var(--u-card), transparent 35%),
+    linear-gradient(155deg, var(--u-bg-1), var(--u-bg-2) 54%, var(--u-bg-3));
+  display: flex;
+  flex-direction: column;
+}
+
+.bokeh { position: absolute; inset: 0; pointer-events: none; }
+.dot {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(4px);
+  opacity: 0.22;
+  animation: float 8s ease-in-out infinite alternate;
+}
+.dot-1 { width: 40rpx; height: 40rpx; left: -10rpx; top: 200rpx; background: var(--u-pink); }
+.dot-2 { width: 64rpx; height: 64rpx; right: -20rpx; top: 300rpx; background: var(--u-gold); animation-delay: -2s; }
+.dot-3 { width: 28rpx; height: 28rpx; right: 60rpx; top: 160rpx; background: var(--u-pink); animation-delay: -4s; }
+.dot-4 { width: 36rpx; height: 36rpx; left: 40rpx; bottom: 340rpx; background: var(--u-card); animation-delay: -1s; }
+.dot-5 { width: 56rpx; height: 56rpx; right: 30rpx; bottom: 200rpx; background: var(--u-pink); animation-delay: -3s; }
+.dot-6 { width: 22rpx; height: 22rpx; left: 90rpx; top: 120rpx; background: var(--u-gold); animation-delay: -5s; }
+@keyframes float {
+  from { transform: translate3d(0, -6rpx, 0) scale(0.96); }
+  to   { transform: translate3d(8rpx, 14rpx, 0) scale(1.06); }
+}
+
+.app-bar {
+  position: relative;
+  z-index: 4;
+  height: 88rpx;
+  padding: 0 32rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.brand { display: flex; align-items: center; gap: 12rpx; }
+.brand-name {
+  font-size: 22rpx;
+  font-weight: 500;
+  letter-spacing: var(--u-track-logo);
+  color: var(--u-ink);
+}
+.brand-sub { font-size: 20rpx; color: var(--u-ink-3); letter-spacing: 0.12em; }
+
+.entry-main {
+  position: relative;
+  z-index: 3;
+  flex: 1;
+  padding: 20rpx 40rpx 48rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.eyebrow {
+  margin: 28rpx 0 16rpx;
+  color: var(--u-pink-hot);
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 0.24em;
+}
+
+.space-title {
+  max-width: 560rpx;
+  font-size: 60rpx;
+  font-weight: 700;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--u-ink);
+}
+.couple {
+  margin-top: 18rpx;
+  font-size: 30rpx;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: var(--u-ink-2);
+}
+.date {
+  margin-top: 14rpx;
+  font-size: 24rpx;
+  letter-spacing: 0.12em;
+  color: var(--u-ink-3);
+}
+
+.skeleton {
+  border-radius: 12rpx;
+  background: rgba(255, 255, 255, 0.55);
+  animation: pulse 1.3s ease-in-out infinite;
+}
+.skeleton-title { width: 320rpx; height: 56rpx; margin-top: 24rpx; }
+.skeleton-sub { width: 200rpx; height: 32rpx; margin-top: 20rpx; }
+@keyframes pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 0.9; }
+}
+
+.empty-card {
+  margin-top: 32rpx;
+  padding: 32rpx;
+  border-radius: var(--u-r-panel);
+  border: 1px solid var(--u-line);
+  background: var(--u-glass);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20rpx;
+}
+.empty-text { font-size: 26rpx; color: var(--u-ink-2); line-height: 1.6; }
+.retry-btn {
+  padding: 14rpx 32rpx;
+  border-radius: var(--u-r-pill);
+  background: var(--u-grad);
+  color: var(--u-card);
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.primary-btn {
+  width: 100%;
+  min-height: 96rpx;
+  margin-top: 56rpx;
+  border-radius: var(--u-r-btn);
+  background: var(--u-grad);
+  color: var(--u-card);
+  box-shadow: var(--u-shadow-btn);
+  font-size: 30rpx;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+}
+
+.facts-bar {
+  width: 100%;
+  margin-top: 28rpx;
+  padding: 24rpx 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28rpx;
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-panel);
+  background: var(--u-glass);
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}
+.fact { font-size: 22rpx; color: var(--u-ink-3); }
+.fact-num {
+  font-size: 26rpx;
+  font-weight: 650;
+  color: var(--u-ink-2);
+}
+.fact-divider { width: 1px; height: 28rpx; background: var(--u-line); }
+
+.upload-link {
+  margin-top: auto;
+  padding-top: 24rpx;
+  font-size: 22rpx;
+  color: var(--u-ink-3);
+  text-decoration: underline;
+}

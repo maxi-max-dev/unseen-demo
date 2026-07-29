@@ -1,0 +1,17 @@
+{
+  "pages": [
+    "pages/index/index",
+    "pages/pano/pano",
+    "pages/photos/photos"
+  ],
+  "window": {
+    "navigationStyle": "custom",
+    "backgroundColor": "#FFF3F1",
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#FFF3F1",
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "UNSEEN 空间记忆"
+  },
+  "sitemapLocation": "sitemap.json",
+  "style": "v2"
+}

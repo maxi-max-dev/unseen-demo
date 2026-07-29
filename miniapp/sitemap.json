@@ -1,0 +1,6 @@
+{
+  "desc": "UNSEEN 空间记忆小程序，只读看展壳，不需要被搜索收录。",
+  "rules": [
+    { "action": "disallow", "page": "*" }
+  ]
+}

@@ -1,0 +1,189 @@
+.pano-page {
+  position: fixed;
+  left: 0; top: 0; right: 0; bottom: 0;
+  overflow: hidden;
+  background: #1a0e13;
+}
+.gl-canvas {
+  position: absolute;
+  left: 0; top: 0;
+  width: 100%;
+  height: 100%;
+}
+/* 贴图加载/首帧渲染前的过渡底色，避免一进页面先看见一块纯黑 */
+.pano-wash {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(180deg, rgba(62, 36, 48, 0.30), transparent 26%),
+    linear-gradient(0deg, rgba(62, 36, 48, 0.42), transparent 30%);
+}
+
+.pano-error {
+  position: absolute;
+  z-index: 15;
+  left: 40rpx;
+  right: 40rpx;
+  top: 45%;
+  padding: 24rpx;
+  border-radius: var(--u-r-panel);
+  background: rgba(62, 36, 48, 0.82);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 24rpx;
+  text-align: center;
+}
+
+.pano-top {
+  position: relative;
+  z-index: 10;
+  height: 88rpx;
+  margin: 0 24rpx;
+  padding: 0 16rpx;
+  display: grid;
+  grid-template-columns: 72rpx 1fr 84rpx;
+  align-items: center;
+  gap: 12rpx;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: var(--u-r-panel);
+  background: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}
+.round-btn {
+  width: 64rpx;
+  height: 64rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+  font-size: 40rpx;
+  font-weight: 300;
+  line-height: 1;
+}
+.pano-title { min-width: 0; text-align: center; }
+.pano-title-main {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 26rpx;
+  color: #fff;
+  font-weight: 600;
+}
+.pano-title-sub {
+  display: block;
+  margin-top: 4rpx;
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.68);
+}
+.photo-total {
+  padding: 0;
+  border-radius: var(--u-r-pill);
+  color: #fff;
+  font-size: 18rpx;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pano-reticle {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: 44%;
+  width: 64rpx;
+  height: 64rpx;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.pano-hint {
+  position: absolute;
+  z-index: 6;
+  left: 50%;
+  top: calc(44% + 64rpx);
+  padding: 10rpx 20rpx;
+  border-radius: var(--u-r-pill);
+  color: #fff;
+  background: rgba(62, 36, 48, 0.5);
+  font-size: 20rpx;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.gyro-btn {
+  position: absolute;
+  z-index: 12;
+  right: 32rpx;
+  bottom: 260rpx;
+  width: 96rpx;
+  height: 96rpx;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}
+.gyro-btn--on { background: var(--u-grad); border-color: transparent; }
+.gyro-ring {
+  position: relative;
+  width: 40rpx;
+  height: 40rpx;
+  border: 3rpx solid #fff;
+  border-radius: 50%;
+}
+.gyro-ring::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 2rpx;
+  width: 2rpx;
+  height: 30rpx;
+  background: #fff;
+  transform: translateX(-50%) rotate(42deg);
+}
+
+.photo-rail {
+  position: absolute;
+  z-index: 10;
+  left: 24rpx;
+  right: 24rpx;
+  bottom: 44rpx;
+  padding: 20rpx 20rpx 24rpx;
+  border-radius: var(--u-r-panel);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.14);
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}
+.rail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 4rpx 16rpx;
+  font-size: 18rpx;
+  color: rgba(255, 255, 255, 0.68);
+}
+.rail-head-b { color: #fff; font-size: 20rpx; font-weight: 650; }
+.thumbs { white-space: nowrap; }
+.thumb {
+  position: relative;
+  display: inline-block;
+  width: 104rpx;
+  height: 96rpx;
+  margin-right: 14rpx;
+  overflow: hidden;
+  border: 3rpx solid rgba(255, 255, 255, 0.85);
+  border-radius: 20rpx;
+  background: var(--u-bg-3);
+}
+.thumb--active { border-color: var(--u-pink-hot); }
+.thumb image { width: 100%; height: 100%; display: block; }

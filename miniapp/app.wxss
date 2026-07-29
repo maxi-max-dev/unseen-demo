@@ -1,0 +1,69 @@
+/* UNSEEN 空间记忆小程序 · 全局 token + 重置
+   核心色值/圆角/阴影从 app/tokens.json 抄成 CSS 变量，页面里用 var() 引用，
+   不在每页各写一遍色号。挑的是三页真会用到的"核心"token，没有照抄全部 70 多条
+   （角色药丸色等这三页用不到的没搬）。
+   声明在 page{} 上：miniprogram 里 page 是每页的根节点，等价于网页的 :root，
+   自定义属性会自然继承给这一页里的所有子节点。 */
+page {
+  /* 背景三色 */
+  --u-bg-1: #FFF3F1;
+  --u-bg-2: #FFF7EE;
+  --u-bg-3: #FFEFE3;
+
+  /* 品牌粉金 */
+  --u-pink: #FF7FA8;
+  --u-pink-hot: #FF5C8A;
+  --u-gold: #FFC981;
+  --u-gold-deep: #F6A94A;
+
+  /* 文字 */
+  --u-ink: #3E2430;
+  --u-ink-2: #5C3B48;
+  --u-ink-3: #9A7C86;
+
+  /* 卡片/线/阴影 */
+  --u-card: #FFFFFF;
+  --u-line: rgba(255, 170, 185, 0.28);
+  --u-shadow: 0 5px 17px rgba(214, 124, 140, 0.13);
+  --u-shadow-btn: 0 4px 11px rgba(255, 124, 160, 0.35);
+
+  /* 渐变 + 玻璃 */
+  --u-grad: linear-gradient(100deg, #FF7FA8, #FFC981);
+  --u-glass: rgba(255, 255, 255, 0.72);
+  --u-glass-blur: 14px;
+
+  /* 圆角 */
+  --u-r-card: 18px;
+  --u-r-panel: 24px;
+  --u-r-btn: 14px;
+  --u-r-pill: 999px;
+
+  /* 字 */
+  --u-sans: -apple-system, "PingFang SC", "Hiragino Sans GB", sans-serif;
+  --u-track-logo: 0.3em;
+
+  height: 100%;
+  background-color: var(--u-bg-1);
+  color: var(--u-ink);
+  font-family: var(--u-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 小程序里没有 * 通配选择器，常用元素手动加 box-sizing */
+view, text, button, image, scroll-view, canvas {
+  box-sizing: border-box;
+}
+
+button {
+  padding: 0;
+  margin: 0;
+  font-size: inherit;
+  font-family: inherit;
+  line-height: normal;
+  background: none;
+  color: inherit;
+}
+/* 小程序 button 自带一圈边框，用官方支持的 ::after 摘掉，不是通用伪元素技巧 */
+button::after {
+  border: none;
+}
