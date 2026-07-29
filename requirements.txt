@@ -1,0 +1,55 @@
+# UNSEEN 主环境依赖（server/ 和 tools/ 用，不含 DAP 深度模型）
+# 从这台 Mac 的 .venv 实测导出：2026-07-29
+# 重建： python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# ⚠️ torch/torchvision 在不同平台的轮子不同，换机器建议先按官方指引单独装 torch，再装本文件其余部分
+
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+PyYAML==6.0.3
+Pygments==2.20.0
+annotated-doc==0.0.4
+annotated-types==0.8.0
+anyio==4.14.2
+certifi==2026.7.22
+click==8.4.2
+fastapi==0.139.2
+filelock==3.32.0
+fsspec==2026.6.0
+h11==0.16.0
+hf-xet==1.5.2
+httpcore==1.0.9
+httpx==0.28.1
+huggingface_hub==1.24.0
+idna==3.18
+joblib==1.5.3
+markdown-it-py==4.2.0
+mdurl==0.1.2
+mpmath==1.3.0
+narwhals==2.24.0
+networkx==3.6.1
+numpy==2.4.6
+packaging==26.2
+pillow==12.3.0
+pip==26.1.2
+pydantic==2.13.4
+pydantic_core==2.46.4
+python-multipart==0.0.32
+regex==2026.7.19
+rich==15.0.0
+safetensors==0.8.0
+scikit-learn==1.9.0
+scipy==1.17.1
+sentence-transformers==5.6.0
+setuptools==82.0.0
+shellingham==1.5.4
+starlette==1.3.1
+sympy==1.14.0
+threadpoolctl==3.6.0
+tokenizers==0.22.2
+torch==2.13.0
+tqdm==4.69.0
+transformers==5.14.1
+typer==0.27.0
+typing-inspection==0.4.2
+typing_extensions==4.16.0
+uvicorn==0.51.0

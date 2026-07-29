@@ -1,0 +1,57 @@
+# DAP 深度模型专用环境（tools/depth.py 用，与主环境 torch 版本不兼容故隔离）
+# 从这台 Mac 的 .venv-dap 实测导出：2026-07-29
+# 重建： python3 -m venv .venv-dap && .venv-dap/bin/pip install -r requirements-dap.txt
+# 🚨 注意：vendor/DAP 模型本身是 CC BY-NC 4.0，禁止商用。见 vault 的替换方案报告。
+
+Jinja2==3.1.6
+MarkupSafe==3.0.3
+PyYAML==6.0.3
+antlr4-python3-runtime==4.9.3
+anyio==4.14.2
+certifi==2026.7.22
+click==8.4.2
+cloudpickle==3.1.2
+contourpy==1.3.3
+cycler==0.12.1
+einops==0.8.2
+filelock==3.32.0
+fonttools==4.63.0
+fsspec==2026.6.0
+ftfy==6.3.1
+h11==0.16.0
+hf-xet==1.5.2
+httpcore==1.0.9
+httpx==0.28.1
+huggingface_hub==1.24.0
+idna==3.18
+joblib==1.5.3
+kiwisolver==1.5.0
+lightning-utilities==0.15.3
+matplotlib==3.11.1
+mpmath==1.3.0
+narwhals==2.24.0
+networkx==3.6.1
+numpy==2.4.6
+omegaconf==2.3.1
+opencv-python==5.0.0.93
+packaging==26.2
+pillow==12.3.0
+pip==26.1.2
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+regex==2026.7.19
+safetensors==0.8.0
+scikit-learn==1.9.0
+scipy==1.17.1
+setuptools==82.0.0
+six==1.17.0
+submitit==1.5.4
+sympy==1.14.0
+termcolor==3.3.0
+threadpoolctl==3.6.0
+torch==2.7.1
+torchmetrics==1.8.2
+torchvision==0.22.1
+tqdm==4.69.0
+typing_extensions==4.16.0
+wcwidth==0.8.2
