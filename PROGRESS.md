@@ -999,3 +999,74 @@ GUI 自动化去点开界面扫码(本任务也没有那个工具,且扫码本�
 ?? miniapp/
 ```
 仓库其余文件零改动(PROGRESS.md/BLOCKED.md 本段追加不算)。
+
+---
+
+## 批次H(2026-07-29,三屏UI对稿修客观偏差)
+
+### 任务0·理解/顺序/最大风险(≤10行)
+理解:领导说"UI有问题但不大"没给具体点,任务是把模拟器里三屏跟 miniapp-mock.html
+逐屏比对,分【客观/主观/环境】三类列 DIFF.md,只修客观项(色值/字号级差/间距挤压/
+缺失/错位),主观(留白/圆角手感/文案)留给领导圈,环境差异(状态栏/陀螺仪/字体
+渲染)只标注不处理。
+顺序:任务0连通(已过)→三屏+设计稿各截一张→逐屏列差异→只修客观项+复截图→
+验收1-5→出新预览码。
+最大风险(已踩过一个):装的 miniprogram-automator@0.12.1(npm 最新,2023-11-07
+发布)连本机开发者工具(2.01.2510290,新两年)时 checkVersion() 会因协议响应
+里缺 SDKVersion 字段崩溃;确认崩溃点在版本号比对之后(WS 连接已成功),运行时
+patch 掉这一个方法绕过,已验证 pageStack() 正常返回。pano 页是手写 WebGL 全景,
+贴图加载需要额外等待,已在截图脚本里加长等待。
+
+### 任务1·三屏截图对稿 结果(通过)
+三屏(automator screenshot,390×844)+ 设计稿整版(acceptance.mjs shot,1400×1100,
+一张截全三个 phone)截图齐全,存在 `ui-check/`。逐屏对比完整清单(客观6处/主观7处/
+环境3处,含判断依据/证据)见 `ui-check/DIFF.md`,不在这里重复摘抄全文,只列结论。
+
+### 任务2·修客观项 结果(通过,6处全修,验收1-5全绿)
+
+**修了什么**(只动 wxss/wxml,零 js 改动):
+1. `app.wxss`:`--u-shadow`/`--u-shadow-btn` 两个阴影 token 数值是 DESIGN-UNSEEN.md
+   规定值的一半(色彩分量本来就对,offset/blur 被精确减半),改回文档原值。
+2. `pages/index/index.wxml`+`.wxss`:补一条设计稿里有、我们缺的胶片齿孔装饰带
+   (film-strip,DESIGN-UNSEEN.md §4 列为三大视觉签名手法之一);主标题字号
+   60rpx→69rpx(换算成 px 只有31.2,稿子是36,同页其余字号换算比值都在0.97~1.0,
+   只有它掉到0.867)。
+3. `pages/pano/pano.wxss`:`.pano-page` 背景色从写死的 `#1a0e13` 改成 token
+   `var(--u-ink)`(设计稿就是这么写的);陀螺仪图标补上缺失的中心圆点
+   (`::before`,之前只有指针 `::after`,看起来像"禁止"符号)。
+4. `pages/pano/pano.wxml`+`.wxss`:陀螺仪开关按钮实测渲染成长椭圆
+   (`width:184px,height:49px`,期望是正圆~50×50),排查过程:先怀疑是
+   "position:absolute + button 自己 display:flex"的组合,去掉 flex 后
+   `display` 确实变了但 width 纹丝不动还是184——说明不是flex的锅;换个方向,
+   发现这是全站唯一一个"`position:absolute` 的原生 `<button>`"(其余按钮都是
+   跟着 grid 走的在流内元素,不出这个问题),把标签从 `<button>` 改成 `<view>`
+   (tap行为/aria-role/aria-label 全部保留),重新量 `width:49,height:49`,
+   问题解决。
+5. `pages/photos/photos.wxss`:两处大标题字号偏小,"散落的视角"52→58rpx、
+   卡片标题27→31rpx(同一套系统性离群判断法)。
+
+**没修什么**:7条主观(顶部小logo偏小23%没有清楚证据/品牌圆缺mix-blend-mode/
+整体留白节奏/陀螺仪图标白色配色/pano-top高度/pano-wash少一层渐变/照片卡片文案
+与缩略图比例)全部原样留着,清单在 DIFF.md,标注了"为什么不动手"。3条环境差异
+(状态栏与home-indicator/陀螺仪硬件/**pano页WebGL全景贴图在自动化截图里完全
+不显示**)只标注不处理,其中WebGL这条深查了(gl/program/tex对象都建成功、
+glError=0、渲染循环rafId在6秒内涨到562证明没卡死、贴图文件用fs.statSync确认
+真实存在,但连续6张跨12秒的截图逐字节相同且采样色值正好是纯CSS背景色不是贴图
+内容),判断为开发者工具模拟器对canvas/webgl原生层截图合成的已知限制类别,
+不是代码bug,没有为了这条去动pano.js(真机已确认能跑,担心改坏)。
+
+**验收1-5实际输出**(命令与结果全文见 `ui-check/DIFF.md` 最后一节,这里摘要):
+1. 三屏修后截图:`ui-check/01-index-FINAL.png` `02-pano-FINAL.png` `03-photos-FINAL.png` ✅
+2. `node --check` 5个js文件全 OK ✅
+3. `app.json` JSON.parse OK ✅
+4. `grep -rn "8c87b064" miniapp/` 零命中 ✅
+5. `cli preview` 出新二维码 `ui-check/preview-qr-v2.png`(470×470,包体1.1MB) ✅
+
+**一个意外副作用(已处理)**:跑 automator/cli 期间开发者工具自己重写了一次
+`project.config.json`(内容一字不差,只丢了文件末尾换行符),已补回换行符,
+`git diff` 对这个文件现在是空的,不是我主动改的字段。
+
+**最终改动范围**:`app.wxss` / `pages/index/index.{wxml,wxss}` /
+`pages/pano/pano.{wxml,wxss}` / `pages/photos/photos.wxss`,共6个文件,零js改动,
+全部在 miniapp/ 界限内。开发者工具全程保持登录(`cli islogin` 复查仍是
+`{"login":true}`),没碰过工具设置。

@@ -2,7 +2,9 @@
   position: fixed;
   left: 0; top: 0; right: 0; bottom: 0;
   overflow: hidden;
-  background: #1a0e13;
+  /* 批次H修:之前写死 #1a0e13,不在任何 token 表里;设计稿 .panorama 用的是
+     var(--u-ink),改成跟稿子一致的 token。 */
+  background: var(--u-ink);
 }
 .gl-canvas {
   position: absolute;
@@ -124,9 +126,11 @@
   width: 96rpx;
   height: 96rpx;
   border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  /* 批次H修:这里原来还有 display:flex;align-items:center;justify-content:center,
+     跟"原生 button + position:absolute"叠加会导致 width 渲染异常(实测 184px,
+     是期望值的3.7倍,height 完全正常;同页面另外两个用 flex 居中的按钮都是
+     跟着 grid 走的在流内元素,没有这个问题)。改成让内部 view 自己用绝对定位
+     居中,button 本身只负责定位/尺寸/外观,不再当 flex 容器。 */
   border: 1px solid rgba(255, 255, 255, 0.24);
   background: rgba(255, 255, 255, 0.16);
   -webkit-backdrop-filter: blur(var(--u-glass-blur));
@@ -134,11 +138,27 @@
 }
 .gyro-btn--on { background: var(--u-grad); border-color: transparent; }
 .gyro-ring {
-  position: relative;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
   width: 40rpx;
   height: 40rpx;
   border: 3rpx solid #fff;
   border-radius: 50%;
+}
+/* 批次H修:补上设计稿里指针中心的圆点(:before),之前只画了指针(:after),
+   缺了圆点会让整个图标看起来像"禁止"符号而不是指南针。 */
+.gyro-ring::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10rpx;
+  height: 10rpx;
+  border-radius: 50%;
+  background: var(--u-pink-hot);
+  transform: translate(-50%, -50%);
 }
 .gyro-ring::after {
   content: "";

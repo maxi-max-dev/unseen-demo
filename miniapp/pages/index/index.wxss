@@ -82,6 +82,34 @@
   to   { transform: translate3d(8rpx, 14rpx, 0) scale(1.06); }
 }
 
+/* 批次H修:补上设计稿的胶片齿孔带。稿子用 :before/:after 画两条等距小方孔的
+   repeating-gradient,本项目 heart 图形那里已经有"通用元素 ::before/::after
+   在小程序里不够稳"的先例并改成真 view(见 heart-group 的注释),这里延续同一个
+   处理方式,用两个真 view 而不是伪元素。像素换算:稿子是 390px 宽静态页,
+   1px≈1.9231rpx(750rpx设计宽/390实际宽)。 */
+.film-strip {
+  position: absolute;
+  z-index: 1;
+  left: -125rpx;
+  top: 400rpx;
+  width: 1000rpx;
+  height: 62rpx;
+  border-top: 1px solid var(--u-line);
+  border-bottom: 1px solid var(--u-line);
+  opacity: 0.48;
+  transform: rotate(-10deg);
+  pointer-events: none;
+}
+.film-strip-row {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 12rpx;
+  background: repeating-linear-gradient(90deg, var(--u-line) 0 21rpx, transparent 21rpx 37rpx);
+}
+.film-strip-row--top { top: 6rpx; }
+.film-strip-row--bottom { bottom: 6rpx; }
+
 .app-bar {
   position: relative;
   z-index: 4;
@@ -121,7 +149,10 @@
 
 .space-title {
   max-width: 560rpx;
-  font-size: 60rpx;
+  /* 批次H修:60rpx 按 750rpx 设计宽换算只等价稿子的 31.2px,而稿子标题实际是
+     36px——同一页其余字号(couple/date等)换算比值都在0.97~1.0之间,只有这个
+     大标题掉到0.87,是清楚的系统性偏小,改成69rpx跟稿子对齐。 */
+  font-size: 69rpx;
   font-weight: 700;
   line-height: 1.12;
   letter-spacing: -0.02em;

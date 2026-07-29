@@ -28,9 +28,12 @@
   <view class="pano-reticle" aria-hidden="true"></view>
   <text class="pano-hint" wx:if="{{showHint}}">拖动环视 · 点照片回到方位</text>
 
-  <button class="gyro-btn {{gyroOn ? 'gyro-btn--on' : ''}}" bindtap="onToggleGyro" aria-label="陀螺仪开关">
+  <!-- 批次H修:原来是 <button>,量出来 width 实测184px(期望~50px,height 却完全正常),
+       换掉 display 也治不好;全站唯一"position:absolute 的原生 button",怀疑是这个
+       组合触发的渲染异常。tap 行为在 view 上完全一样,改用 view+aria-role 绕开。 -->
+  <view class="gyro-btn {{gyroOn ? 'gyro-btn--on' : ''}}" bindtap="onToggleGyro" aria-role="button" aria-label="陀螺仪开关">
     <view class="gyro-ring"></view>
-  </button>
+  </view>
 
   <view class="photo-rail" wx:if="{{photos.length}}">
     <view class="rail-head">

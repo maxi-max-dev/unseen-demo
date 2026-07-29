@@ -11,6 +11,13 @@
     <view class="dot dot-6"></view>
   </view>
 
+  <!-- 批次H修:补上设计稿里的胶片齿孔带(film-strip)。DESIGN-UNSEEN.md §4 把它跟
+       bokeh光斑/暖光晕并列为三大视觉签名手法之一,之前只做了bokeh,这条整个缺失。 -->
+  <view class="film-strip" aria-hidden="true">
+    <view class="film-strip-row film-strip-row--top"></view>
+    <view class="film-strip-row film-strip-row--bottom"></view>
+  </view>
+
   <view class="app-bar">
     <view class="brand">
       <view class="logo-mark logo-mark--sm">

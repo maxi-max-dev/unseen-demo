@@ -36,7 +36,9 @@
 }
 .heading-title {
   display: block;
-  font-size: 52rpx;
+  /* 批次H修:52rpx 按750rpx设计宽换算等价稿子26.4px,稿子实际是30px(比值0.90,
+     同页eyebrow/heading-sub换算比值都在0.99~1.04),改成58rpx对齐。 */
+  font-size: 58rpx;
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--u-ink);
@@ -129,7 +131,8 @@
 }
 .card-title {
   margin-top: 16rpx;
-  font-size: 27rpx;
+  /* 批次H修:27rpx换算等价稿子14.04px,稿子实际是16px(比值0.88),改成31rpx对齐。 */
+  font-size: 31rpx;
   line-height: 1.35;
   color: var(--u-ink);
   display: -webkit-box;
