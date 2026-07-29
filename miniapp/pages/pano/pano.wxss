@@ -6,8 +6,17 @@
      var(--u-ink),改成跟稿子一致的 token。 */
   background: var(--u-ink);
 }
+/* 批次I修:补一个显式 z-index(之前是默认 auto)。canvas 用的是新版"节点+
+   wx.createSelectorQuery().fields({node:true})"接口(pano.js initGL 里那种)，
+   这套接口从基础库2.9.0起支持同层渲染，会正常参与 WXML 的层叠上下文，
+   不是老式 canvas-id/wx.createCanvasContext 那种"永远原生层盖在最上面"的
+   画布，所以理论上 z-index 已经够用；这里补成显式数值只是让层叠顺序不依赖
+   "auto 在没有其他数值时刚好排在下面"这种隐式规则，跟 .pano-top(z-index:10)/
+   .gyro-btn(z-index:12)/.photo-rail(z-index:10) 的层级关系写清楚、不留歧义。
+   触摸可达性验证方法与结论见 PROGRESS.md 批次I 验收记录。 */
 .gl-canvas {
   position: absolute;
+  z-index: 0;
   left: 0; top: 0;
   width: 100%;
   height: 100%;
@@ -37,11 +46,12 @@
   text-align: center;
 }
 
+/* 批次I修:height/margin 原来写死 88rpx/0 24rpx，现在改由 pano.wxml 的
+   inline style(navBarHeight/navSideMargin，来自胶囊按钮实测几何)控制，
+   这里不再写死，只留其余静态视觉规则(边框/圆角/毛玻璃)。 */
 .pano-top {
   position: relative;
   z-index: 10;
-  height: 88rpx;
-  margin: 0 24rpx;
   padding: 0 16rpx;
   display: grid;
   grid-template-columns: 72rpx 1fr 84rpx;
@@ -137,6 +147,12 @@
   backdrop-filter: blur(var(--u-glass-blur));
 }
 .gyro-btn--on { background: var(--u-grad); border-color: transparent; }
+/* 批次I修:开/关状态之前只有外层按钮底色变化(半透明玻璃→渐变)，图标本身
+   (圆环+指针)不管开关都是同一个静止的白色描边，任务要求"开=实心带指针
+   动效，关=描边静止，状态一眼可辨"，两档区分不够。默认(关)保留原样——
+   描边圆环+静止指针；开启时追加 .gyro-ring--on：圆环从描边变实心白底，
+   指针改成品牌粉并配一个轻微来回摆动的动效(不用整圈旋转，整圈转容易让人
+   误以为"一直在转圈=卡住了/加载中"，罗盘指针左右探向更像"正在感应方向")。 */
 .gyro-ring {
   position: absolute;
   left: 50%;
@@ -146,6 +162,11 @@
   height: 40rpx;
   border: 3rpx solid #fff;
   border-radius: 50%;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.gyro-ring--on {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-color: rgba(255, 255, 255, 0.95);
 }
 /* 批次H修:补上设计稿里指针中心的圆点(:before),之前只画了指针(:after),
    缺了圆点会让整个图标看起来像"禁止"符号而不是指南针。 */
@@ -159,6 +180,15 @@
   border-radius: 50%;
   background: var(--u-pink-hot);
   transform: translate(-50%, -50%);
+  transition: background-color 0.2s ease;
+}
+.gyro-ring--on::after {
+  background: var(--u-pink-hot);
+  animation: gyroNeedleSense 1.6s ease-in-out infinite;
+}
+@keyframes gyroNeedleSense {
+  0%, 100% { transform: translateX(-50%) rotate(34deg); }
+  50% { transform: translateX(-50%) rotate(50deg); }
 }
 .gyro-ring::after {
   content: "";
@@ -207,3 +237,49 @@
 }
 .thumb--active { border-color: var(--u-pink-hot); }
 .thumb image { width: 100%; height: 100%; display: block; }
+
+/* 批次J新增:上传入口按钮。左下角，bottom:272rpx+height:72rpx 让中心Y
+   (272+36=308rpx) 跟 .gyro-btn 的中心Y(bottom:260rpx+96rpx/2=308rpx)对齐，
+   对称放在屏幕另一侧——不用跟 .gyro-btn 抢同一块地方，也不碰 .pano-top
+   (顶部，返回钮在里面)。 */
+.upload-btn {
+  position: absolute;
+  z-index: 12;
+  left: 32rpx;
+  bottom: 272rpx;
+  height: 72rpx;
+  padding: 0 26rpx;
+  border-radius: var(--u-r-pill);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.16);
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}
+.upload-btn-t {
+  color: #fff;
+  font-size: 22rpx;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* 批次J新增:上传状态条。悬在"上传按钮/陀螺仪按钮"那一排(bottom 260~368rpx)
+   上方留出的空档里，往上到 .pano-hint/.pano-reticle 之前还有很大一段没被
+   任何元素占用，不会跟缩略条(.photo-rail,bottom:44rpx起)或提示文案重叠。 */
+.upload-status-bar {
+  position: absolute;
+  z-index: 13;
+  left: 32rpx;
+  right: 32rpx;
+  bottom: 376rpx;
+  padding: 16rpx 24rpx;
+  border-radius: var(--u-r-pill);
+  background: rgba(62, 36, 48, 0.72);
+  color: #fff;
+  font-size: 22rpx;
+  text-align: center;
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}

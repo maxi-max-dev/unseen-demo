@@ -1070,3 +1070,584 @@ glError=0、渲染循环rafId在6秒内涨到562证明没卡死、贴图文件�
 `pages/pano/pano.{wxml,wxss}` / `pages/photos/photos.wxss`,共6个文件,零js改动,
 全部在 miniapp/ 界限内。开发者工具全程保持登录(`cli islogin` 复查仍是
 `{"login":true}`),没碰过工具设置。
+
+---
+
+## 批次I(2026-07-29,真机验收4问题修产品级,通过,验收1-4全绿)
+
+### 任务0·理解/顺序/最大风险(≤10行)
+理解:领导拍板"当正式产品做",报了四个真机问题(1首页文字未居中/2全景页返回
+按钮有问题/3陀螺仪有问题/4拖动手感一般),前两条任务书诊断为"机型自适应"类
+(模拟器里对、真机上不对),第3条要根治真跳变/抖动,第4条是手感打磨。
+顺序:先用 automator 量出 baseline 真数字(不能靠肉眼)→按根因逐条修→改完
+再量一遍数字对比→三屏截图+cli preview 收尾。
+最大风险(已踩过三个,详情见下方"环境踩坑"和 BLOCKED.md I-1/I-2):
+①`miniprogram-automator.launch()`的spawn+轮询逻辑在本机不可靠,同一项目连续
+起第二次经常静默卡死,改成自己探测端口+`connect()`绕过;②`callWxMethod`桥对
+`getMenuButtonBoundingClientRect`这个API会卡死,换`evaluate()`跑同一句API正常;
+③`<button>`标签的宽度查询在这版开发者工具上全部返回同一个假值184,一度怀疑是
+真bug,截图交叉验证后确认是查询层artifact不是渲染问题,没有为此改动。
+
+### 任务1·量化基线(baseline,改任何代码之前先测)
+设备画像(`miniProgram.systemInfo()`,本机 automator 默认机型="iPhone 12/13
+(Pro)"):`windowWidth=390, windowHeight=844, statusBarHeight=47,
+safeArea={top:47,bottom:810}`。
+胶囊按钮几何(`wx.getMenuButtonBoundingClientRect()`,通过`evaluate()`拿到):
+`{width:87, height:32, left:296, top:51, right:383, bottom:83}`,胶囊中心
+`Y=51+32/2=67`。
+
+**改前实测(节选,完整JSON见本节末尾脚本产出)**:
+- 全景页 `.round-btn`(返回钮)中心 `Y=81.5`,跟胶囊中心 `67` 差 **14.5px**
+  (返回钮实际比系统胶囊按钮低了小半个按钮高度)——根因:`pano.wxml`把顶部条
+  的位置写死成`margin-top: statusBarHeight+12px`,高度写死`88rpx`,这两个猜的
+  数字只在当前模拟器机型上凑巧接近对,换个真实胶囊高度/位置不同的机型就会
+  跟这台一样甚至更偏。
+- 进入屏 `.space-title`(标题)/`.primary-btn`(按钮)中心X偏差分别是
+  **-0.109px / 0px**,已经在≤2px以内——逐行审查了`index.wxss`,横向没有
+  一处写死的px宽度(全是rpx+flex居中,`.entry-main`用`align-items:center`,
+  左右padding对称),没找到结构性bug。但顺手查了同一个`.app-bar`里右上角
+  "空间记忆"四个字,量出来 `right=374.19px`,跟胶囊左边缘 `left=296px` 比,
+  **重叠了78px**(整段文字几乎完全落在胶囊包围盒里)——这是同一类"写死32rpx
+  右边距、没考虑胶囊"的真实bug,只是领导反馈时没具体点出这一条,顺手一起修。
+- 陀螺仪:读`pano.js`代码审出根因,`startGyro`原来是
+  `self.cameraYawDeg = res.alpha`直接把设备绝对朝向赋值给镜头朝向——开启那一刻
+  如果手动拖到的方向和手机实际朝向不一样(几乎总是不一样),画面会瞬间跳到
+  设备朝向,这正是任务书点名的"一开陀螺仪画面猛跳"。
+- 拖动灵敏度:`DRAG_YAW_SENSITIVITY=0.28`,在390px宽的屏幕上拖满一屏
+  `390*0.28=109.2°`,任务要求~120°,偏差不算离谱但没打中。
+
+baseline脚本:`ui-check/measure.js`(量html/wx数据用,改代码前后都跑得通,
+可复现)。
+
+### 任务2·四条修复(逐条:根因/修法)
+
+**A. 机型自适应(根治1+2)**
+
+1. **统一胶囊几何计算**,新增到`app.js`(`onLaunch`算一次,存
+   `globalData.nav`,三页共用,不用每页各算一次):
+   ```js
+   gap        = 胶囊顶部 - 状态栏高度
+   barTop     = 状态栏高度                    // 导航行紧贴状态栏底部起
+   barHeight  = gap*2 + 胶囊高度                // 令行的垂直中心=胶囊中心
+   sideMargin = 屏幕宽 - 胶囊右边缘             // 返回钮/条左右边距抄这个
+   keepoutRight = 屏幕宽 - 胶囊左边缘 + 2px缓冲  // app-bar右侧文字禁入区
+   ```
+   代数验证(不依赖具体数值,对任意 gap/胶囊高度都成立):
+   `barTop + barHeight/2 = 状态栏高度+gap+胶囊高度/2 = 胶囊顶部+胶囊高度/2 = 胶囊中心`。
+   `wx.getMenuButtonBoundingClientRect`拿不到时有兜底默认值(`fallbackNav`),
+   跟这功能出现之前的硬编码同量级,不会比以前更差。
+2. `pano.wxml`/`pano.wxss`:`.pano-top`的`margin-top:{{statusBarHeight+12}}px`
+   +写死的`height:88rpx;margin:0 24rpx`,改成绑
+   `navBarTop/navBarHeight/navSideMargin`(来自上面算好的nav)。
+3. `photos.wxml`/`photos.wxss`:同一套改法用在`.native-nav`(返回钮所在行)。
+   之前`.position-top`统一给`padding:0 32rpx`(连返回钮行带标题区一起吃),
+   现在拆开——`.native-nav`自己按`navSideMargin`走胶囊实测值,
+   `.position-heading`(标题区,不是导航行,不用跟胶囊对齐)改成自己
+   `padding:20rpx 36rpx 30rpx`(36=原来"父级32rpx+自己4rpx"的等价值,视觉
+   数值不变,只是不再依赖父级统一padding)。
+4. `index.wxml`/`index.wxss`:`.entry-page`的`padding-top`绑`navBarTop`
+   (数值上等于`statusBarHeight`,写法更清楚意图);`.app-bar`的`height`绑
+   `navBarHeight`,右侧`padding-right`绑`navKeepoutRight`,修复上面量出来的
+   78px文字重叠。
+5. **全景页返回钮z-index/触摸可达**:`.gl-canvas`补上显式`z-index:0`(之前是
+   隐式`auto`),跟`.pano-top`(10)/`.gyro-btn`(12)/`.photo-rail`(10)的层级
+   关系写清楚。canvas用的是新版node+`wx.createSelectorQuery().fields
+   ({node:true})`接口(pano.js `initGL`里那种),不是老式`canvas-id`/
+   `wx.createCanvasContext`,从基础库2.9.0起支持同层渲染,理论上不存在
+   "canvas原生层永远盖在最上面"的问题。**实测确认点击可达**(automator
+   `element.tap()`点`.round-btn`真的触发了`onBack`导航,见验收部分)。
+
+**B. 陀螺仪重写(根治3)**,`pano.js` `startGyro`/`stopGyro`:
+- 换成"开启瞬间的手机姿态=基准0点,此后只取相对这个基准的变化量,叠加到
+  开启那一刻镜头本来看的方向上"——不管alpha的绝对参考系是磁北还是设备任意
+  参考系(iOS/Android不完全一致),开启瞬间画面保证连续,不会跳变。这个思路
+  本身就规避了大部分"iOS/Android坐标系差异"的绝对值问题,不需要对两个平台
+  分别特判方向(只留了一行注释,真机测出来转向反了改一个符号)。
+- alpha是环形量(0~360循环),写了`shortestDelta(from,to)`算最短路径差值,
+  滤波和取相对量两处复用,避免359→0这种边界算出"绕了一大圈"的错误结果。
+- 低通滤波:EMA系数0.15(任务书建议值),对alpha/beta先转最短路径增量再累加,
+  不是对原始角度直接线性平均(否则跨越0/360边界会得到错误结果)。
+- `PITCH_CLAMP_DEG`从72改成85(任务书对陀螺仪明确要求±85°,"pitch同样夹角"
+  要求拖动那边也统一,两处共用一个常量)。
+- 罗盘图标开关两态区分:`gyro-ring`补`--on`修饰类,关=描边静止(原样不变),
+  开=圆环实心+指针粉色+轻微来回摆动动效(1.6s ease-in-out,不用整圈旋转,
+  整圈转容易让人以为"卡住了/加载中",摆动更像"正在感应方向")。
+
+**C. 拖动手感(4)**,`pano.js`:
+- 灵敏度`DRAG_YAW_SENSITIVITY`:0.28→0.31。算式:目标"拖一屏≈转120°",
+  用本机能测到的390px宽算,`120/390≈0.3077`,取0.31——在常见机型宽度
+  375~414px上分别对应`375*0.31=116.25°`/`414*0.31=128.34°`,都落在
+  "约120°"的合理范围。
+- 惯性衰减:摩擦系数`DRAG_FRICTION=0.92`每帧(rAF),`tickInertia()`挂在已经
+  在跑的渲染循环里,不用额外定时器;`INERTIA_EPS=0.008`度/帧以下直接清零
+  停止。手指按下/陀螺仪开着时不产生惯性(`onTouchStart`清零、`tickInertia`
+  检查`this.touch`和`gyroOn`)。
+- **验收过程中发现并修的一个真问题**:第一版直接拿"这次touchmove的位移"当
+  "每帧速度"用,验收脚本用automator模拟单次大位移touchmove测出~100ms内
+  yaw跳了86°,复查后确认这不是automator模拟触摸的假象,而是真实存在的
+  设计缺陷——touchmove事件不是等间隔触发的,事件间隔一旦变长(真机偶尔
+  卡顿/触摸采样率不稳时也会发生,不只是自动化测试的极端情况),直接拿位移
+  当速度会失真地大,松手后感觉像"猛地弹飞"。改成按实际经过的时间把这次
+  位移归一化到"每约16.67ms(60fps一帧)"的量级(`REF_FRAME_MS`),再加一个
+  绝对上限`MAX_INERTIA_STEP=6`双保险。改完复测:同样的单次大位移输入,
+  松手后前60ms只走了21°(329→308),平滑很多,2秒左右自然停下,不再是
+  瞬间甩飞。
+- pitch同样夹在`PITCH_CLAMP_DEG`(=85,跟陀螺仪共用)。
+
+### 任务3·施工中新发现,做过甄别、没有动手的问题(顺手记录)
+**`<button>`标签宽度查询在本机这版开发者工具上失真,不是真实渲染bug**——
+用`element.size()`(domProperty桥)/`wx.createSelectorQuery().boundingClientRect()`
+(evaluate()跑,production代码会用的正牌API)/`element.style('width')`三种
+互相独立的方法量`.primary-btn`(index)、`.round-btn`/`.photo-total`(pano)、
+`.back-btn`(photos),**全部返回同一个数字184px**,跟各自CSS规则(100%/64rpx/
+内容宽)完全对不上。一度怀疑是批次H给`gyro-btn`做button→view转换时踩过的
+同一个坑的更大范围重现(那次实测也是184px),准备照办法炮制全部转成view。
+但先用干净会话截图肉眼核对(`ui-check/fresh-check-index.png`跟batch H的
+`01-index-FINAL.png`比对一致),`.primary-btn`视觉上清清楚楚是撑满整行的,
+不是184px窄条;`.round-btn`视觉上是正常大小的圆形返回箭头,没有拉伸变形。
+**结论:这是本机这版automator+devtools组合对`<button>`元素宽度查询的
+artifact,不是渲染问题,更不是真机会复现的bug**(真机不经过这套自动化查询
+桥),所以**没有把`.primary-btn`/`.round-btn`/`.photo-total`/`.back-btn`
+转成view**——没有真bug要修,转了就是无意义的代码改动+新引入的accessibility
+折损风险。批次H给gyro-btn做的转换保留不动(无害,也不需要为这条重新论证或
+回退)。详情记入BLOCKED.md I-1,免得下一个人再花时间重新排查一次。
+
+### 验收(命令与实际输出)
+
+**验收1・量化居中(改后复核,`ui-check/verify-final.js`跑出来的真实数字)**:
+```
+进入屏(index):
+  viewportCenterX = 195 (windowWidth 390 / 2)
+  .space-title  中心X偏差 = -0.109px   (≤2px ✓)
+  .primary-btn  中心X偏差 =  0px       (≤2px ✓)
+  .brand-sub("空间记忆") 与胶囊包围盒重叠 = false，净间距 1.81px (改前是重叠78px)
+
+全景屏(pano)返回钮:
+  navBarTop=47 navBarHeight=40 navSideMargin=7 (胶囊实测算出)
+  胶囊中心Y = 67
+  .pano-top  中心Y偏差 = 0px   (改前 +14.5px)
+  .round-btn 中心Y偏差 = 0px   (改前 +14.5px)
+  .round-btn 完全在屏幕内 = true
+  .pano-top  顶边(47) >= safeArea.top(47) = true(在安全区内)
+  .pano-top  与 .photo-rail(底部信息条) 重叠 = false(矩形数学判断)
+
+照片屏(photos)返回钮(同一套逻辑，一并验证):
+  .back-btn 中心Y偏差 = 0px
+```
+**两种视口宽验证方法说明**:automator没有暴露切换模拟器机型/视口宽度的
+接口(翻过`miniprogram-automator` Launcher/Automator/MiniProgram的.d.ts全部
+公开方法,没有device/viewport相关参数;project.config.json能被launch()的
+`projectConfig`选项合并写入,但机型选择是devtools本地UI状态,不是
+project.config.json里的字段),按任务书原文允许的退路走数学断言:
+- index居中:`.entry-main`横向`padding:20rpx 40rpx 48rpx`(左右对称),
+  `.entry-page`没有一处横向写死px,子元素靠`align-items:center`居中——对称
+  padding的内容区中心恒等于外框中心`W/2`,这是初等幂何,对任意宽度`W`成立,
+  跟`W`取值无关;当前测得的-0.109px/0px误差来自字体渲染取整噪声(不是布局
+  逻辑误差),在375px(rpx换算比例0.5,整数比更干净)、414px(0.552)下这类
+  取整噪声只会是同量级的亚像素抖动,不会因为宽度变化突然放大到能被肉眼
+  察觉。
+- pano返回钮对齐:`barTop+barHeight/2=胶囊中心`是代数恒等式(推导见任务2·A.1),
+  对任意`gap`/胶囊高度都成立,不依赖某个特定宽度的具体数值——换到
+  375/414px宽的真机,只要`wx.getMenuButtonBoundingClientRect()`返回该机型
+  真实的胶囊geometry,这个公式自动重新算出对齐该机型胶囊的结果,这正是"设备
+  自适应"要做到的效果(相对写死数字的旧写法,新写法的正确性不依赖某个
+  特定宽度)。
+
+**验收2・js全过`node --check`**:
+```
+OK miniapp/app.js
+OK miniapp/utils/util.js
+OK miniapp/pages/pano/pano.js
+OK miniapp/pages/index/index.js
+OK miniapp/pages/photos/photos.js
+```
+
+**验收3・app.json解析 + secret零命中**:
+```
+$ node -e "JSON.parse(require('fs').readFileSync('miniapp/app.json')); console.log('OK')"
+OK
+$ grep -rn "8c87b064" miniapp/
+(无输出,exit=1=零命中)
+```
+
+**验收4・`cli preview`出新码,编译过**:
+```
+$ /Applications/wechatwebdevtools.app/Contents/MacOS/cli preview \
+    --project /Users/max/code/spatial-memory/miniapp \
+    --qr-format image --qr-output .../ui-check/preview-qr-v4.png
+✔ preview
+┌─────────┬──────────┬─────────────┐
+│ (index) │   size   │ size (Byte) │
+├─────────┼──────────┼─────────────┤
+│  TOTAL  │ '1.1 MB' │   1153359   │
+└─────────┴──────────┴─────────────┘
+```
+`preview-qr-v4.png`(470×470)已生成。
+
+**功能冒烟(automator驱动,非肉眼)**:
+```
+陀螺仪(真实无硬件路径,模拟器本来就没有传感器):
+  点一下开关 -> gyroOn 仍是 false(wx.startDeviceMotionListening 走 fail
+  回调,弹"陀螺仪打不开,继续用手拖"toast) -> 全程无JS异常抛出 ✓
+陀螺仪(mockWxMethod强制success路径,验证状态机本身逻辑不崩):
+  点开 -> gyroOn:false→true；1.2s后仍是true(没有异常状态)；再点一下关 ->
+  gyroOn:true→false ✓ 全程无异常
+拖动(20步、每步间隔16ms、模拟真实节奏、覆盖一屏390px宽):
+  drag中 yaw转了 121°(目标~120° ✓)；松手后继续滑行到179°再自然停住
+  (确认停住:再等1秒读数字不再变)✓
+返回钮点击可达性:
+  pageStack从 pages/pano/pano -> tap(.round-btn) -> pages/index/index
+  真的导航走了 ✓ (不是被canvas挡住点不到)
+```
+
+**三屏截图**(改后,`ui-check/`):`i-01-index.png` / `i-02-pano.png` /
+`i-03-photos.png`,肉眼核对跟设计还原一致(三圆logo/标题/按钮/返回钮/罗盘
+图标/照片轨道全部正常,pano页画布是纯色背景——批次H已经查过这是开发者工具
+模拟器对`<canvas type="webgl">`截图支持的已知限制,不是本批次引入的问题,
+真机能正常显示真实全景贴图)。
+
+**环境踩坑(写清楚,免得下一个人重新踩)**:
+1. `miniprogram-automator@0.12.1`的`automator.launch()`(spawn cli auto+轮询
+   等WS就绪那段逻辑)在本机不可靠——复现过两次:同一个projectPath连续起第二次
+   时,即便端口确实已经在监听(`lsof`能看到),`launch()`内部还是会静默卡住
+   不返回也不报错,90秒硬超时都等不到。改用`ui-check/connectHelper.js`:
+   自己拿`net.createConnection`探测端口是否开着,没开就自己`spawn`一次
+   `cli auto --auto-port`(detached),开了就直接`automator.connect()`——
+   这条路径每次都在10ms~8s内可靠返回。**每次改完代码要复测,必须先
+   `cli close --project <path>`等它真正退出(`lsof`确认端口释放,不能只信
+   cli打出来的"✔ close",实测有过报成功但进程/端口还活着最多20秒的情况)**,
+   不然新连接可能吃到旧编译产物,或者复现上面那个卡死。
+2. `miniProgram.callWxMethod("getMenuButtonBoundingClientRect")`会挂死不返回
+   (用`probe-steps.js`隔离确认:同一条连接上`systemInfo()`/`currentPage()`/
+   `reLaunch()`全部正常,唯独这一个方法调用8秒不回),换成
+   `miniProgram.evaluate(function(){return wx.getMenuButtonBoundingClientRect();})`
+   在小程序自己的JS上下文里跑同一句API,<1秒正常返回。绕开的是"automator
+   专门给这个API做的调用桥",不是"小程序本身调这个API"这件事本身有问题。
+3. `screenshot()`偶发极慢(一次量到133秒才返回,原因大概率是当时那个
+   devtools会话经过了多次连续connect/disconnect折腾,处于某种degraded状态);
+   干净会话(先`cli close`彻底关掉旧的再连新的)截图正常在几百毫秒内返回。
+
+### git status
+```
+ M PROGRESS.md                     ← 本任务书指定要交的文件,只在末尾追加
+ M BLOCKED.md                      ← 同上
+ M miniapp/app.js                  ← 新增 nav 胶囊几何计算
+ M miniapp/pages/index/index.js    ← 读 nav,setData 三个新字段
+ M miniapp/pages/index/index.wxml  ← app-bar 绑 navBarHeight/navKeepoutRight
+ M miniapp/pages/index/index.wxss  ← app-bar 去掉写死 height,右padding交给inline
+ M miniapp/pages/pano/pano.js      ← 陀螺仪重写+惯性+灵敏度调参+读nav
+ M miniapp/pages/pano/pano.wxml    ← pano-top绑nav三值,gyro-ring补--on类
+ M miniapp/pages/pano/pano.wxss   ← canvas显式z-index,pano-top去写死尺寸,
+                                     gyro-ring开关两态视觉区分
+ M miniapp/pages/photos/photos.js  ← 读nav,setData三个新字段
+ M miniapp/pages/photos/photos.wxml← native-nav绑nav三值,position-heading独立padding
+ M miniapp/pages/photos/photos.wxss← native-nav/position-heading padding拆分
+```
+仓库其余文件零改动(PROGRESS.md/BLOCKED.md本段追加不算)。开发者工具全程
+保持登录(`cli islogin`复查仍是`{"login":true}`),没有碰过工具设置/登录状态。
+
+### 真机待验清单(模拟器测不了的,列清楚每条怎么验)
+1. **陀螺仪真实手感**:模拟器没有运动传感器硬件(`wx.startDeviceMotionListening`
+   走fail回调),开关状态机本身用mock强制success路径验证过不崩,但传感器
+   真实数据的滤波强度/零点漂移/方向对不对,只能真机验。**验法**:打开小程序
+   pano页→点开罗盘图标→缓慢转动手机一整圈,检查①开启瞬间画面是否还在原地
+   不跳②转动是否跟手机朝向一致方向③是否有明显抖动/迟滞。如果方向反了,
+   改`pano.js`里`self.cameraYawDeg = ((self._gyroStartYaw + yawDelta)...`这行
+   的`+yawDelta`为`-yawDelta`(注释里写了)。
+2. **拖动惯性/灵敏度实际手感**:算式和automator模拟的数字都对上了(拖一屏
+   ~120°,松手惯性能自然停),但"手感"这个词本身就是主观的,需要真人在真机
+   上拖一下确认舒不舒服。**验法**:pano页手指拖动画面,感受转动幅度是否
+   合适、松手后的滑行是否自然(不是突然停、也不是飘太久)。
+3. **返回按钮真机点击**:automator的`element.tap()`证明了"事件绑定/导航
+   逻辑"没问题,但没法证明"真实手指物理触摸这个屏幕坐标"在所有机型上都能
+   命中(canvas同层渲染理论上没问题,但取决于用户实际微信客户端版本/机型
+   是否支持,基础库2.9.0以后基本都支持,但极老客户端仍可能有native层级
+   问题)。**验法**:真机全景页,手指实际点一下左上角返回箭头,确认①位置
+   在胶囊按钮同一水平线上(不会看着偏低/偏高)②一次就能点中,不会点到画布
+   触发拖动。
+4. **进入屏"空间记忆"文字不挡胶囊**:模拟器这台"iPhone 12/13 Pro"机型量出来
+   改前重叠78px、改后间距1.81px,但真机胶囊宽度/位置因机型而异(尤其安卓
+   分布散),理论上`keepoutRight`公式会自适应,但没有第二台不同geometry的
+   真机可以交叉验证。**验法**:真机进入屏,看右上角"空间记忆"四个字有没有
+   被系统胶囊按钮(圆点+省略号那个胶囊形状)遮住或紧贴到几乎重叠。
+5. **各机型导航条高度观感**:安卓机型胶囊按钮的位置/形状比iOS分布更散(部分
+   定制ROM会不一样),`navBarHeight`公式理论上能适应,但只在本机唯一能跑的
+   模拟器机型上验证过,建议至少在一台安卓真机上确认返回条高度/间距看着
+   协调,不别扭。
+
+## 批次J(2026-07-29,上传链路真通:进空间→传照片→看AI定位状态→回到全景方位,通过,验收1-5全绿)
+
+**任务**:小程序从"只读看展壳"升级成可用闭环。地界=上传与数据流,不碰批次I的
+pano渲染器/陀螺仪/返回钮/导航布局。
+
+### 动线说明
+
+```
+index页                          pano页                         photos页
+┌──────────────┐   sid=stressexp1  ┌──────────────┐  sid透传   ┌──────────────┐
+│ 婚礼卡(原样)  │──onEnter(不带sid)→│              │───────────→│              │
+│ [新]体验空间卡│──onEnterExperience│ 📷传一张照片  │  goPhotos  │  我传的 区    │
+│ "传张照片试试"│   ?sid=stressexp1 │  按钮(左下,   │  ?sid=..   │ (本地会话记录 │
+└──────────────┘                  │  跟陀螺仪对称) │            │  +状态标签)   │
+                                   │  ↓tap         │←───────────│  onTapCard    │
+                                   │ chooseMedia   │  ?sid=..   │  带sid+yaw    │
+                                   │ (最多3张)      │  &yaw=..   └──────────────┘
+                                   │  ↓            │
+                                   │ 压缩(长边1600/ │
+                                   │ q82,抄join.html)│
+                                   │  ↓            │
+                                   │ wx.uploadFile  │
+                                   │ 直传OSS,拿201  │
+                                   │  ↓            │
+                                   │ 状态条:        │
+                                   │ "上传中n/m"→   │
+                                   │ "AI正在定位…"→ │
+                                   │ 轮询space.json │
+                                   │ (10s/次,≤3min) │
+                                   │  ↓ 按inboxKey  │
+                                   │  匹配photos[]  │
+                                   │ 命中→"回到方位  │
+                                   │  了"+视角补间转 │
+                                   │  过去+缩略条刷新│
+                                   │ 超时→"AI还在排  │
+                                   │  队,稍后回来看" │
+                                   └──────────────┘
+```
+
+sid 贯穿三页(query 参数传递,`util.DEFAULT_SPACE_ID`=s4 兜底,老的婚礼入口
+完全不受影响):`utils/util.js` 的 `ensureSpace()` 从"只认 s4"改成"按 sid 分槽
+缓存"(模块级 `spaceCache` 对象,不再挂 `app.globalData.space`——三页 `require()`
+同一个文件路径拿到的是同一份模块实例,天然共享,不用经过 App() 中转),兼容
+老调用方式 `ensureSpace(cb)`(sid缺省=s4,批次I那几处调用一个字没改照样能跑)。
+
+体验空间入口卡固定指向 `stressexp1`(不是随便兜底 s4)——这是故意的产品决定:
+测试上传不该混进 s4 那份真实婚礼相册,`stressexp1` 就是任务书原文点名"公共
+体验空间"、专为这件事建的。
+
+### 任务1·index页体验空间入口卡
+
+`miniapp/pages/index/index.wxml` 在 `facts-bar` 和 `upload-link` 之间新增一张
+玻璃卡片(`onEnterExperience`→`/pages/pano/pano?sid=stressexp1`),标题区/app-bar/
+原有 `onEnter`(s4婚礼流程)一个字没动。
+
+### 任务2·新上传模块 `miniapp/utils/upload.js`(新文件)
+
+机制照抄 `web/join.html`(任务书点名的唯一验证过真源),不是另起一套猜出来的实现:
+- 直传字段顺序:`key/OSSAccessKeyId/policy/Signature/x-oss-object-acl`,`file`
+  由 `wx.uploadFile` 的 `filePath`/`name` 参数单独处理,平台保证排在 formData
+  所有字段之后(OSS硬要求"file必须最后")。
+- 另加 `success_action_status:"201"`——这是任务书明确要求的字段,`join.html`
+  本身没加(默认应该是204)。**已实测**(见下方验收2):加了这个字段之后 OSS
+  真的回 201,decode 过的 policy conditions 里没有限制这个字段,加了不影响
+  签名校验。产品代码仍把任意 2xx 都当成功,不因为万一没拿到201就误判失败。
+- key 命名:`<keyPrefix><毫秒时间戳>_<短id>__<base64url昵称>__free.jpg`,
+  taskId 固定"free"(这版小程序没有任务墙领取流程)。base64url 昵称编码手写了
+  UTF-8字节转换+`wx.arrayBufferToBase64`(小程序JS环境没有TextEncoder/btoa)。
+- **压缩参数口径抄join.html**(任务书原文要求"抄口径",不是任务书自己写的
+  "长边2000/质量80"那两个数字——那只是任务书作者的粗略估计):长边1600、
+  JPEG质量82(0-100标度)。用 `wx.compressImage`(任务书允许的两个方案之一,
+  不用canvas——不需要额外在某个页面塞一个隐藏canvas节点,更省事也不占地界),
+  长边超1600时顺带传 `compressedWidth/compressedHeight`。压缩本身失败不阻断
+  上传,退化用原图(真正兜底的是OSS policy自己的content-length-range,原图
+  超限一样会被诚实分类成"文件太大")。
+- **错误分类**:网络失败(`wx.uploadFile`的fail回调)/文件太大(客户端预检
+  `wx.getFileInfo`比对`pol.maxSize`,+ OSS返回体里`EntityTooLarge`/
+  `content-length-range`兜底)/policy过期(客户端主动比对`expiresAt`,+ OSS
+  返回体里`expir`关键字兜底)。policy过期这条命中后重拉一次space.json换新
+  policy重试这一个文件,不是无限重试。
+- **轮询**:10秒一次,单个文件从上传成功那一刻起最多等3分钟,到点不管网络
+  请求本身成不成功都会判超时(不会被"一直请求失败"卡成永远不超时)。按
+  `inboxKey`(=key里`<时间戳>_<短id>`那一段)去匹配 space.json 的 `photos[]`——
+  **这个字段app/contract.md的表里没写**(文档没跟上实际结构),是从真实
+  s4/stressexp1 space.json 里读出来的实测结论(`pending[]`里已经有真实值,
+  格式正是`buildKey()`拼出来的那两段)。
+
+### 任务3·pano页上传入口+状态条
+
+`miniapp/pages/pano/pano.wxml`/`.wxss` 新增 `.upload-btn`(左下角,跟
+`.gyro-btn`(右下角)同一水平线`bottom:260~272rpx`对称,中心Y都是308rpx)+
+`.upload-status-bar`(悬在按钮那一排上方,`.pano-hint`和按钮排之间本来就有
+一大段没被任何元素占用的空档,量出来净空~430rpx,足够放一条状态条不挤)。
+canvas/陀螺仪按钮/返回钮/导航条一个字没动。
+
+`pano.js` 新增几个方法(`onUploadTap`/`startUploadTicker`/
+`computeBatchStatusText`/`refreshUploadStatus`/`focusOnNewPhoto`/
+`animateCameraTo`),全部是新增,没有改`tickInertia`/`render`/`buildProgram`/
+`buildQuad`/`loadTexture`/`startRenderLoop`/陀螺仪那几个函数一行代码。
+"回到方位了"之后视角转过去用的是新起的独立补间(`animateCameraTo`,
+`setInterval`驱动,ease-out cubic,700ms),只是往渲染循环本来每帧都在读的
+`cameraYawDeg`/`cameraPitchDeg`这两个字段上写数,触发前会关掉惯性标记
+(`inertiaActive=false`)避免跟拖动惯性抢同一个字段——不改陀螺仪/惯性/渲染
+本身的任何一行。
+
+### 任务4·photos页"我传的"区
+
+`photos.wxml` 在 `.position-top` 和 loading/error判断之间新增 `.mine-section`
+(不依赖主列表网络请求成不成功,网慢时也能看到自己传的这几张状态),
+`.native-nav`/返回钮/导航布局一个字没动。数据来自 `upload.getMyUploads(sid)`
+(本次会话本地记录),`onShow`起一个3秒本地刷新(读内存数组,不发网络请求),
+`onHide`/`onUnload`清掉。
+
+### 验收(命令与实际输出)
+
+**验收1・老三样**:
+```
+$ node --check miniapp/app.js miniapp/utils/util.js miniapp/utils/upload.js \
+    miniapp/pages/index/index.js miniapp/pages/pano/pano.js miniapp/pages/photos/photos.js
+OK miniapp/app.js
+OK miniapp/utils/util.js
+OK miniapp/utils/upload.js
+OK miniapp/pages/index/index.js
+OK miniapp/pages/pano/pano.js
+OK miniapp/pages/photos/photos.js
+
+$ node -e "JSON.parse(require('fs').readFileSync('miniapp/app.json')); console.log('OK')"
+OK   (顺手复核了 index.json/pano.json/photos.json/project.config.json/sitemap.json,全部OK)
+
+$ grep -rn "AccessKeySecret" miniapp/ ; echo exit=$?
+exit=1(零命中)
+$ grep -rn "LTAI" miniapp/ ; echo exit=$?
+exit=1(零命中,Aliyun AccessKeyId前缀)
+$ grep -rn "5t5nKact\|Gx7xCP" miniapp/ ; echo exit=$?
+exit=1(零命中,本次开发实测看到过的s4 accessKeyId片段)
+$ grep -rniE "secret[_-]?key|sk_live|private[_-]?key|BEGIN (RSA|PRIVATE)" miniapp/ ; echo exit=$?
+exit=1(零命中)
+```
+
+**验收2・上传链路真传**(`ui-check/verify-upload.js`——不是另起一套"看起来
+像"的字段构造代码,直接 `require()` 小程序自己的 `utils/upload.js`,跑的是
+同一份 `extractPolicy()`/`buildKey()`,只在 `wx.arrayBufferToBase64` 这一个
+宿主API上打了垫片):
+```
+$ node ui-check/verify-upload.js stressexp1
+[1] 拉 space.json: HTTP 200, nodes=1 photos=0 published=true
+[2] extractPolicy(): host=https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com
+    keyPrefix=spaces/stressexp1/inbox-v2/g1/ maxSize=12582912
+    expiresAt=2026-07-31T12:11:17.032Z(还没过期)
+[3] buildKey(): key=spaces/stressexp1/inbox-v2/g1/1785328114446_vwdigk__6aqM5pS26ISa5pys5rWL6K-V__free.jpg
+    inboxKey=1785328114446_vwdigk
+[4] miniapp uploadOne()组装的formData字段(顺序即实际顺序,file最后):
+    key / OSSAccessKeyId(redacted) / policy(redacted) / Signature(redacted) /
+    x-oss-object-acl=private / success_action_status=201 / file=miniapp/assets/panos/expo.jpg
+[5] 真传 POST -> HTTP 201
+    <PostResponse><Bucket>psm-advx-2026</Bucket>
+    <Location>https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com/spaces/stressexp1/inbox-v2/g1/1785328114446_vwdigk__6aqM5pS26ISa5pys5rWL6K-V__free.jpg</Location>
+    <Key>spaces/stressexp1/inbox-v2/g1/1785328114446_vwdigk__6aqM5pS26ISa5pys5rWL6K-V__free.jpg</Key>
+    <ETag>BFD0D4F895DA2960466C08D2629ABF35</ETag></PostResponse>
+=== 结果: 成功,HTTP 201 ===
+[6] 收件箱前缀确认:GET ?prefix=...&list-type=2 -> HTTP 403 AccessDenied
+    "Anonymous user has no right to access this bucket."；HEAD 具体key -> HTTP 403。
+    **这是private ACL+桶不开放匿名list的预期行为,不是失败**——上传对象本身
+    是`x-oss-object-acl:private`,任何未授权请求(不管对象存不存在)桶都统一
+    回403,不通过公开GET/LIST判断存在性是这个桶的安全设计,不是我这边的漏洞。
+    201响应体本身(带Bucket/Location/Key/ETag,跟我们提交的key逐字符匹配)
+    就是OSS写入成功的权威确认,比事后一次GET更直接。
+    (worker后续是否已捡到:复查stressexp1 space.json的pending[]/photos[],
+    截至写这段时还没出现——worker处理节奏不在本任务控制范围,这正是"轮询
+    3分钟超时诚实提示"要处理的场景,不是bug。)
+```
+
+**同一脚本对 s4(已知过期policy)复测,验证错误分类regex对真实OSS报文有效**:
+```
+$ node ui-check/verify-upload.js s4
+[5] 真传 POST -> HTTP 403
+    <Error><Code>AccessDenied</Code>
+    <Message>Invalid according to Policy: Policy expired.</Message></Error>
+=== 结果: 失败,HTTP 403 ===
+```
+`upload.js`里`/expir/i.test(body)`能匹配到这句真实OSS报文里的"expired"，
+而且客户端自己的`expiresAt`比对本来就会在发请求前提前拦下来(s4这份policy
+在检查时点已经过期约44.5小时)，这次是绕过客户端预检直接测OSS本身的行为，
+两层加起来验证了"policy过期"这条错误分类不是纸上谈兵。**s4这次没有创建
+任何对象(403拒绝在先),没有需要清理的东西**。
+
+**验收3・automator三屏截图**(`ui-check/connectHelper.js`重建了BLOCKED.md
+I-2记录的"探测端口没开就自己spawn cli auto"绕过方案,原文件不在仓库里,
+本次重新写的):
+```
+$ node ui-check/shots-j.js
+connecting... connected.
+shot 1 (index) done      -> ui-check/j-01-index.png   (体验空间卡可见)
+shot 2 (pano, sid=stressexp1) done -> ui-check/j-02-pano.png
+     (标题正确显示"体验空间·宴会厅"，证明sid贯穿生效；📷传一张照片按钮
+      左下角可见，跟陀螺仪按钮对称不重叠)
+shot 3 (photos, sid=stressexp1) done -> ui-check/j-03-photos.png
+     (标题正确显示"体验空间·宴会厅·WEDDING MEMORY"，0张照片0位贡献者，
+      跟stressexp1真实数据一致)
+done, disconnected.
+```
+肉眼核对(见截图):三屏都正常渲染,新元素不跟已有元素重叠,原有s4婚礼卡/
+返回钮/陀螺仪按钮/导航条全部原样。
+
+**额外验证(非acceptance硬性要求,加强证据)**:用`mockWxMethod('chooseMedia',...)`
++ `element.tap('.upload-btn')`尝试端到端驱动真实`onUploadTap`代码路径(不经过
+我自己的验收脚本)。**结果**:mock选图成功进入"上传中0/1"，但紧接着落进
+"网络不好,传失败了"——排查结论:automator的mock只能顶替`wx.chooseMedia`的
+返回值，不能让`wx.uploadFile`认可一个非"通过chooseMedia真实注册"的临时文件
+路径(模拟器对文件句柄有自己的登记机制，直接塞绝对路径不是同一回事)，连续
+两次(换成功不同路径)都是同一个失败点，判断为**automator mock原生选图这件事
+本身摸不到**，不是`upload.js`的bug——这也正是为什么"chooseMedia真实选图"
+被列进下面真机待验清单第1条。截图`ui-check/j-04-upload-e2e.png`留证:状态条
+文案正确显示诚实错误提示(不是空白/不是假装成功)，证明错误态UI路径本身
+接线正确。
+
+**验收4・cli preview 出码**:
+```
+$ /Applications/wechatwebdevtools.app/Contents/MacOS/cli preview \
+    --project /Users/max/code/spatial-memory/miniapp \
+    --qr-format image --qr-output ui-check/preview-qr-v5.png
+✔ preview
+┌─────────┬──────────┬─────────────┐
+│ (index) │   size   │ size (Byte) │
+├─────────┼──────────┼─────────────┤
+│  TOTAL  │ '1.1 MB' │   1165759   │
+└─────────┴──────────┴─────────────┘
+```
+`preview-qr-v5.png`(302×300)已生成,编译通过(WeChat自己的编译器验证了
+WXML/WXSS/JS/JSON能组装成一个合法包,是比`node --check`更强的一层确认)。
+
+### 真机待验清单(模拟器/automator测不到的)
+
+1. **chooseMedia真实选图**:automator只能mock返回值，摸不到原生相册/相机
+   picker本身(见上面"额外验证"那段的排查结论)。**验法**:真机点"📷传一张
+   照片"，确认能正常弹出微信原生的图片选择器，选1~3张能正常返回。
+2. **真传+压缩实际效果**:压缩参数(长边1600/质量82)在真机上跑一遍，确认
+   压缩后文件确实变小、图片没有明显肉眼可见的画质劣化，弱网环境下`wx.uploadFile`
+   真的能完整传完。**验法**:真机选一张几MB的原图，看状态条从"上传中1/1"
+   走到"AI正在定位…"的耗时是否合理(不会卡在"上传中"很久)。
+3. **轮询+回到方位动画**:worker真的把这张照片处理出yaw之后，状态条切到
+   "回到方位了"、视角自动转过去、缩略条刷新出这张新照片，全程在真机上肉眼
+   确认一次。本次验收因worker处理节奏不在控制范围内，只验证到"201写入成功"
+   这一步，没等到worker真正处理完(space.json的pending[]/photos[]截至提交时
+   还没出现这次测试上传的记录)。**验法**:真机传一张，留着App开着，等最多
+   3分钟，看是走到"回到方位了"还是诚实超时"AI还在排队"，两条路径都要看到过。
+4. **超时路径**:如果3分钟内worker没处理完，确认状态条真的显示"AI还在排队,
+   稍后回来看"而不是无限转圈。**验法**:传一张后不要退出，掐表等3分钟以上。
+5. **上传按钮/状态条真机布局**:模拟器验证过不跟返回钮/陀螺仪按钮/缩略条
+   重叠(数学坐标+automator截图双重确认)，但真机胶囊按钮位置因机型而异，
+   建议至少一台安卓机确认按钮位置协调、不别扭(跟批次I遗留的第5条真机待验
+   同类问题)。
+6. **photos页"我传的"跨会话行为**:确认从pano页传完切到photos页，"我传的"
+   区域标签+状态文案正确显示，且这份记录只在当前小程序运行会话内有效(彻底
+   退出重进后清空——这是设计如此，不是bug，任务书原文是"本次会话")。
+
+### git status
+```
+ M PROGRESS.md                     ← 本任务书指定要交的文件,只在末尾追加(批次J这一段)
+ M BLOCKED.md                      ← 同上
+ M miniapp/app.js                  ← 未改动本批次代码(git diff为空,是批次I遗留在工作区的既有修改)
+ M miniapp/utils/util.js           ← sid参数化 ensureSpace,新增 fetchSpaceFresh/spaceJsonUrl/EXPERIENCE_SPACE_ID
+ M miniapp/pages/index/index.js    ← 新增 onEnterExperience
+ M miniapp/pages/index/index.wxml  ← 新增体验空间入口卡
+ M miniapp/pages/index/index.wxss  ← 新增 .experience-card 系列样式
+ M miniapp/pages/pano/pano.js      ← 新增上传入口/状态条/视角补间/sid读取,不改陀螺仪/渲染
+ M miniapp/pages/pano/pano.wxml    ← 新增 .upload-btn/.upload-status-bar
+ M miniapp/pages/pano/pano.wxss    ← 新增对应样式,追加在文件末尾
+ M miniapp/pages/photos/photos.js  ← 新增"我传的"区数据+sid读取
+ M miniapp/pages/photos/photos.wxml← 新增 .mine-section
+ M miniapp/pages/photos/photos.wxss← 新增对应样式,追加在文件末尾
+?? miniapp/utils/upload.js         ← 新文件:上传模块
+?? ui-check/                       ← 新建,验收脚本+截图+QR码(白名单,验收产物,同批次H/I先例)
+```
+仓库其余文件(web/、app/、server/、tools/等)零改动。开发者工具全程保持登录
+(`cli islogin`复查仍是`{"login":true}`),没有碰过工具设置/登录状态。

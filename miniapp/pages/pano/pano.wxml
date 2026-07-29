@@ -16,7 +16,14 @@
     <text>全景加载不出来，可能是网络或素材路径问题。</text>
   </view>
 
-  <view class="pano-top" style="margin-top:{{statusBarHeight + 12}}px">
+  <!-- 批次I修:margin-top 原来写死 statusBarHeight+12(猜的一个px)，改成
+       navBarTop/navBarHeight/navSideMargin 三个从 wx.getMenuButtonBoundingClientRect()
+       实测算出来的值(算法见 app.js 顶部注释)，让这条条真正贴着胶囊按钮走，
+       不同机型胶囊位置不同也能自适应。 -->
+  <view
+    class="pano-top"
+    style="margin-top:{{navBarTop}}px;height:{{navBarHeight}}px;margin-left:{{navSideMargin}}px;margin-right:{{navSideMargin}}px"
+  >
     <button class="round-btn" bindtap="onBack" aria-label="返回">‹</button>
     <view class="pano-title">
       <text class="pano-title-main">{{spaceTitle}}</text>
@@ -31,8 +38,21 @@
   <!-- 批次H修:原来是 <button>,量出来 width 实测184px(期望~50px,height 却完全正常),
        换掉 display 也治不好;全站唯一"position:absolute 的原生 button",怀疑是这个
        组合触发的渲染异常。tap 行为在 view 上完全一样,改用 view+aria-role 绕开。 -->
-  <view class="gyro-btn {{gyroOn ? 'gyro-btn--on' : ''}}" bindtap="onToggleGyro" aria-role="button" aria-label="陀螺仪开关">
-    <view class="gyro-ring"></view>
+  <!-- 批次I修:补开/关两态的视觉区分——开=圆环实心+指针动效，关=描边静止
+       (见 pano.wxss .gyro-ring--on 注释)，任务要求"状态一眼可辨"。 -->
+  <view class="gyro-btn {{gyroOn ? 'gyro-btn--on' : ''}}" bindtap="onToggleGyro" aria-role="button" aria-label="陀螺仪开关，{{gyroOn ? '已开启' : '已关闭'}}">
+    <view class="gyro-ring {{gyroOn ? 'gyro-ring--on' : ''}}"></view>
+  </view>
+
+  <!-- 批次J新增:上传入口按钮，左下角，跟陀螺仪按钮(右下角)同一条水平线对称，
+       不碰返回钮(顶部)也不碰陀螺仪按钮(右侧)。只加这一个按钮+一条状态条，
+       画布/陀螺仪按钮/返回钮/导航条一个字没动。 -->
+  <view class="upload-btn" bindtap="onUploadTap" aria-role="button" aria-label="传一张照片">
+    <text class="upload-btn-t">📷 传一张照片</text>
+  </view>
+
+  <view class="upload-status-bar" wx:if="{{uploadBarVisible}}">
+    <text>{{uploadStatusText}}</text>
   </view>
 
   <view class="photo-rail" wx:if="{{photos.length}}">

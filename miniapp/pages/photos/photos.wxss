@@ -5,9 +5,10 @@
     linear-gradient(155deg, var(--u-bg-1), var(--u-bg-2) 54%, var(--u-bg-3));
 }
 
-.position-top { padding: 0 32rpx; }
+/* 批次I修:padding 挪给 native-nav(inline，来自胶囊几何) + position-heading
+   (静态，数值不变，见下方注释)各自负责，position-top 自己不再统一给横向内边距。 */
+.position-top { }
 .native-nav {
-  min-height: 84rpx;
   display: grid;
   grid-template-columns: 64rpx 1fr 64rpx;
   align-items: center;
@@ -25,7 +26,12 @@
 .nav-title { font-size: 28rpx; text-align: center; color: var(--u-ink); }
 .nav-spacer { width: 64rpx; }
 
-.position-heading { padding: 20rpx 4rpx 30rpx; }
+/* 批次I修:水平内边距从 4rpx 改成 36rpx——之前视觉上的实际间距=父级
+   position-top 的 32rpx padding + 这里自己的 4rpx=36rpx，现在 position-top
+   不再统一给横向 padding(那份 32rpx 挪给了 native-nav 走胶囊实测值)，
+   这里补成 36rpx 直接持平，标题区视觉间距跟批次H验收时完全一样，不是新的
+   设计决定。 */
+.position-heading { padding: 20rpx 36rpx 30rpx; }
 .eyebrow {
   display: block;
   margin: 0 0 14rpx;
@@ -154,3 +160,47 @@
   color: var(--u-ink-3);
   text-align: center;
 }
+
+/* 批次J新增:我传的照片区。只用 app.wxss 里已经声明过的 token，没有引用
+   miniapp 没搬过来的 --u-glass-soft/--u-wash-pink 之类的 web 端变量。 */
+.mine-section {
+  margin: 20rpx 32rpx 4rpx;
+  padding: 20rpx 20rpx 8rpx;
+  border: 1px dashed var(--u-line);
+  border-radius: var(--u-r-panel);
+  background: var(--u-glass);
+}
+.mine-head {
+  display: block;
+  margin-bottom: 12rpx;
+  font-size: 20rpx;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--u-ink-3);
+}
+.mine-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 10rpx 0 14rpx;
+}
+.mine-row + .mine-row { border-top: 1px solid var(--u-line); }
+.mine-thumb {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 12rpx;
+  background: var(--u-bg-3);
+  flex: none;
+}
+.mine-meta { min-width: 0; }
+.mine-tag {
+  display: inline-block;
+  font-size: 18rpx;
+  font-weight: 700;
+  color: var(--u-pink-hot);
+  background: rgba(255, 92, 138, 0.14);
+  border-radius: var(--u-r-pill);
+  padding: 2rpx 10rpx;
+  margin-right: 8rpx;
+}
+.mine-status { font-size: 21rpx; color: var(--u-ink-2); }

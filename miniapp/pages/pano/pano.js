@@ -21,6 +21,9 @@
 // u_yaw = radians(180 - Y)。这个换算是自反的（f(f(x))=x mod 360），所以
 // "相机朝向 -> 当前对应的契约 yaw"和"契约 yaw -> 该转到的相机朝向"用同一个函数。
 var util = require("../../utils/util.js");
+// 批次J新增:上传模块。只在"传一张照片"按钮的 tap 处理器和状态条刷新里用到，
+// 不碰渲染/陀螺仪那几块。
+var upload = require("../../utils/upload.js");
 
 var VERT_SRC = [
   "attribute vec2 a_pos;",
@@ -62,11 +65,40 @@ var FRAG_SRC = [
 var PANO_SRC = "/assets/panos/s4-n1.jpg";
 
 var FOV_DEG = 78;
-var DRAG_YAW_SENSITIVITY = 0.28; // 手感如果反了，把 onTouchMove 里这个系数前的减号换成加号即可
+// 批次I调参:原值0.28在本机模拟器(390px宽)算出来拖一屏只转102°，任务要求~120°。
+// 120/390≈0.3077，取0.31——在常见机型宽度375~414px上都落在116°~128°，是"约120°"
+// 的合理范围(算式和验证见 PROGRESS.md 批次I)。手感如果反了，把 onTouchMove 里
+// 这个系数前的减号换成加号即可。
+var DRAG_YAW_SENSITIVITY = 0.31;
 var DRAG_PITCH_SENSITIVITY = 0.22;
-var PITCH_CLAMP_DEG = 72;
+// 批次I:72→85，陀螺仪/拖动共用同一个夹角上限(任务书对陀螺仪明确要求±85°，
+// "pitch同样夹角"要求拖动一致，85°比72°更贴近抬头看/低头看的真实极限但仍留
+// 一点余量不会翻到镜头背面)。
+var PITCH_CLAMP_DEG = 85;
+// 批次I新增:松手惯性摩擦系数，每帧(rAF,约60fps)衰减到92%，约1~1.5秒内自然停下。
+var DRAG_FRICTION = 0.92;
+// 惯性速度低于这个阈值(度/帧)就直接清零停止，不然会有跑不完的极小数值计算。
+var INERTIA_EPS = 0.008;
+// 惯性初速度上限(度/帧)。touchmove 事件不是等间隔触发的(真机偶尔卡顿/触摸
+// 采样率不稳时，两次事件之间可能隔了不止一帧)，如果直接拿"这次事件的位移"
+// 当"每帧速度"用，事件间隔一旦变长，换算出来的单帧速度会失真地大，松手后
+// 感觉像"猛地弹飞"。用 REF_FRAME_MS 把速度归一化到"每约16.67ms(60fps一帧)"
+// 的量级，再用这个上限兜底，双保险防止任何异常输入(含本批次验收脚本用
+// automator 模拟的大位移单次touchmove)造成失控的甩动。
+var MAX_INERTIA_STEP = 6;
+var REF_FRAME_MS = 16.67;
+// 陀螺仪低通滤波系数，任务书建议值。
+var GYRO_LOWPASS = 0.15;
 
 function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+// 环形角度最短路径差值，结果落在(-180,180]。陀螺仪 alpha 是 0~360 循环量，
+// 直接相减在 359→0 这种边界会得到 -359 这种错误的"绕了一大圈"的差值，
+// 必须走这条最短路径换算，滤波和取相对量两处都要用。
+function shortestDelta(from, to) {
+  var d = ((to - from) % 360 + 540) % 360 - 180;
+  return d;
+}
 
 // 契约 yaw <-> 相机内部 yaw 的换算，自反函数，两个方向都调它。
 function dataYawToCameraYawDeg(yawDeg) {
@@ -77,6 +109,12 @@ function dataYawToCameraYawDeg(yawDeg) {
 Page({
   data: {
     statusBarHeight: 20,
+    // 批次I:导航条几何不再写死，读 app.globalData.nav(算法见 app.js 顶部注释)。
+    // 这三个默认值只在 onLoad 的 setData 落地前的极短一瞬生效，跟原来的兜底值
+    // 同一量级，不会闪烁。
+    navBarTop: 20,
+    navBarHeight: 44,
+    navSideMargin: 12,
     spaceTitle: "",
     spaceCouple: "",
     nodeName: "",
@@ -87,15 +125,31 @@ Page({
     currentYawDeg: 0,
     showHint: true,
     gyroOn: false,
-    loadError: false
+    loadError: false,
+    // 批次J新增:上传状态条。sid 决定这页读/传哪个空间(体验空间卡带
+    // ?sid=stressexp1 进来，老的婚礼入口不带 sid，兜底 s4，行为不变)。
+    sid: "s4",
+    uploadBarVisible: false,
+    uploadStatusText: ""
   },
 
   onLoad: function (query) {
     var app = getApp();
-    this.setData({ statusBarHeight: app.globalData.statusBarHeight || 20 });
+    var nav = app.globalData.nav || {};
+    this.setData({
+      statusBarHeight: app.globalData.statusBarHeight || 20,
+      navBarTop: nav.barTop != null ? nav.barTop : (app.globalData.statusBarHeight || 20),
+      navBarHeight: nav.barHeight != null ? nav.barHeight : 44,
+      navSideMargin: nav.sideMargin != null ? nav.sideMargin : 12
+    });
 
     this.cameraYawDeg = dataYawToCameraYawDeg(0); // 默认看向契约 yaw=0 的方向
     this.cameraPitchDeg = 0;
+    // 批次I:拖动惯性状态。yaw/pitchVelocity 是"每帧衰减前"的瞬时速度(度/帧)，
+    // inertiaActive 标记松手后是否还在自然减速滑行。
+    this.yawVelocity = 0;
+    this.pitchVelocity = 0;
+    this.inertiaActive = false;
     this.gl = null;
     this.program = null;
     this.attribs = {};
@@ -114,6 +168,11 @@ Page({
         this.cameraYawDeg = dataYawToCameraYawDeg(fy);
       }
     }
+
+    // 批次J新增:sid 贯穿三页。带 sid 就用它(体验空间卡传的是 stressexp1)，
+    // 没带就兜底 util.DEFAULT_SPACE_ID(=s4，老的婚礼入口不受影响)。
+    this.sid = (query && query.sid) || util.DEFAULT_SPACE_ID;
+    this.setData({ sid: this.sid });
 
     this.loadSpace();
 
@@ -134,12 +193,17 @@ Page({
       this.canvasNode.cancelAnimationFrame(this.rafId);
     }
     this.stopGyro();
+    // 批次J新增:清掉上传状态条的本地刷新定时器和视角补间定时器，防止离开
+    // 页面后还在后台空跑(网络轮询本身在 utils/upload.js 模块作用域里，不受
+    // 页面卸载影响，会按自己的3分钟大限走完，这里只清页面自己的两个定时器)。
+    if (this._uploadTicker) clearInterval(this._uploadTicker);
+    if (this._camAnimTimer) clearInterval(this._camAnimTimer);
   },
 
   loadSpace: function () {
     var self = this;
     var focusYaw = this._focusYaw;
-    util.ensureSpace(function (err, space) {
+    util.ensureSpace(this.sid, function (err, space) {
       if (err || !space) {
         self.setData({ loadError: true });
         return;
@@ -305,10 +369,34 @@ Page({
   startRenderLoop: function () {
     var self = this;
     function frame() {
+      self.tickInertia();
       self.render();
       self.rafId = self.canvasNode.requestAnimationFrame(frame);
     }
     this.rafId = this.canvasNode.requestAnimationFrame(frame);
+  },
+
+  // 批次I新增:惯性衰减，每帧(rAF)调一次。松手瞬间的速度按摩擦系数逐帧衰减，
+  // 衰减到阈值以下就停，不需要额外定时器，直接挂在已经在跑的渲染循环里。
+  // 手指按住/陀螺仪开着时都不应该有惯性(前者手在控制，后者传感器在控制)，
+  // 两个条件在 onTouchStart/onToggleGyro 里已经互斥清空，这里只需检查
+  // inertiaActive 这一个标记。
+  tickInertia: function () {
+    if (!this.inertiaActive || this.touch) return;
+    if (this.data.gyroOn) {
+      this.inertiaActive = false;
+      return;
+    }
+    this.cameraYawDeg = ((this.cameraYawDeg + this.yawVelocity) % 360 + 360) % 360;
+    this.cameraPitchDeg = clamp(this.cameraPitchDeg + this.pitchVelocity, -PITCH_CLAMP_DEG, PITCH_CLAMP_DEG);
+    this.yawVelocity *= DRAG_FRICTION;
+    this.pitchVelocity *= DRAG_FRICTION;
+    if (Math.abs(this.yawVelocity) < INERTIA_EPS && Math.abs(this.pitchVelocity) < INERTIA_EPS) {
+      this.yawVelocity = 0;
+      this.pitchVelocity = 0;
+      this.inertiaActive = false;
+    }
+    this.updateCurrentDirLabel();
   },
 
   render: function () {
@@ -333,6 +421,12 @@ Page({
     var t = e.touches && e.touches[0];
     if (!t) return;
     this.touch = { x: t.clientX, y: t.clientY };
+    this._lastMoveT = Date.now();
+    // 新按下就是"手接管"的信号，把上一次松手留下的惯性立刻清零，不然会跟
+    // 新的拖动叠加、感觉像手感失控。
+    this.inertiaActive = false;
+    this.yawVelocity = 0;
+    this.pitchVelocity = 0;
     this.setData({ showHint: false });
     this.stopGyro(); // 手一拖就把控制权收回来，别跟陀螺仪打架
     if (this.data.gyroOn) this.setData({ gyroOn: false });
@@ -344,17 +438,31 @@ Page({
     var dx = t.clientX - this.touch.x;
     var dy = t.clientY - this.touch.y;
     this.touch = { x: t.clientX, y: t.clientY };
-    this.cameraYawDeg = ((this.cameraYawDeg - dx * DRAG_YAW_SENSITIVITY) % 360 + 360) % 360;
-    this.cameraPitchDeg = clamp(
-      this.cameraPitchDeg - dy * DRAG_PITCH_SENSITIVITY,
-      -PITCH_CLAMP_DEG,
-      PITCH_CLAMP_DEG
-    );
+    var yawStep = -dx * DRAG_YAW_SENSITIVITY;
+    var pitchStep = -dy * DRAG_PITCH_SENSITIVITY;
+    this.cameraYawDeg = ((this.cameraYawDeg + yawStep) % 360 + 360) % 360;
+    this.cameraPitchDeg = clamp(this.cameraPitchDeg + pitchStep, -PITCH_CLAMP_DEG, PITCH_CLAMP_DEG);
+
+    // 记录惯性滑行要用的初速度:touchmove 事件间隔不均匀，直接拿"这次位移"当
+    // "每帧速度"用，事件间隔一旦变长(真机卡顿/采样率低)算出来的单帧速度会
+    // 失真地大，松手后感觉像"猛地弹飞"而不是自然减速。这里按实际经过的时间
+    // 把这次位移归一化到"每约16.67ms(60fps一帧)"的量级，再夹一个绝对上限
+    // 兜底(见 MAX_INERTIA_STEP 注释)。
+    var now = Date.now();
+    var dt = now - (this._lastMoveT || now);
+    this._lastMoveT = now;
+    var norm = dt > 0 ? clamp(REF_FRAME_MS / dt, 0, 3) : 1;
+    this.yawVelocity = clamp(yawStep * norm, -MAX_INERTIA_STEP, MAX_INERTIA_STEP);
+    this.pitchVelocity = clamp(pitchStep * norm, -MAX_INERTIA_STEP, MAX_INERTIA_STEP);
     this.updateCurrentDirLabel();
   },
 
   onTouchEnd: function () {
     this.touch = null;
+    // 松手瞬间，只要最后一帧还有明显速度就交给 tickInertia 顺势滑行一段。
+    if (Math.abs(this.yawVelocity) > INERTIA_EPS || Math.abs(this.pitchVelocity) > INERTIA_EPS) {
+      this.inertiaActive = true;
+    }
   },
 
   onTapThumb: function (e) {
@@ -376,7 +484,15 @@ Page({
     }
   },
 
-  // 陀螺仪只在真机上有意义，模拟器/不支持的设备只要求"降级不崩"。
+  // 批次I重写:陀螺仪只在真机上有意义，模拟器/不支持的设备只要求"降级不崩"。
+  // 根治"一开陀螺仪画面猛跳"：旧版直接把 res.alpha 当成绝对 yaw 赋值，开启那
+  // 一瞬间画面会从"手动拖到的方向"瞬间跳到"手机当前朝向"，跳变幅度可以有
+  // 大半圈。新版思路是"开启瞬间的手机姿态=基准0点，此后只取相对这个基准的
+  // 变化量"，叠加到"开启那一刻镜头本来看的方向"上——这样无论 alpha 的绝对值
+  // 参考系是什么(iOS/Android 不完全一致，通常是磁北或设备自己的任意参考系)，
+  // 开启瞬间画面保证是连续的，只有后续转动手机才会带动画面转，这个思路本身
+  // 就规避了大部分"iOS/Android 坐标系差异"的绝对值问题，不需要对两个平台
+  // 分别特判。
   startGyro: function () {
     var self = this;
     if (!wx.startDeviceMotionListening) {
@@ -387,12 +503,39 @@ Page({
       interval: "game",
       success: function () {
         self.setData({ gyroOn: true });
+        self._gyroBaseline = null; // 第一帧数据到达时才设基准，见下方 gyroHandler
+        self._gyroFilteredAlpha = null;
+        self._gyroFilteredBeta = null;
+        self._gyroStartYaw = self.cameraYawDeg; // 开启这一刻镜头本来看的方向
+        self._gyroStartPitch = self.cameraPitchDeg;
         self.gyroHandler = function (res) {
-          if (!res || typeof res.alpha !== "number") return;
-          // alpha/beta 在不同机型/模拟器上口径不完全统一，这里只做"能转、不崩"
-          // 的降级体验，不是精密的姿态解算；真机手感需要 Max 实测后再调系数。
-          self.cameraYawDeg = ((res.alpha % 360) + 360) % 360;
-          self.cameraPitchDeg = clamp((res.beta || 0) - 90, -PITCH_CLAMP_DEG, PITCH_CLAMP_DEG);
+          if (!res || typeof res.alpha !== "number" || typeof res.beta !== "number") return;
+
+          // 低通滤波:对原始 alpha/beta 做指数滑动平均(EMA)防抖，系数0.15=
+          // 新数据占15%权重，滤掉传感器高频抖动又不会感觉迟钝。alpha是环形量
+          // (0~360会在359→0处跳变)，必须先转成"相对上一次滤波值的最短路径
+          // 增量"再累加，直接线性平均两个原始角度在跨越0/360边界时会得到
+          // 错误结果(比如359和1平均出180，而不是0)。
+          if (self._gyroFilteredAlpha === null) {
+            self._gyroFilteredAlpha = res.alpha;
+            self._gyroFilteredBeta = res.beta;
+          } else {
+            self._gyroFilteredAlpha = self._gyroFilteredAlpha + GYRO_LOWPASS * shortestDelta(self._gyroFilteredAlpha, res.alpha);
+            self._gyroFilteredBeta = self._gyroFilteredBeta + GYRO_LOWPASS * (res.beta - self._gyroFilteredBeta);
+          }
+
+          if (self._gyroBaseline === null) {
+            // 建立基准的这一帧不产生任何画面变化，避免开启瞬间的第一下跳动。
+            self._gyroBaseline = { alpha: self._gyroFilteredAlpha, beta: self._gyroFilteredBeta };
+            return;
+          }
+
+          var yawDelta = shortestDelta(self._gyroBaseline.alpha, self._gyroFilteredAlpha);
+          var pitchDelta = self._gyroFilteredBeta - self._gyroBaseline.beta;
+          // 转向手感如果测出来反了(部分安卓机型 alpha 增长方向与 iOS 相反)，
+          // 把下面这一行的"+ yawDelta"改成"- yawDelta"即可，不用改别的地方。
+          self.cameraYawDeg = ((self._gyroStartYaw + yawDelta) % 360 + 360) % 360;
+          self.cameraPitchDeg = clamp(self._gyroStartPitch + pitchDelta, -PITCH_CLAMP_DEG, PITCH_CLAMP_DEG);
           self.updateCurrentDirLabel();
         };
         wx.onDeviceMotionChange(self.gyroHandler);
@@ -416,6 +559,9 @@ Page({
         wx.stopDeviceMotionListening();
       } catch (e) {}
     }
+    this._gyroBaseline = null;
+    this._gyroFilteredAlpha = null;
+    this._gyroFilteredBeta = null;
   },
 
   onBack: function () {
@@ -427,6 +573,130 @@ Page({
   },
 
   goPhotos: function () {
-    wx.navigateTo({ url: "/pages/photos/photos" });
+    // 批次J修:带上 sid，让 photos 页知道读哪个空间(之前没带参数，隐式兜底
+    // s4；现在体验空间的照片方位屏也得看得到体验空间自己的照片)。
+    wx.navigateTo({ url: "/pages/photos/photos?sid=" + encodeURIComponent(this.sid) });
+  },
+
+  // ================================================================
+  // 批次J新增:上传入口。只加这几个方法，不改上面任何一个已有方法的内部逻辑
+  // (陀螺仪/拖动/渲染/返回钮全部原样)。
+  // ================================================================
+
+  onUploadTap: function () {
+    if (this._uploadBatchActive) return; // 上一批还没结束，不叠加新批次，简单可靠
+    var self = this;
+    this._uploadBatchActive = true;
+    this.setData({ uploadBarVisible: true, uploadStatusText: "选照片中…" });
+    upload.startUpload(this.sid, function (err, batch) {
+      if (err) {
+        self._uploadBatchActive = false;
+        if (err.kind === "CANCELLED") {
+          self.setData({ uploadBarVisible: false, uploadStatusText: "" });
+        } else {
+          self.setData({ uploadBarVisible: true, uploadStatusText: err.message });
+        }
+        return;
+      }
+      self._uploadBatch = batch;
+      self._uploadBatchFocused = false;
+      self.startUploadTicker();
+    });
+  },
+
+  startUploadTicker: function () {
+    var self = this;
+    if (this._uploadTicker) clearInterval(this._uploadTicker);
+    this._uploadTicker = setInterval(function () { self.refreshUploadStatus(); }, 800);
+    this.refreshUploadStatus();
+  },
+
+  computeBatchStatusText: function (batch) {
+    var total = batch.length;
+    var uploading = batch.filter(function (i) { return i.status === "uploading"; }).length;
+    if (uploading > 0) return "上传中 " + (total - uploading) + "/" + total;
+    if (batch.some(function (i) { return i.status === "localizing"; })) return "AI 正在定位…";
+    if (batch.some(function (i) { return i.status === "done"; })) return "回到方位了";
+    if (batch.some(function (i) { return i.status === "timeout"; })) return "AI 还在排队,稍后回来看";
+    var errItem = batch.filter(function (i) { return i.status === "error"; })[0];
+    return errItem ? errItem.error : "";
+  },
+
+  refreshUploadStatus: function () {
+    var batch = this._uploadBatch;
+    if (!batch) return;
+    this.setData({ uploadBarVisible: true, uploadStatusText: this.computeBatchStatusText(batch) });
+
+    if (!this._uploadBatchFocused) {
+      var justDone = batch.filter(function (i) { return i.status === "done"; })[0];
+      if (justDone) {
+        this._uploadBatchFocused = true;
+        this.focusOnNewPhoto(justDone.yaw);
+      }
+    }
+
+    var allSettled = batch.every(function (i) {
+      return i.status === "done" || i.status === "timeout" || i.status === "error";
+    });
+    if (allSettled) {
+      clearInterval(this._uploadTicker);
+      this._uploadTicker = null;
+      this._uploadBatchActive = false;
+      var self = this;
+      setTimeout(function () {
+        // 只在还是同一批时才收起状态条：这几秒内用户完全可能又点了一次
+        // "传一张照片"开了新的一批，不能把新一批的文案盖掉。
+        if (self._uploadBatch === batch) self.setData({ uploadBarVisible: false });
+      }, 4000);
+    }
+  },
+
+  // 上传成功匹配到新照片后：缩略条刷新 + 视角转过去。用的是 ensureSpace 的
+  // 缓存路径(upload.js 轮询时已经用 fetchSpaceFresh 把最新数据写回缓存了，
+  // 这里不会再多发一次网络请求)。
+  focusOnNewPhoto: function (contractYaw) {
+    var self = this;
+    if (typeof contractYaw !== "number" || isNaN(contractYaw)) return;
+    util.ensureSpace(this.sid, function (err, space) {
+      if (err || !space) return; // 静默失败:这只是锦上添花的自动对焦，状态条已经诚实报过"回到方位了"
+      var photos = (space.photos || []).slice().sort(function (a, b) {
+        return (Number(a.yaw) || 0) - (Number(b.yaw) || 0);
+      });
+      var activeIndex = 0, bestDiff = Infinity;
+      photos.forEach(function (p, i) {
+        var diff = Math.abs((Number(p.yaw) || 0) - contractYaw);
+        if (diff < bestDiff) { bestDiff = diff; activeIndex = i; }
+      });
+      self.setData({ photos: photos, photoCount: photos.length, activeIndex: activeIndex });
+    });
+    this.animateCameraTo(dataYawToCameraYawDeg(contractYaw), 0, 700);
+  },
+
+  // 视角补间动画。不改 tickInertia/render/startRenderLoop(批次I的陀螺仪/惯性
+  // 渲染逻辑，原样不动)，只是另起一个独立的补间，写的是渲染循环本来每帧都在
+  // 读的 cameraYawDeg/cameraPitchDeg 这两个字段——触发前关掉惯性标记，避免
+  // 两套逻辑同时抢着改同一个字段。
+  animateCameraTo: function (targetYawDeg, targetPitchDeg, durationMs) {
+    this.inertiaActive = false;
+    this.yawVelocity = 0;
+    this.pitchVelocity = 0;
+    var self = this;
+    var fromYaw = this.cameraYawDeg || 0;
+    var yawDelta = shortestDelta(fromYaw, targetYawDeg);
+    var fromPitch = this.cameraPitchDeg || 0;
+    var pitchDelta = targetPitchDeg - fromPitch;
+    var start = Date.now();
+    if (this._camAnimTimer) clearInterval(this._camAnimTimer);
+    this._camAnimTimer = setInterval(function () {
+      var t = Math.min(1, (Date.now() - start) / durationMs);
+      var eased = 1 - Math.pow(1 - t, 3); // ease-out cubic，跟拖动惯性一样"减速停下"的手感
+      self.cameraYawDeg = ((fromYaw + yawDelta * eased) % 360 + 360) % 360;
+      self.cameraPitchDeg = fromPitch + pitchDelta * eased;
+      self.updateCurrentDirLabel();
+      if (t >= 1) {
+        clearInterval(self._camAnimTimer);
+        self._camAnimTimer = null;
+      }
+    }, 32);
   }
 });

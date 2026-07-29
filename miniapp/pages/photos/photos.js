@@ -5,6 +5,8 @@
 // 任务简报怎么写的），没有对应任务就诚实标"宾客自由上传"，全部是契约里真实
 // 存在的字段。
 var util = require("../../utils/util.js");
+// 批次J新增:上传模块，只用来读"这次会话我传的照片"这份本地记录，不发起新上传。
+var upload = require("../../utils/upload.js");
 
 function pad2(n) {
   n = String(n);
@@ -20,18 +22,67 @@ function arrowFor(yaw) {
 Page({
   data: {
     statusBarHeight: 20,
+    // 批次I:导航条几何不再写死，读 app.globalData.nav(算法见 app.js 顶部注释，
+    // 跟 pano 页同一套)。
+    navBarTop: 20,
+    navBarHeight: 44,
+    navSideMargin: 12,
     spaceTitle: "",
     spaceCouple: "",
     photos: [],
     contributorCount: 0,
     loading: true,
-    loadError: false
+    loadError: false,
+    // 批次J新增:sid 贯穿三页 + 本次会话"我传的"记录。
+    sid: "s4",
+    myUploads: []
   },
 
-  onLoad: function () {
+  onLoad: function (options) {
     var app = getApp();
-    this.setData({ statusBarHeight: app.globalData.statusBarHeight || 20 });
+    var nav = app.globalData.nav || {};
+    this.setData({
+      statusBarHeight: app.globalData.statusBarHeight || 20,
+      navBarTop: nav.barTop != null ? nav.barTop : (app.globalData.statusBarHeight || 20),
+      navBarHeight: nav.barHeight != null ? nav.barHeight : 44,
+      navSideMargin: nav.sideMargin != null ? nav.sideMargin : 12
+    });
+    // 批次J新增:带 sid 就用它(从 pano 页的"N 张"按钮点进来时带的)，没带就
+    // 兜底 util.DEFAULT_SPACE_ID(=s4，直接进这页的老路径不受影响)。
+    this.sid = (options && options.sid) || util.DEFAULT_SPACE_ID;
+    this.setData({ sid: this.sid });
     this.fetchData();
+  },
+
+  onShow: function () {
+    // 批次J新增:每次这页变可见都刷新一次"我传的"(onLoad后紧跟着onShow也会
+    // 走到这里，首次加载不用再单独调一次)，覆盖"在 pano 页传完照片，切回这页
+    // 看结果"这条路径。轻量的本地读取(读 utils/upload.js 的内存数组)，不发
+    // 网络请求。
+    this.refreshMyUploads();
+    var self = this;
+    if (this._mineTimer) clearInterval(this._mineTimer);
+    this._mineTimer = setInterval(function () { self.refreshMyUploads(); }, 3000);
+  },
+
+  onHide: function () {
+    if (this._mineTimer) { clearInterval(this._mineTimer); this._mineTimer = null; }
+  },
+
+  onUnload: function () {
+    if (this._mineTimer) { clearInterval(this._mineTimer); this._mineTimer = null; }
+  },
+
+  // 批次J新增:"我传的"区——本次会话在当前 sid 下传过的照片，标状态。
+  refreshMyUploads: function () {
+    var mine = upload.getMyUploads(this.sid).map(function (item) {
+      return {
+        key: item.key,
+        thumb: item.thumb,
+        statusText: upload.statusLabel(item)
+      };
+    });
+    this.setData({ myUploads: mine });
   },
 
   onRetry: function () {
@@ -42,7 +93,7 @@ Page({
   fetchData: function () {
     var self = this;
     self.setData({ loading: true, loadError: false });
-    util.ensureSpace(function (err, space) {
+    util.ensureSpace(this.sid, function (err, space) {
       if (err || !space) {
         self.setData({ loading: false, loadError: true });
         return;
@@ -91,9 +142,10 @@ Page({
 
   onTapCard: function (e) {
     var yaw = e.currentTarget.dataset.yaw;
-    var url = "/pages/pano/pano";
+    // 批次J修:带上 sid，不然从体验空间的照片方位屏点回全景屏会静默掉回 s4。
+    var url = "/pages/pano/pano?sid=" + encodeURIComponent(this.sid);
     if (yaw !== "" && yaw !== undefined && yaw !== null && !isNaN(yaw)) {
-      url += "?yaw=" + encodeURIComponent(yaw);
+      url += "&yaw=" + encodeURIComponent(yaw);
     }
     wx.navigateTo({ url: url });
   },

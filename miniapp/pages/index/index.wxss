@@ -110,10 +110,13 @@
 .film-strip-row--top { top: 6rpx; }
 .film-strip-row--bottom { bottom: 6rpx; }
 
+/* 批次I修:height 和 padding-right 挪给 index.wxml 的 inline style(来自胶囊
+   实测几何)控制，这里只留 padding-left(32rpx，视觉不变)。padding 简写规则
+   仍然保留 top/bottom=0、left=32rpx，inline style 的 padding-right 会单独
+   覆盖右值，两边不冲突(CSS 逐属性覆盖，不是整条shorthand互斥)。 */
 .app-bar {
   position: relative;
   z-index: 4;
-  height: 88rpx;
   padding: 0 32rpx;
   display: flex;
   align-items: center;
@@ -246,4 +249,40 @@
   font-size: 22rpx;
   color: var(--u-ink-3);
   text-decoration: underline;
+}
+
+/* 批次J新增:体验空间入口卡。跟 .primary-btn(婚礼主流程)视觉上区分开——
+   独立玻璃卡片+箭头，暗示"这是另一条路"，不改 .entry-main/.primary-btn/
+   .facts-bar 任何一条已有规则。 */
+.experience-card {
+  width: 100%;
+  margin-top: 28rpx;
+  padding: 24rpx 28rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  border: 1px solid var(--u-line);
+  border-radius: var(--u-r-panel);
+  background: var(--u-glass);
+  -webkit-backdrop-filter: blur(var(--u-glass-blur));
+  backdrop-filter: blur(var(--u-glass-blur));
+}
+.experience-copy { min-width: 0; text-align: left; }
+.experience-title {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 650;
+  color: var(--u-ink);
+}
+.experience-sub {
+  display: block;
+  margin-top: 6rpx;
+  font-size: 21rpx;
+  color: var(--u-ink-3);
+}
+.experience-arrow {
+  flex: none;
+  font-size: 28rpx;
+  color: var(--u-pink-hot);
 }

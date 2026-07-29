@@ -1,7 +1,13 @@
 <!-- 03 · 照片方位屏：卡片列表，点卡片跳回 pano 页并转到对应方位。 -->
 <view class="photos-page">
-  <view class="position-top" style="padding-top:{{statusBarHeight}}px">
-    <view class="native-nav">
+  <!-- 批次I修:padding-top 原来只用 statusBarHeight(连批次H给pano补的+12都没有)，
+       改成 navBarTop；native-nav 的水平内边距原来靠父级 position-top 的 32rpx
+       padding 顺带给，现在改成自己按 navSideMargin(胶囊右边距实测值)算，
+       跟 pano 页返回钮同一套逻辑对齐胶囊；position-heading 的视觉间距不变
+       (见下方它自己的 padding，从"父级32rpx+自己4rpx"合并成自己的36rpx，
+       数值上完全等价，不是新的设计决定)。 -->
+  <view class="position-top" style="padding-top:{{navBarTop}}px">
+    <view class="native-nav" style="height:{{navBarHeight}}px;margin:0 {{navSideMargin}}px">
       <button class="back-btn" bindtap="onBack" aria-label="返回">‹</button>
       <text class="nav-title">照片方位</text>
       <view class="nav-spacer"></view>
@@ -17,6 +23,22 @@
         <text class="dot-sep">·</text>
         <text class="num">{{contributorCount}}</text>
         <text> 位贡献者</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 批次J新增:我传的照片区。读的是本地这次会话的上传记录(utils/upload.js
+       的 myUploads)，不依赖下面 photo-list 那次网络请求成不成功，所以放在
+       loading/error 判断之外——网慢的时候也能看到自己刚传的这几张在什么状态。
+       只加这一块，.position-top/.native-nav(返回钮/导航布局)一个字没动。 -->
+  <view class="mine-section" wx:if="{{myUploads.length}}">
+    <text class="mine-head">我传的</text>
+    <view class="mine-row" wx:for="{{myUploads}}" wx:key="key">
+      <image wx:if="{{item.thumb}}" class="mine-thumb" src="{{item.thumb}}" mode="aspectFill" />
+      <view wx:else class="mine-thumb mine-thumb--placeholder"></view>
+      <view class="mine-meta">
+        <text class="mine-tag">我传的</text>
+        <text class="mine-status">{{item.statusText}}</text>
       </view>
     </view>
   </view>

@@ -1,6 +1,9 @@
 <!-- 01 · 进入屏：照 miniapp-mock.html 第一屏还原。三圆成心 logo 全部是 view+css，
      没有一处贴图冒充；文案里的数字全部来自 space.json 真数据，拉不到就走诚实空态。 -->
-<view class="entry-page" style="padding-top:{{statusBarHeight}}px">
+<!-- 批次I修:padding-top 数值上等于 statusBarHeight(导航行紧贴状态栏底部起，
+     推导见 app.js 顶部注释)，改绑 navBarTop 只是让代码本身表达"对齐导航条"
+     这个意图，不是新的数值。 -->
+<view class="entry-page" style="padding-top:{{navBarTop}}px">
 
   <view class="bokeh" aria-hidden="true">
     <view class="dot dot-1"></view>
@@ -18,7 +21,12 @@
     <view class="film-strip-row film-strip-row--bottom"></view>
   </view>
 
-  <view class="app-bar">
+  <!-- 批次I修:height 原来写死 88rpx，右侧 padding 原来是对称的固定 32rpx——
+       batch I baseline 实测(见 PROGRESS.md)当前机型下"空间记忆"文字的右侧已经
+       量出跟系统胶囊按钮的包围盒重叠。height 改绑 navBarHeight 对齐胶囊高度，
+       右 padding 改绑 navKeepoutRight(胶囊左边缘算起的禁入区)避免重叠，左侧
+       padding 不变(胶囊只在右上角，左边没有这个风险)。 -->
+  <view class="app-bar" style="height:{{navBarHeight}}px;padding-right:{{navKeepoutRight}}px">
     <view class="brand">
       <view class="logo-mark logo-mark--sm">
         <view class="orb orb--top"></view>
@@ -74,6 +82,17 @@
         <text class="fact"><text class="fact-num">{{contributorCount}}</text> 位贡献者</text>
       </view>
     </block>
+
+    <!-- 批次J新增:体验空间入口卡。跟上面的婚礼流程(s4,原样保留不动)分开，
+         固定指向公共体验空间 stressexp1——这条是"上传链路能不能跑通"的专用
+         入口，不混进真实婚礼相册。只加这一张卡，app-bar/标题区一个字没动。 -->
+    <view class="experience-card" bindtap="onEnterExperience">
+      <view class="experience-copy">
+        <text class="experience-title">体验空间</text>
+        <text class="experience-sub">传张照片试试，看它回到方位</text>
+      </view>
+      <text class="experience-arrow">→</text>
+    </view>
 
     <button class="upload-link" bindtap="onCopyUploadLink">传照片 · 复制上传链接</button>
   </view>

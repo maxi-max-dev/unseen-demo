@@ -513,3 +513,143 @@ $ ls -la "/Users/max/Library/Application Support/微信开发者工具/"
 
 **不影响的部分**:验收1-4(JSON 解析/文件齐全/无 secret 泄露/js 语法)全部已跑通,
 详见 PROGRESS.md「批次G」。小程序代码本身的静态正确性不依赖这一步。
+
+---
+
+## I-1.〈button〉标签宽度查询在本机这版开发者工具上返回假值,判断为查询层
+artifact,不是渲染bug,未做任何代码改动(只读排查,如实登记)
+
+**背景**:批次I 量化验收 index 页 `.primary-btn`/`.round-btn`/`.photo-total`/
+`.back-btn` 几个 `<button>` 元素的几何时,发现全部返回同一个数字。
+
+**实测**(三种互相独立的测量路径,结果完全一致):
+```
+$ element.size()  (automator domProperty(offsetWidth) 桥)
+  .primary-btn -> {"width":184,"height":49}
+
+$ miniProgram.evaluate(() => wx.createSelectorQuery().select('.primary-btn')
+    .boundingClientRect(...))   (小程序自己的正牌API，非automator专用桥)
+  -> {"width":184,"height":49,"left":103,...}
+
+$ element.style('width')
+  -> "184px"
+```
+`.primary-btn` 的 CSS 是 `width:100%`(容器约348px宽),`.round-btn`/`.back-btn`
+是 `width:64rpx`(约33px),`.photo-total` 是内容宽(不到60px)——四个元素CSS
+规则完全不同,却全部查出同一个184,这不像是各自独立的渲染bug,更像是这版
+`automator`(0.12.1,2023年发布)配这版开发者工具(2.01.2510290,新两年)对
+`<button>`元素几何查询的一个固定返回值/artifact。
+
+**交叉验证**(排除"真的渲染歪了"这个可能性):用干净会话(先 `cli close`
+彻底关掉旧连接再连新的,排除会话degraded state的干扰)截图
+`ui-check/fresh-check-index.png`,肉眼核对跟批次H留下的参考截图
+`ui-check/01-index-FINAL.png`一致——`.primary-btn`视觉上清清楚楚撑满整行,
+不是184px的窄条;`ui-check/fresh-check-pano.png`里`.round-btn`视觉上是正常
+大小的圆形返回箭头,没有拉伸变形。中心点计算(`centerX`)在两种情况下都跟
+视口中心吻合(`.primary-btn`偏差0px),说明即使宽度数字本身查得不对,
+"元素被正确居中"这件事没有受影响。
+
+**结论**:这是本机 automator+devtools 版本组合对 `<button>` 元素宽度查询的
+artifact,不是真实渲染问题,也不会在真机上出现(真机用户的微信客户端不会
+经过这套桌面自动化查询协议)。**没有把这四个 button 转成 view**——批次H
+给 `gyro-btn` 做过同样的 button→view 转换(理由记的是"184px的长椭圆,视觉
+上真的拉伸了"),这次没有照办的原因是:反复截图确认了这次没有对应的视觉
+症状,只是数字查不对,没有真bug可修,硬转会是无意义的代码改动
+(而且转成view会损失一点原生button的可访问性语义)。批次H那次的转换保留
+不动(无害,不需要重新论证或回退)。
+
+**留给下一个人**:如果以后又在这版工具上量出`<button>`元素的width/height
+异常,先按这条记录交叉验证一次视觉截图,别急着假设是代码bug、更别急着无脑
+转view——先看是不是又是这同一个查询层的坑。
+
+---
+
+## I-2. miniprogram-automator 的 launch() 在本机重复调用时会静默卡死,
+改用自建端口探测+connect()绕过(工具链踩坑,如实登记)
+
+**背景**:批次I 用 automator 反复量数字/截图,前后跑了十几次连接。
+
+**实测**:第一次(环境全新)`automator.launch()`在约10秒内正常返回;之后
+只要是"同一个projectPath第二次launch()",经常静默卡死——`lsof`能看到
+自动化端口(默认9420)已经在监听,说明devtools那一侧其实已经就绪,但
+node这边的`launch()`调用就是不返回也不报错,给了90秒硬超时都等不到。
+用`probe.js`/`probe-steps.js`逐步隔离确认:`connect()`直连一个已知在监听
+的端口,<10ms正常返回;问题精确定位在`launch()`内部"spawn cli auto +
+轮询等WS就绪"那段逻辑,不在WS通信本身。
+
+**结论/规避**:自己写了`ui-check/connectHelper.js`——用`net.createConnection`
+探测端口是否已经开着,开着直接`automator.connect()`,没开就自己`spawn`一次
+`cli auto --project ... --auto-port 9420`(detached,不受当前node进程存活
+影响)再轮询端口。全程改用这条路径后,几十次调用没有再卡死过。
+
+**副作用**:这套workaround会在`cli auto`背后留一个"项目自动化窗口"进程,
+`disconnect()`不会让它退出,必须显式`cli close --project <path>`才会关掉
+(而且`cli close`打印"✔ close"之后进程/端口有时还要再等最多~20秒才真正
+释放,不能立刻信"✔"这一行,得用`lsof`轮询确认端口空了)。如果不清理,连续
+攒了好几个这种残留窗口后还观察到过一次`screenshot()`异常慢(133秒才返回,
+怀疑是当时那个会话已经被来回折腾出某种degraded状态),干净会话截图正常在
+几百毫秒到几秒内完成。**下一个人如果要接着用这批automator脚本**:每次跑完
+一组操作,养成先`cli close --project /Users/max/code/spatial-memory/miniapp`
+再等端口真正释放的习惯,不要在同一个残留会话上无限叠加操作。
+
+---
+
+## J-1. 上传验收测试留下的真实OSS对象,待清理
+
+**背景**:批次J验收2要求真传一张测试图到OSS验证201,不许mock。用
+`miniapp/assets/panos/expo.jpg`(199953 bytes)当测试图,`ui-check/verify-upload.js`
+真传了两次(一次对stressexp1,一次对s4)。
+
+**stressexp1这次真的写进了OSS,需要人工清理**:
+```
+sid = stressexp1
+key = spaces/stressexp1/inbox-v2/g1/1785328114446_vwdigk__6aqM5pS26ISa5pys5rWL6K-V__free.jpg
+状态 = HTTP 201写入成功,ETag=BFD0D4F895DA2960466C08D2629ABF35
+       (base64url解码那段昵称是"验收脚本测试")
+截至本次会话结束,worker还没把它捡进pending[]/photos[](space.json里查不到
+对应inboxKey=1785328114446_vwdigk),大概率还静静躺在inbox-v2/g1/前缀下。
+```
+**需要Max做的**:方便的时候用有权限的工具(控制台/ossutil,不是这份公开policy)
+删掉这一个对象,或者不管它(反正也不会被worker当成正常投稿处理进正式相册,
+contributor字段解出来是"验收脚本测试"一望而知是测试数据,不会误导真实展示)。
+
+**s4这次没有创建任何对象,不需要清理**:s4的policy在测试时点已经过期约44~46
+小时(`expiresAt`早于测试时刻),OSS直接403拒绝(`Invalid according to Policy:
+Policy expired.`),这次POST是刻意用来验证"policy过期"这条错误分类逻辑对
+真实OSS报文有效,不是意外——顺带发现的真实情况是:**s4空间的上传policy已经
+过期超过一天半,如果不是靠这次批次J顺手测出来,正常宾客现在去s4传照片会
+无声失败**(不是小程序或H5代码的问题,是space.json里那份policy本身过期了,
+需要跑一次能签发新policy的流程给s4刷新——这条不在本任务改动范围内,记在这
+里留给知道怎么刷新space.json的人)。
+
+---
+
+## J-2. automator的mockWxMethod模拟不了chooseMedia到uploadFile的真实文件句柄交接,
+只能验证到UI接线正确,选图+真传这一步必须真机验(如实登记,不是代码bug)
+
+**背景**:批次J验收3做完三屏截图后,额外尝试(非acceptance硬性要求)用
+`mockWxMethod('chooseMedia', {tempFiles:[...]})` + `element.tap('.upload-btn')`
+端到端驱动小程序自己的`onUploadTap`真实代码路径,想验证"从点按钮到传完"整条
+链路而不是分开验证。
+
+**实测**:mock让`wx.chooseMedia`成功返回了一个指向本机真实文件的绝对路径
+(`miniapp/assets/panos/expo.jpg`,后来换成scratchpad里复制的一份,排除"路径
+在项目目录里"这个变量),两次都在几乎第一时间(<1.5s)落进
+`upload.js`的`网络不好,传失败了`错误分支(`wx.uploadFile`的fail回调)。
+
+**判断**:不是`upload.js`的bug——`extractPolicy()`/`buildKey()`这两个真正
+承载"字段组装对不对"的函数已经在批次J验收2用真实OSS验证过(见PROGRESS.md,
+HTTP 201)。这里失败的是automator mock出来的临时文件路径不被模拟器的
+`wx.uploadFile`实现认可,推测是模拟器对"合法的临时文件"有自己的登记机制
+(真实`wx.chooseMedia`/`wx.compressImage`成功时会把返回路径注册进这套机制,
+mock直接伪造返回值绕过了注册这一步),不是网络问题也不是字段问题。
+
+**不打算继续排查**:automator摸不到原生相册picker本身,这是文档记录过的
+已知限位(跟I-2记录的"launch()卡死"是同一类"工具链本身的边界",不是产品代码
+问题)，继续深挖“怎么伪造一个模拟器认可的临时文件”投入产出比低。**真正的
+选图+传图验证挪到真机待验清单第1/2条**,那里才是唯一能测到"chooseMedia真实
+弹出picker、真机选真图、真传"这条完整链路的地方。
+
+**保留的证据**:`ui-check/j-04-upload-e2e.png`——状态条正确显示了诚实的
+错误文案"网络不好,传失败了"(不是空白、不是卡死转圈、更不是假装成功的
+"回到方位了"),证明就算触发失败,UI状态机本身接线是对的。
