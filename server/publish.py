@@ -433,6 +433,28 @@ def build_empty_public_space(sid, space):
     }
 
 
+def assert_not_private(sid, space):
+    """私密空间绝不许发成公开可读。发布器的硬断言, 拦不住就是数据泄露。
+
+    为什么要单独一道: 本机访客路由确实查了 private(space.py 的 is_publicly_published_space),
+    但那只挡住"从这台机器的 API 看这个空间", 挡不住发布器。发布器把 space.json、全景和
+    入选照片逐个对象设成 public-read(见文件顶部的 PUBLIC_READ), 一旦 private 空间走到这里,
+    本机路由会装作它不存在, OSS 上的对象却是谁都能读的 —— 而空间 id 又是递增的 sN, 猜得到。
+
+    位置很关键: 必须在【任何一次网络写入之前】。资源文件是先于 manifest 上传的,
+    等到 manifest 那一步再拦, 照片早就以 public-read 躺在 OSS 上了。
+
+    (P1-4, 2026-07-30。当前 s17/s19/s34 是 private=true 的空间, 三个都还没发布过,
+     所以这道闸不会打断任何已经在跑的东西。)
+    """
+    if space.get("private"):
+        raise RuntimeError(
+            f"空间 {sid} 标了私密(private=true), 不能发布成公开可读的云端展览。"
+            "私密空间的权限系统还没建(P2-2), 在那之前发布器一律拒绝, 免得把人家的照片"
+            "以 public-read 摊在一个猜得到的地址上。"
+        )
+
+
 def _publish_space_locked(sid, conf=None, progress=None, force=False):
     """把空间 sid 发布到 OSS。返回一份发布报告。
 
@@ -500,6 +522,9 @@ def _publish_space_locked(sid, conf=None, progress=None, force=False):
             if (key.startswith((cloud_prefix + "inbox/", cloud_prefix + "inbox-v2/"))
                     and ".." not in suffix.split("/")):
                 protected_inbox_keys.add(key)
+        # 私密闸在授权闸【之前】: 两条都不过时, 私密这条的报错更准确, 也更该被看见。
+        # 而且这里是整个发布流程第一次拿到真值、还没发出任何一个字节的地方。
+        assert_not_private(sid, space)
         if not _cloud_publish_authorized(space):
             raise RuntimeError("这份展览还是主办方草稿,公开展览没有更新")
         allow_empty_snapshot = (
@@ -608,6 +633,11 @@ def _publish_space_locked(sid, conf=None, progress=None, force=False):
             manifest_revision = int(current.get("publishRevision") or 0)
         except (TypeError, ValueError):
             manifest_revision = 0
+        # 资源已经传完、manifest 还没 PUT 的这个缝隙里, 空间有可能刚被改成私密。
+        # 这里必须【硬失败】, 不能走下面 manifest_skipped 那条"安静跳过"的路:
+        # 安静跳过会让人以为没事发生, 但刚上传的那批资源已经是 public-read 了,
+        # 得让它响, 主办方才知道要去清。
+        assert_not_private(sid, current)
         if manifest_revision != source_revision or not _cloud_publish_authorized(current):
             manifest_skipped = True
             latest_space_json_url = current.get("ossSpaceJson") or ""

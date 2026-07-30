@@ -1760,3 +1760,31 @@ $ git status --short          ← 夹具零改动, 只有我自己这两个文�
 另跑了一遍 `place_photos()` 真链路冒烟（拿夹具 004 去撞 stressexp1 的全景）：`yaw=60.0 confidence=0.4241`，yaw 是 30 的整数倍 ✅，置信度 0.4241 远低于 0.82 会进待审 ✅ —— 外来照片该拦还是拦得住。
 
 **三条基线**：s4 photos = **28**（本件不碰发布链路）｜密钥 grep 0 条｜sweep 待第 4 件建 spec。
+
+## 施工 3 · 私密空间堵漏（P1-4）✅
+
+**改哪儿**：
+- `server/publish.py` 新增 `assert_not_private()`，在两处调用：①拿到真值、**还没发出任何一个字节**的地方（授权闸之前，因为私密这条的报错更准确）②资源已传完、manifest 还没 PUT 的那道缝（发布期间有人改成私密的话必须硬失败，不能走"安静跳过"，因为刚上传的那批资源已经是 public-read 了，得让它响）。
+- `server/space.py` 的 `_cloud_publish_authorized()` 加上 `and not space.get("private")`。这条不是重复：没有它，工人每轮都会兴冲冲调一次发布再收一个异常，日志刷满而事情一件没成。
+
+**位置为什么关键**：资源文件是**先于** manifest 上传的。等到 manifest 那一步再拦，照片早就以 public-read 躺在 OSS 上了。所以"拦得住"的判据不是"报了个错"，而是**一个字节都没往 OSS 写**，测试就是照这个判据写的。
+
+**影响面先查了**：全库 92 个空间里 `private=true` 的只有 s17 / s19 / s34，三个都 `published=false`，所以这道闸不打断任何正在跑的东西。
+
+**失败测试**：新增 `tools/test_private_publish.py`，全程不碰真 OSS（`put_bytes`/`put_file`/`delete` 三个写入口全换成会炸的桩，被调用即判失败）。用的是现造的 `stresspriv1`（stress 前缀，跑完删掉），不碰 s4。
+```
+$ .venv/bin/python -m tools.test_private_publish
+✅ 用例一 private=true: 被拦住, 零 OSS 写入
+   报错原文: 空间 stresspriv1 标了私密(private=true), 不能发布成公开可读的云端展览。…
+✅ 用例二 private=false(对照组): 顺利走到上传那一步
+   证据: oss.put_file 被调用了, key=spaces/stresspriv1/tasks/t3.jpg
+✅ 用例三: _cloud_publish_authorized 对 private=true 判否, 上游不会反复尝试
+
+✅ 通过: 私密空间发不出去, 而且拦在任何 OSS 写入之前
+exit=0
+```
+**用例二是刻意加的**：没有对照组，用例一有可能是被别的原因（草稿状态/素材缺失/授权）挡下的，那样就是假绿。对照组证明同一个空间只把 `private` 翻成 false 就能走到上传，闸门确实卡在这一个标志上。
+
+**真链路冒烟**：加了断言之后对 stressexp1 跑了一次真发布，`ok=True uploaded=1 skipped=6 stale=False`，正常发布没被弄坏。
+
+**三条基线**：s4 photos = **28** ｜密钥 grep = **0** ｜第 2 件的回归测试重跑仍 ✅。

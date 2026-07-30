@@ -502,12 +502,17 @@ def _cloud_publish_authorized(space):
     照片入库、审核和收集开关可以在一次明确发布后继续增量同步；场景拓扑和
     展览配置是主办方草稿，必须再次点“发布展览”才恢复授权。老空间没有内部
     标记时按既有 published + exhibition.status 契约兼容。
+
+    私密空间(private=true)在这里直接判否。发布器另有一道硬断言
+    (publish.assert_not_private), 这条只是让上游根本不去尝试 —— 否则工人每轮
+    都会兴冲冲调一次发布、再收一个异常, 日志刷满而事情一件没成。(P1-4)
     """
     exhibition = _normal_exhibition(space.get("exhibition"))
     return bool(
         space.get("published")
         and exhibition["status"] == "published"
         and not space.get("_cloudPublishBlocked")
+        and not space.get("private")
     )
 
 
