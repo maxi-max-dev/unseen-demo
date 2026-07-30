@@ -1210,10 +1210,14 @@ def _gap_brief(center, empty):
     用的也是这个 center)。它比认领尺窄得多: 文案喊的是中点一个方向, 认领收的是整个区间。
     完整说明见 _task_accepts_yaw 上方那段"三把尺子"注释。
     """
+    # 2026-07-30 换口径(技术总纲第五行): 任务墙对宾客说的是【想要什么照片】, 不是
+    # 【缺哪个角度】。"缺口"是系统内部怎么算出这条任务的, 宾客不关心, 说了还显得
+    # 像在派活。自动生成的这类任务同样跟这个口径, 只是它的"想要"落在一个方向上。
+    # ⚠️ 只换说法, 判定一个字没动: 认领仍然按 yawRange 整个区间收(见 _task_accepts_yaw)。
     d = yaw_to_direction(center)
     if empty:
-        return f"这个空间还没有任何照片,站在原地朝{d}先拍一张,把这里撑起来"
-    return f"站在原地转向{d},拍那个方向"
+        return f"这里还一张照片都没有,想要一张朝{d}的,站在原地转过去拍就行"
+    return f"想要一张朝{d}的照片,站在原地转过去把那边拍下来"
 
 
 def _slice_brief_image(pano_path, yaw, out_path):
@@ -1336,7 +1340,8 @@ def sync_gap_tasks(sid, space, node_id, half_width_deg=20.0, min_gap_deg=40.0, m
             "id": tid,
             "nodeId": node_id,
             "type": "gap",
-            "title": "缺这个角度",
+            # 口径见 _gap_brief 上方注释: 说"想要什么", 不说"缺什么"。
+            "title": "还想要这边的照片",
             "brief": brief,
             "yaw": gap["center"],
             "yawRange": rng,

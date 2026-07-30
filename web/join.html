@@ -502,8 +502,8 @@
 
   <div id="viewTasks">
     <div class="sect">
-      <h2 id="wallTitle">还缺这些</h2>
-      <p id="wallSub">挑一个去拍,或者从相册里翻一张出来</p>
+      <h2 id="wallTitle">大家想要这些照片</h2>
+      <p id="wallSub">挑一张你已经拍过的,或者现在补一张</p>
     </div>
     <div id="taskList">
       <div class="loading-note">正在打开这个空间…</div>
@@ -1245,6 +1245,27 @@
   }
 
   // ================================================================ 渲染:任务墙
+  // 2026-07-30 换口径的补丁。server/space.py 生成新任务时已经改说"想要什么照片",
+  // 但那只对【以后生成】的任务生效 —— s4 这种已经在跑的空间里, 存的还是换口径之前的
+  // 老话(「缺这个角度」/「站在原地转向X,拍那个方向」)。这里在展示层把这几句翻译过来,
+  // space.json 一个字节都没改, 只是不再把"缺口"这个系统内部说法端到宾客眼前。
+  // ⚠️ 只认这几句【自动生成的固定句式】。主办方自己写的心愿任务(type !== "gap")
+  //    和任何认不出来的文案一律原样显示, 绝不去改人家写的字。
+  function wishText(t) {
+    var title = (t && t.title) || "";
+    var brief = (t && t.brief) || "";
+    if (!t || t.type !== "gap") return { title: title, brief: brief };
+    if (title === "缺这个角度") title = "还想要这边的照片";
+    var m = brief.match(/^站在原地转向(.+?),拍那个方向$/);
+    if (m) {
+      brief = "想要一张朝" + m[1] + "的照片,站在原地转过去把那边拍下来";
+    } else {
+      m = brief.match(/^这个空间还没有任何照片,站在原地朝(.+?)先拍一张,把这里撑起来$/);
+      if (m) brief = "这里还一张照片都没有,想要一张朝" + m[1] + "的,站在原地转过去拍就行";
+    }
+    return { title: title, brief: brief };
+  }
+
   function taskCard(t) {
     var done = t.status !== "open";
     var paused = !collectionOpen(state.space);
@@ -1268,11 +1289,12 @@
       : '<div class="claimed">奖励已发放</div>';
 
     if (t.type === "gap") {
+      var say = wishText(t);
       return '<div class="card gap u-card' + (done ? " done" : "") + '">' +
         '<div class="card-body">' +
-          '<span class="badge gap">🧭 空间任务 · 系统发现的空洞</span>' +
-          '<h3 class="card-title">' + esc(t.title || "缺这个角度") + "</h3>" +
-          '<p class="card-brief">' + esc(t.brief || "") + "</p>" +
+          '<span class="badge gap">🧭 系统心愿 · 这边还没有照片</span>' +
+          '<h3 class="card-title">' + esc(say.title || "还想要这边的照片") + "</h3>" +
+          '<p class="card-brief">' + esc(say.brief || "") + "</p>" +
           '<div class="card-foot">' + taskDirWidget(t) + bounty + foot + "</div>" +
         "</div></div>";
     }
@@ -1342,10 +1364,10 @@
       $("wallSub").textContent = "你仍然可以查看自己的贡献,也可以进入展览";
     } else {
     $("tabCount").textContent = open.length;
-    $("wallTitle").textContent = open.length ? "今天的拍摄清单" : "全部任务已完成";
+    $("wallTitle").textContent = open.length ? "大家想要这些照片" : "想要的都收齐了";
     $("wallSub").textContent = open.length
-      ? "挑一个主题去拍,或者直接交一张现场照片"
-      : "所有任务都被认领了,进空间看看吧";
+      ? "比如新娘母亲落泪的瞬间、带宠物的合影。挑一张你拍过的,或者直接交一张现场照片"
+      : "清单上的都有人交了,进空间看看吧";
     }
 
     var html = paused ? "" :
@@ -1403,7 +1425,7 @@
       $("mineList").innerHTML =
         '<div class="empty"><span class="big">📷</span>' + (ROADSHOW
           ? "你还没有上传现场照片"
-          : "你还没交照片<br>去任务墙挑一个,一分钟的事") + "</div>";
+          : "你还没交照片<br>去看看大家想要什么,一分钟的事") + "</div>";
       return;
     }
     $("mineList").innerHTML = merged.slice().reverse().map(function (m) {
@@ -1498,13 +1520,13 @@
     var isFree = task.type === "free";
     openSheet(
       '<div class="grab"></div>' +
-      "<h3>" + esc(task.title) + "</h3>" +
+      "<h3>" + esc(wishText(task).title) + "</h3>" +
       '<p class="sh-sub">' + (isFree
         ? (ROADSHOW
           ? "从相册里挑一张或现场拍一张，AI 会自动定位它朝着的方向。"
           : "从相册里挑一张或几张，AI 会自动定位它们朝着的方向。")
         : isGap
-        ? "拍好了直接选,或者从相册里翻一张 " + dirWord(task.yaw) + " 的照片。"
+        ? "想要的是 " + dirWord(task.yaw) + " 那边的画面。从相册里翻一张,或者现在去拍。"
         : "从相册里挑一张,能对上这份心愿就行。") + "</p>" +
       '<div class="picker"><input type="file" id="fInput" accept="image/*"' +
         (ROADSHOW ? "" : " multiple") + '>' +
@@ -2312,16 +2334,16 @@
       { id: "n2", name: "仪式区", time: "16:30", panorama: "nodes/n2/pano.jpg" }
     ],
     tasks: [
-      { id: "t1", nodeId: "n1", type: "gap", title: "缺这个角度",
+      { id: "t1", nodeId: "n1", type: "gap", title: "还想要这边的照片",
         brief: "站在舞台右前方,回头拍向主桌那一片", yaw: 210, yawRange: [190, 240],
         briefImage: null, bounty: 50, status: "open", filledBy: [], createdBy: "system" },
       { id: "t2", nodeId: "n1", type: "wish", title: "我想要一张我妈妈笑的照片",
         brief: "敬酒那会儿她一直在笑,我自己一张都没拍到", yaw: null, yawRange: null,
         briefImage: null, bounty: 100, status: "open", filledBy: [], createdBy: "couple" },
-      { id: "t3", nodeId: "n2", type: "gap", title: "缺这个角度",
+      { id: "t3", nodeId: "n2", type: "gap", title: "还想要这边的照片",
         brief: "从入口门廊往里拍,要拍到整排花门", yaw: 45, yawRange: [25, 70],
         briefImage: null, bounty: 60, status: "open", filledBy: [], createdBy: "system" },
-      { id: "t4", nodeId: "n1", type: "gap", title: "缺这个角度",
+      { id: "t4", nodeId: "n1", type: "gap", title: "还想要这边的照片",
         brief: "背对舞台,拍向签到台那面墙", yaw: 300, yawRange: [280, 320],
         briefImage: null, bounty: 40, status: "filled", filledBy: ["小雨"], createdBy: "system" }
     ],
@@ -2360,12 +2382,12 @@
       saveMine([
         { shortId: "d1", photoId: "d1", yaw: 213.4, state: "auto_ok",
           reason: "匹配度 0.91、辨识度 0.088,两项都达标,自动入选",
-          thumb: posterPlaceholder(213), taskTitle: "缺这个角度 · 舞台右前方", at: 1 },
+          thumb: posterPlaceholder(213), taskTitle: "还想要这边的照片 · 舞台右前方", at: 1 },
         { shortId: "d2", photoId: "d2", yaw: 118.9, state: "needs_review",
           reason: "辨识度 0.031 偏低,交给主办方裁决",
           thumb: posterPlaceholder(119), taskTitle: "自由投稿", at: 2 },
         { shortId: "d3", photoId: null, yaw: null, state: "uploaded",
-          reason: "AI 正在定位方向", thumb: posterPlaceholder(47), taskTitle: "缺这个角度 · 入口花门", at: 3 }
+          reason: "AI 正在定位方向", thumb: posterPlaceholder(47), taskTitle: "还想要这边的照片 · 入口花门", at: 3 }
       ]);
     }
     var mine = loadMine(), name = state.nick || "小明";
@@ -2376,8 +2398,8 @@
   // ?screen=waiting:停在"等机器算"那一屏
   function mockShowWaiting() {
     sheetWaiting([
-      { shortId: "w1", thumb: posterPlaceholder(210), taskTitle: "缺这个角度" },
-      { shortId: "w2", thumb: posterPlaceholder(120), taskTitle: "缺这个角度" }
+      { shortId: "w1", thumb: posterPlaceholder(210), taskTitle: "还想要这边的照片" },
+      { shortId: "w2", thumb: posterPlaceholder(120), taskTitle: "还想要这边的照片" }
     ], MOCK_SPACE.tasks[0], 0);
     stopPoll();   // 截图用,别让它真去轮询
   }
