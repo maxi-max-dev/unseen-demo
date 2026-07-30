@@ -279,6 +279,79 @@ def republish(sid, conf=None):
         return None
 
 
+# ================================================================ 直传许可续签
+# 公开快照里带的上传 Policy 固定 48 小时(publish.UPLOAD_EXPIRE_S)。以前只有"重新发布"
+# 这个动作才会签发新的一段 —— 一个没人动的空间到点就过期, 宾客直传直接 403。
+# s4 真炸过一次(BLOCKED.md 里那条 "Invalid according to Policy: Policy expired")。
+# 所以工人自己盯着: 剩余不足 24 小时就主动重发一次快照, 顺手把许可续上。
+POLICY_RENEW_BEFORE_S = 24 * 3600
+# 续签失败(断网/OSS 抽风)后的冷却。不加这个, 每 5 秒重试一次会把日志刷爆,
+# 还会对着一个连不上的 OSS 猛敲。
+POLICY_RETRY_COOLDOWN_S = 300
+_policy_retry_after = {}
+
+
+def upload_policy_state(sid, current=None):
+    """这个空间的直传许可还剩多久。返回 {wanted, expiresAt, remainingS}。
+
+    wanted=False 表示"它本来就不该带许可"(收集关了 / 没节点 / 名额满了)。这种情况下
+    快照里的 expiresAt 是 time.time() 占位值, 永远显示"已过期" —— 不能拿它当续签信号,
+    否则工人会对着一个关掉收集的空间每轮重发一次。
+    """
+    if current is None:
+        with space.space_txn(sid, write=False) as snap:
+            current = snap
+    wanted = (
+        space._normal_collection(current.get("collection"))["status"] == "open"
+        and bool(current.get("nodes"))
+        and not space.space_capacity(current)["full"]
+    )
+    try:
+        expires_at = float(current.get("uploadExpiresAt") or 0)
+    except (TypeError, ValueError):
+        expires_at = 0.0
+    return {"wanted": wanted, "expiresAt": expires_at,
+            "remainingS": expires_at - time.time()}
+
+
+def renew_upload_policy_if_needed(sid, conf=None):
+    """剩余有效期不足 24 小时就重新发布一次, 把直传许可续上。
+
+    返回发布报告 = 真续签了; 返回 None = 这轮不用管, 或者续签没成(会记冷却)。
+    """
+    try:
+        with space.space_txn(sid, write=False) as current:
+            if not space._cloud_publish_authorized(current):
+                return None
+            state = upload_policy_state(sid, current)
+    except FileNotFoundError:
+        return None
+    if not state["wanted"] or state["remainingS"] > POLICY_RENEW_BEFORE_S:
+        return None
+    if time.time() < _policy_retry_after.get(sid, 0):
+        return None
+
+    left = state["remainingS"]
+    if state["expiresAt"] <= 0:
+        why = "本地还没记过到期时间(老数据), 先续一次把台账建起来"
+    elif left <= 0:
+        why = f"已经过期 {-left / 3600:.1f} 小时"
+    else:
+        why = f"只剩 {left / 3600:.1f} 小时"
+    log(f"🔑 直传许可{why}, 自动续签中…")
+    conf = conf or oss.load_conf()
+    if republish(sid, conf) is None:
+        _policy_retry_after[sid] = time.time() + POLICY_RETRY_COOLDOWN_S
+        log(f"⚠️ 续签没成, {POLICY_RETRY_COOLDOWN_S // 60} 分钟后再试"
+            f"(旧许可没过期的话宾客还能继续传)")
+        return None
+    _policy_retry_after.pop(sid, None)
+    fresh = upload_policy_state(sid)
+    log(f"✅ 直传许可已续到 {time.strftime('%m-%d %H:%M:%S', time.localtime(fresh['expiresAt']))}"
+        f"(还剩 {fresh['remainingS'] / 3600:.1f} 小时)")
+    return True
+
+
 # ================================================================ 主循环
 def poll_once(sid, conf=None, log_empty=True, do_publish=True):
     """收一轮。返回 {ok, listed, new, processed, failed, results, published}。
@@ -601,6 +674,9 @@ def run_forever(sid, interval=5, conf=None):
     try:
         while True:
             beat(sid, "polling")     # 每轮一次心跳, 新人后台靠它显示"工人运行中"
+            # 收照片之前先看一眼直传许可还剩多久。放在最前面是有意的: 许可过期时
+            # 宾客根本传不进来, 收件箱空空如也看起来跟"没人传"一模一样。
+            renew_upload_policy_if_needed(sid, conf)
             res = poll_once(sid, conf, log_empty=False)
             # 全景收件箱(主办方自传)和照片收件箱(宾客直传)同一轮里都看一眼。
             # 两条通道各自独立、互不去重, 这里只是共用同一个循环节奏。
@@ -663,6 +739,8 @@ def main():
         return 0
 
     if args.once:
+        if not args.no_publish:
+            renew_upload_policy_if_needed(args.sid, conf)
         res = poll_once(args.sid, conf, do_publish=not args.no_publish)
         pano_res = poll_panos_once(args.sid, conf, do_publish=not args.no_publish)
         return 0 if (res.get("ok") and pano_res.get("ok")) else 1
