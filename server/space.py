@@ -69,7 +69,9 @@ if REPO_ROOT not in sys.path:
     sys.path.insert(0, REPO_ROOT)
 
 from tools.slice import equirect_to_perspective, FOV, CROP_W, CROP_H, YAWS  # noqa: E402
-from tools.match import match_one  # noqa: E402
+# 2026-07-30 起主链不再 import tools.match 的 match_one: 它的 ±30° 插值精修会把对的
+# yaw 拖偏(见 _match_grid_peak 的注释), 主链改成只取 30° 网格峰值。
+# tools/match.py 本身一行没改, 旧的 compose 流程和它自己的 CLI 照旧用它。
 
 # ---------------------------------------------------------------- 常量
 SCHEMA = "psm-space/1"
@@ -82,7 +84,7 @@ DEFAULT_EXHIBITION_VIEWS = ("walk", "photos", "tasks", "contributors")
 # ⚠️ 阈值是【在这条真实管线上】量出来的, 不是拍脑袋(2026-07-24, clip-ViT-B-32,
 #   ballroom 全景的 12 张裁切 bank, 9 张本空间照片 vs 15 张外来照片):
 #
-#     ┌ 判据一 confidence(= match_one 插值后的 top-1 相似度)
+#     ┌ 判据一 confidence(= top-1 裁切的余弦相似度)
 #     │   本空间  0.8730 ~ 0.9544
 #     │   外来    0.6116 ~ 0.8899   ← 两组【会重叠】, 单靠它挡不住外来照片
 #     └ 判据二 margin(= top-1 相似度 减 全部裁切的平均相似度)
@@ -1400,9 +1402,37 @@ def _drop_node_crop_cache(sid, node_id):
             _crop_cache.pop(key, None)
 
 
+def _match_grid_peak(sims, crop_nodes, crop_yaws):
+    """照片落在哪个节点、哪个 yaw: 直接取 30° 网格上相似度最高的那张裁切。
+    返回 (node, yaw, confidence, sim0), 与 tools/match.py 的 match_one 同形。
+
+    ⚠️ 这里【只取网格峰值, 不做插值精修】, 别好心改回 match_one。
+    理由和实测数字在 server/repair.py 的 score_photo 注释里, 摘要:
+    match_one 的精修是 yaw_final = yaw0 + (±30) * s1/(s0+s1), 这个权重公式默认
+    "邻居不匹配时相似度会掉到接近 0"。但 CLIP 对同一个房间的不同朝向裁切, 余弦相似度
+    整条曲线都挤在 0.73~0.93 之间(夹具 004 实测: 峰值 yaw150=0.9265,
+    邻居 yaw180=0.9099, yaw120=0.8702), 于是 s1/(s0+s1) 恒等于 0.5 上下,
+    结果永远落在"峰值和较好邻居的中点"。004 就这样从正确的 150 被拖到 164.9,
+    偏了 15 度, 而 confidence 照报 0.9265 —— 置信度更高、位置更错。审核的人看见
+    0.9265 反而不会去查它, 所以它比普通的低置信误差更危险。
+
+    代价是诚实的: 网格 30° 一格, yaw 精度就是 ±15°, 不伪造小数位去装精确。
+    要更细的定位得上密集网格(repair.py 那套 24 yaw × 3 pitch = 72 裁切), 但那要
+    连阈值、性能和裁切缓存一起重跑回归, 是另立的一件事, 不在这里顺手搬。
+
+    ✅ 这次改动【不动阈值】: match_one 返回的 confidence 本来就是 clip(sim0),
+    是原始 top-1 相似度、不是插值产物, 所以 CONF_MIN/MARGIN_MIN 那套标定照旧有效,
+    变的只有 yaw 一个字段。
+    """
+    top = int(np.argmax(sims))
+    sim0 = float(sims[top])
+    return (str(crop_nodes[top]), float(crop_yaws[top]),
+            float(np.clip(sim0, 0.0, 1.0)), sim0)
+
+
 def place_photos(sid, space, photo_paths, node_id=None):
     """CLIP 定位: 每张照片编码一次, 和【所有节点】的裁切图一起比, 相似度最高的那张裁切
-    决定了照片属于哪个节点、朝哪个 yaw(挑选逻辑复用 tools/match.py 的 match_one)。
+    决定了照片属于哪个节点、朝哪个 yaw(取 30° 网格峰值, 见上面的 _match_grid_peak)。
     node_id 不为空就只跟那个节点比(前端明确指定了在哪儿拍的)。
 
     返回 [{nodeId, yaw, confidence, sim, margin}, ...], 与 photo_paths 一一对应。
@@ -1438,9 +1468,8 @@ def place_photos(sid, space, photo_paths, node_id=None):
     results = []
     for emb in photo_embs:
         sims = bank_embs @ emb
-        nid, yaw, confidence, sim0 = match_one(sims, bank_nodes, bank_yaws)
-        # margin 拿 sim0(真实的 top-1)减平均, 不用 confidence ——
-        # confidence 是 match_one 插值后的产物, 和 sims 不在同一个尺度上比才有意义。
+        nid, yaw, confidence, sim0 = _match_grid_peak(sims, bank_nodes, bank_yaws)
+        # margin 拿 sim0(真实的 top-1)减平均, 才和 sims 在同一个尺度上。
         margin = float(sim0) - float(np.mean(sims))
         results.append({
             "nodeId": str(nid),

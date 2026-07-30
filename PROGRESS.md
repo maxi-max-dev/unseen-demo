@@ -1720,3 +1720,43 @@ WXML/WXSS/JS/JSON能组装成一个合法包,是比`node --check`更强的一层
 证的是两件事：阈值以上连续 6 轮**不动手**（不是无脑每轮重发），跌破阈值**立刻续上**且剩余回到满值。时长已改回 48 小时。
 
 **三条基线**：s4 photos = **28**（与开工前一致，本件只续许可没动数据）｜密钥 grep 见每次提交前统一核对｜sweep 基线本件未跑（`sweep` 需要 urls.json 参数，仓库里没有现成的，第 4 件要用时一并建）。
+
+## 施工 2 · 方向计算删假插值（P1-5）✅
+
+**改哪儿**：`server/space.py` 新增 `_match_grid_peak()`，主链 `place_photos()` 改调它，只取 30° 网格峰值。`tools/match.py` 一行没改（旧 compose 流程和它自己的 CLI 照旧用 `match_one`）。`server/compose_server.py` 也没碰 —— 它不在地界里，而且是已退役的合成流程。顺手删掉 space.py 顶部对 `match_one` 的 import（已成死代码），原地留注释说明为什么不再引它。
+
+**没把 repair 的密集网格搬进主链**：按规格禁止。`repair.py` 那套 24 yaw × 3 pitch = 72 裁切要连阈值、性能和裁切缓存一起重跑回归，是另立的一件事。
+
+**一个值得记的发现**：这次改动**不动阈值**。`match_one` 返回的 `confidence` 本来就是 `clip(sim0)`，是原始 top-1 相似度、不是插值产物 —— 插值只污染了 yaw 一个字段。所以 `CONF_MIN=0.82` / `MARGIN_MIN=0.055` 那套标定照旧有效，不需要重标。space.py 顶部原来写着「判据一 confidence(= match_one 插值后的 top-1 相似度)」，是错的，已改。测试里加了一条断言把这件事焊死（新旧置信度必须逐位相等）。
+
+**固定回归测试**：新增 `tools/test_yaw_peak.py`，跑法 `.venv/bin/python -m tools.test_yaw_peak`。它自己在内存里切 12 张裁切，**不走** `space._node_crop_bank`（那个会在夹具目录里落一个 `crops.npz` 把仓库弄脏）。
+
+```
+$ .venv/bin/python -m tools.test_yaw_peak
+夹具 004.jpg 在 12 张裁切上的相似度前三:
+    yaw150 = 0.9115
+    yaw180 = 0.9069
+    yaw120 = 0.8933
+
+新算法(网格峰值, 主链在用): yaw=150.0 confidence=0.9115
+旧算法(match_one 插值精修): yaw=165.0 confidence=0.9115   ← 参考值 164.9, 偏了一个门洞
+
+✅ 通过: 主链只取 30° 网格峰值, yaw=150; 置信度口径未变, 阈值标定仍然有效
+exit=0
+```
+
+⚠️ **一处与账本对不上的数，如实记**：`repair.py` 注释里记的实测相似度是 yaw150=0.9265 / yaw180=0.9099 / yaw120=0.8702，插值给 164.9；今天同一张夹具、同一条切法跑出来是 0.9115 / 0.9069 / 0.8933，插值给 165.0。结论完全一致（正确答案 150，插值必偏一个门洞），但**绝对相似度值漂了**。这正是 P1-6「阈值/模型版本不可迁移无回归集」的活证据：没有固定 revision 的 CLIP 权重，同一张图今天和上周算出来就是不同的数。没改账本里的历史数字，因为那是当时的真实记录。
+
+**验收**：
+```
+$ .venv/bin/python -m server.repair server/sessions/fixture
+低置信照片下标: []
+[]
+exit=0
+$ git status --short          ← 夹具零改动, 只有我自己这两个文件
+ M server/space.py
+?? tools/test_yaw_peak.py
+```
+另跑了一遍 `place_photos()` 真链路冒烟（拿夹具 004 去撞 stressexp1 的全景）：`yaw=60.0 confidence=0.4241`，yaw 是 30 的整数倍 ✅，置信度 0.4241 远低于 0.82 会进待审 ✅ —— 外来照片该拦还是拦得住。
+
+**三条基线**：s4 photos = **28**（本件不碰发布链路）｜密钥 grep 0 条｜sweep 待第 4 件建 spec。
