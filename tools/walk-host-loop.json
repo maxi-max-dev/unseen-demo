@@ -1,0 +1,25 @@
+{
+  "_说明": "主办方入口的死循环回归。原来: 工作台 → 点 Studio → 登录页 → 立刻被弹回工作台 → 再点 → 再弹, 人被夹在两页之间。这条剧本走完整一遍, 最后一步的 url 必须【停在登录页】, 不能又回到 workspace.html。跑法见 tools/sweep-public.md。",
+  "steps": [
+    { "name": "01 打开产品门户", "metrics": [390, 844],
+      "go": "http://127.0.0.1:8791/portal.html", "settle": 2000,
+      "eval": "location.pathname" },
+
+    { "name": "02 点主办方 Studio 卡", "click": "a.role-card.host", "wait": 1800,
+      "eval": "location.pathname + ' | 演示条=' + (document.body.innerText.indexOf('演示功能 · 正式版建设中') >= 0)" },
+
+    { "name": "03 输入演示口令 1111", "fill": { "selector": "#pinInput", "value": "1111" }, "wait": 300 },
+
+    { "name": "04 提交", "click": "#submitBtn", "wait": 2200,
+      "eval": "location.pathname",
+      "shot": "tools/shots-k/k14-after-login.png" },
+
+    { "name": "05 从工作台再点 Studio(这一步以前会开始打转)",
+      "click": "[data-studio-entry]", "wait": 2500,
+      "eval": "location.pathname",
+      "shot": "tools/shots-k/k15-loop-broken.png" },
+
+    { "name": "06 判定", "wait": 1500,
+      "eval": "(function(){var p=location.pathname;var stopped=/studio-login\\.html$/.test(p);var msg=(document.getElementById('message')||{}).textContent||'';return (stopped?'✅ 停在登录页, 循环已断':'❌ 又被弹回 '+p)+' | 提示语: '+msg.trim();})()" }
+  ]
+}

@@ -292,6 +292,13 @@
 </head>
 <body class="u-body">
 <div class="u-bokeh"></div>
+<!-- 演示标记(2026-07-30, P0-1)。页面和代码一行没删, 重做主办台时还要用, 但在那之前
+     必须先把话说清楚: 这是一道演示门禁, 不是账号系统。前端只收 4 位且只认 1111,
+     后端(compose_server)反过来要求 ≥6 位并且明确拉黑 1111 —— 两边互斥, 任何合法口令
+     都没法从这个界面输进去。而且请求失败时这一页会放行。-->
+<div style="position:relative;z-index:99;padding:11px 16px;background:#7a3b00;color:#ffdfb5;border-bottom:1px solid #b06000;font-size:13px;line-height:1.55;text-align:center">
+  <b style="color:#fff">演示功能 · 正式版建设中</b>　这是演示门禁，不是账号系统。真正的主办方工作台（创建 / 审核 / 策展 / 发布）还在建设中。
+</div>
 <main class="login-shell">
   <section class="brand-pane">
     <div class="topline">
@@ -300,7 +307,9 @@
     </div>
     <div class="eyebrow">Studio Access</div>
     <h1>主办方的<span>演示工作台。</span></h1>
-    <p class="lead">输入演示口令，进入照片收集、人工审核、策展与发布的完整主办方界面。</p>
+    <!-- 2026-07-30(P0-1): 这句原来承诺"进入照片收集、人工审核、策展与发布的完整主办方界面",
+         而那个界面还不存在, 跟页顶的演示条自相矛盾。改成现状。 -->
+    <p class="lead">收集、审核、策展、发布是这套系统的主办方能力。目前登录之后只有演示工作台，可操作的主办界面还在建设中。</p>
     <div class="flow" aria-label="Studio 功能">
       <span>收集</span><span>审核</span><span>策展</span><span>发布</span>
     </div>
@@ -492,8 +501,20 @@
   input.addEventListener("focus", paint);
   input.addEventListener("blur", paint);
   submit.addEventListener("click", enterStudio);
+  // 2026-07-30(P0-1) 断死循环。原来这里是 `if (validSession()) location.replace(safeNext())`,
+  // 无条件把"已登录"的访客弹回工作台。而工作台上的 Studio 按钮和空间卡又统统指回这一页,
+  // 于是: 工作台 → 点 Studio → 这一页 → 立刻被弹回工作台 → 再点 → 再弹…… 人被夹在两页之间,
+  // 既进不去(主办台还没建), 也没有任何提示告诉他为什么。
+  // 现在只在【不是从工作台过来】的时候才自动放行; 从工作台点进来就停下, 明说一句。
+  // 只改这一处 on-load 自动跳转, 登录成功那一跳(enterStudio 里的 location.replace)原样保留。
   window.addEventListener("pageshow", function(){
-    if (validSession()) location.replace(safeNext());
+    if (!validSession()) return;
+    var cameFromWorkspace = /(^|\/)workspace\.html/.test(String(document.referrer || ""));
+    if (cameFromWorkspace) {
+      setMessage("你已经通过演示门禁了。可操作的主办工作台还在建设中，这一页暂时没有下一步。", "good");
+      return;
+    }
+    location.replace(safeNext());
   });
 
   if (new URLSearchParams(location.search).get("out") === "1") {

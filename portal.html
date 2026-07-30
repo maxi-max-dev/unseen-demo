@@ -549,6 +549,7 @@
     gap:14px;
   }
   .module{
+    position:relative;          /* 右上角那枚"演示"牌子靠它定位 */
     min-height:210px;
     display:flex;
     flex-direction:column;
@@ -587,6 +588,22 @@
     font-size:12px;
     font-weight:800;
   }
+
+  /* 演示标记(2026-07-30, P2-1)。以前产品入口、固定演示和旧模型样例混在同一棵导航树里,
+     谁也分不清哪个是能用的功能、哪个是给评委看的固定素材。现在演示全部收进"作品演示"
+     一个区块, 每一张卡自己也戴一个牌子。 */
+  .demo-badge{
+    display:inline-block;
+    padding:3px 9px;
+    border-radius:999px;
+    background:#7a3b00;
+    color:#ffdfb5;
+    font-size:11px;
+    font-weight:800;
+    letter-spacing:.04em;
+    white-space:nowrap;
+  }
+  .module .demo-badge{ position:absolute; top:18px; right:18px; }
 
   .system-line{
     display:grid;
@@ -774,8 +791,7 @@
     <a class="brand" href="#top" aria-label="回到页面顶部">U N S E E N<i>.</i></a>
     <nav class="head-nav" aria-label="页面目录">
       <a href="#roles">三个界面</a>
-      <a href="#demo">现场演示</a>
-      <a href="#pages">全部页面</a>
+      <a href="#showcase">作品演示</a>
       <a href="#system">系统逻辑</a>
     </nav>
     <button class="full-btn" id="fullBtn" type="button">全屏展示</button>
@@ -788,11 +804,14 @@
       <p class="hero-lead">
         UNSEEN 把散落在宾客手机里的照片，重新放回它被拍下的空间。一套系统连接宾客上传、主办方处理与可分享的记忆展览。
       </p>
+      <!-- 2026-07-30(P2-1): 首屏最大的那颗按钮原来是"进入路演现场", 而路演页是写死
+           s900003 的固定演示。产品入口反而排在它后面。现在主按钮给产品, 路演连同六幕
+           演示、POV 一起收进下面的"作品演示"区块。-->
       <div class="hero-actions">
-        <a class="primary-cta" href="roadshow.html">
-          进入路演现场 <span aria-hidden="true">→</span>
+        <a class="primary-cta" href="#roles">
+          打开产品入口 <span aria-hidden="true">↓</span>
         </a>
-        <a class="secondary-cta" href="#roles">打开产品入口 <span aria-hidden="true">↓</span></a>
+        <a class="secondary-cta" href="#showcase">看作品演示 <span aria-hidden="true">↓</span></a>
       </div>
       <div class="hero-proof" aria-label="当前能力">
         <span class="proof"><span class="dot"></span>三个角色界面</span>
@@ -835,13 +854,16 @@
         <span class="role-open"><span class="arrow">→</span>进入宾客端</span>
       </a>
 
+      <!-- 2026-07-30(P0-1): 这张卡原来承诺"收集/审核/策展/发布"四件事都能在这里完成,
+           实际上主办闭环还没接通 —— 登录只是演示门禁, 后面没有可用的创建、审核和发布界面。
+           卡不删(那是产品方向), 但文案必须先跟现状对齐, 别让人点进去才发现是空的。-->
       <a class="role-card host" href="web/studio-login.html">
-        <span class="local-flag">云端演示登录</span>
+        <span class="local-flag">演示 · 建设中</span>
         <span class="role-index">02</span>
         <h3>主办方 Studio</h3>
-        <p>管理照片收集、机器状态、人工审核和展览草稿。主办方从这里完成发布。</p>
+        <p>收集、审核、策展、发布的主办方界面。目前只有演示登录页，后面的工作台还在建设中。</p>
         <div class="role-list"><span>收集</span><span>审核</span><span>策展</span><span>发布</span></div>
-        <span class="role-open"><span class="arrow">→</span><span>登录云端演示 Studio</span></span>
+        <span class="role-open"><span class="arrow">→</span><span>看演示登录页</span></span>
       </a>
 
       <a class="role-card exhibit" href="web/show.html?s=s4&amp;back=portal.html">
@@ -854,68 +876,72 @@
     </div>
   </section>
 
-  <section class="section reveal" id="demo">
+  <!-- 2026-07-30(P2-1): 原来这里是两节 —— "02 · LIVE DEMO"和"03 · PAGE INDEX",
+       固定演示、旧模型样例和工作台混排在产品入口旁边, 看起来跟上面三个角色入口
+       是同一个层级的功能。现在合并成一节"作品演示", 区块标题和每张卡都写明是演示,
+       路演现场(写死 s900003)也从首屏主按钮挪进来。页面一个没删, 只是换了位置和名分。-->
+  <section class="section reveal" id="showcase">
     <div class="section-head">
-      <div class="section-no">02 · LIVE DEMO</div>
+      <div class="section-no">02 · SHOWCASE</div>
       <div class="section-title">
-        <h2>上台时，从这里开始</h2>
-        <p>六幕演示负责讲清问题、技术和结果。POV 与 3D 漫游可以在需要时单独打开。</p>
+        <h2>作品演示</h2>
+        <p>这一节全部是<strong>演示内容</strong>：固定素材、固定空间、为讲清楚产品做的叙事页。它们不是你自己的空间，也不代表当前可交付的功能。产品入口在上面一节。</p>
       </div>
     </div>
 
     <div class="demo-stage">
       <img src="assets/walkdemo/pov-desktop.jpg" alt="">
       <div class="stage-content">
-        <span class="tag">JUDGE PRESENTATION</span>
+        <span class="tag">DEMO · 演示内容</span>
         <h3>那五分钟，也许被别人拍下来了</h3>
-        <p>从散落的宾客照片开始，依次看到方向识别、空间钉点、缺口任务和可以走进去的记忆展览。</p>
+        <p>从散落的宾客照片开始，依次看到方向识别、空间钉点、缺口任务和可以走进去的记忆展览。用的是预先准备好的固定素材。</p>
         <div class="stage-actions">
           <a class="stage-primary" href="web/demo.html">打开六幕演示 →</a>
-          <a class="stage-ghost" data-ai-show href="web/show.html?s=s900001">AI 全景回顾 · 已上传</a>
+          <a class="stage-ghost" href="roadshow.html">路演现场</a>
           <a class="stage-ghost" href="web/pov.html?back=portal.html">查看 POV 说明</a>
           <a class="stage-ghost" href="viewer/walk.html?demo=1&amp;back=portal.html">直接进入 3D</a>
         </div>
       </div>
       <div class="stage-steps" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
     </div>
-  </section>
 
-  <section class="section reveal" id="pages">
-    <div class="section-head">
-      <div class="section-no">03 · PAGE INDEX</div>
-      <div class="section-title">
-        <h2>全部展示页面</h2>
-        <p>正式入口在上面，四个补充展示页面集中在这里。旧原型和开发工具没有放进展示目录。</p>
-      </div>
-    </div>
-
-    <div class="module-grid">
+    <div class="module-grid" style="margin-top:18px">
+      <a class="module" href="roadshow.html">
+        <span class="demo-badge">演示</span>
+        <span class="module-icon">◉</span><h3>路演现场</h3>
+        <p>活动现场用的固定空间（写死 s900003），大屏每五秒刷新一次收集状态。</p><span class="module-go">打开页面 →</span>
+      </a>
       <a class="module" data-ai-show href="web/show.html?s=s900001">
+        <span class="demo-badge">演示</span>
         <span class="module-icon">✦</span><h3>AI 全景回顾 · 已上传</h3>
         <p>4 个全景场景和 8 张演示照片，按“已上传 → 已定位 → 可展示”进入同一条主系统流程。</p><span class="module-go">打开完整展览 →</span>
       </a>
       <a class="module" href="web/pov.html?back=portal.html">
+        <span class="demo-badge">演示</span>
         <span class="module-icon">◎</span><h3>回到 TA 的视角</h3>
         <p>解释照片如何世界锚定，以及能力边界。</p><span class="module-go">打开页面 →</span>
       </a>
       <a class="module" href="viewer/walk.html?demo=1&amp;back=portal.html">
+        <span class="demo-badge">演示</span>
         <span class="module-icon">◎</span><h3>3D 空间漫游</h3>
         <p>进入稳定演示空间，点击照片查看拍摄方向。</p><span class="module-go">打开页面 →</span>
       </a>
       <a class="module" href="web/demo.html">
+        <span class="demo-badge">演示</span>
         <span class="module-icon">▶</span><h3>六幕评委 Demo</h3>
         <p>用完整叙事讲清问题、技术路径和最终结果。</p><span class="module-go">打开页面 →</span>
       </a>
       <a class="module" href="workspace.html">
+        <span class="demo-badge">演示</span>
         <span class="module-icon">⌂</span><h3>空间工作台</h3>
-        <p>查看本机空间、场景入口和历史演示工具。</p><span class="module-go">打开工作台 →</span>
+        <p>演示型的空间卡片和说明，不是可操作的主办空间列表。</p><span class="module-go">打开工作台 →</span>
       </a>
     </div>
   </section>
 
   <section class="section reveal" id="system">
     <div class="section-head">
-      <div class="section-no">04 · SYSTEM</div>
+      <div class="section-no">03 · SYSTEM</div>
       <div class="section-title">
         <h2>三步完成同一条闭环</h2>
         <p>不是三套独立网站，而是同一份空间数据在三个权限界面中的不同呈现。</p>
@@ -932,7 +958,7 @@
     <div class="footer-title">看见没被看见的。</div>
     <div class="footer-meta">
       UNSEEN · AdventureX 2026<br>
-      <a href="web/demo.html">六幕演示</a>
+      <a href="web/demo.html">六幕演示（演示）</a>
       · <a href="web/show.html?s=s4&amp;back=portal.html">公开展览</a>
     </div>
   </footer>

@@ -71,6 +71,13 @@
 </head>
 <body class="u-body">
 <div class="u-bokeh"></div>
+<!-- 演示标记(2026-07-30, P1-2)。表单、封面和全景直传都是真代码, 但它连的是
+     【访问者自己电脑上的】127.0.0.1:8777(见 app/scenes.js)。公网上打开这一页,
+     绝大多数人机器上没有那个后端, 于是这里会静默退化成只写 localStorage 的草稿,
+     还继续往下跳 —— 看起来"创建成功"了, 其实云上什么都没有。页面不删, 先把话说明白。-->
+<div style="position:relative;z-index:99;padding:11px 16px;background:#7a3b00;color:#ffdfb5;border-bottom:1px solid #b06000;font-size:13px;line-height:1.55;text-align:center">
+  <b style="color:#fff">演示功能 · 正式版建设中</b>　这一页要连你自己电脑上的本机后端才能真的建空间。没有后端时它只会在这台浏览器里存一份草稿，云端不会有这个空间。
+</div>
 <div class="u-page">
 
   <div class="u-bar">

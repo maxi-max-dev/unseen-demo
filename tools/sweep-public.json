@@ -1,0 +1,18 @@
+{
+  "_说明": "公网静态站 13 个 HTML 页面的巡检清单(deploy/public-files.txt 里的全部 HTML)。跑法见 tools/sweep-public.md。",
+  "urls": [
+    { "name": "01 首页转发桩",     "url": "http://127.0.0.1:8791/index.html",                        "settle": 1200, "shot": "tools/shots-k/k01-index.png" },
+    { "name": "02 产品门户",       "url": "http://127.0.0.1:8791/portal.html",                       "settle": 2200, "shot": "tools/shots-k/k02-portal.png" },
+    { "name": "03 宾客上传 s4",    "url": "http://127.0.0.1:8791/web/join.html?s=s4",                "settle": 3000, "shot": "tools/shots-k/k03-join.png" },
+    { "name": "04 只读展览 s4",    "url": "http://127.0.0.1:8791/web/show.html?s=s4",                "settle": 3000, "shot": "tools/shots-k/k04-show.png" },
+    { "name": "05 3D 漫游演示",    "url": "http://127.0.0.1:8791/viewer/walk.html?demo=1",           "settle": 3500, "shot": "tools/shots-k/k05-walk.png" },
+    { "name": "06 六幕演示",       "url": "http://127.0.0.1:8791/web/demo.html",                     "settle": 2500, "shot": "tools/shots-k/k06-demo.png" },
+    { "name": "07 POV 说明",       "url": "http://127.0.0.1:8791/web/pov.html",                      "settle": 2000, "shot": "tools/shots-k/k07-pov.png" },
+    { "name": "08 路演现场",       "url": "http://127.0.0.1:8791/roadshow.html",                     "settle": 3000, "shot": "tools/shots-k/k08-roadshow.png" },
+    { "name": "09 空间工作台",     "url": "http://127.0.0.1:8791/workspace.html",                    "settle": 2200, "shot": "tools/shots-k/k09-workspace.png" },
+    { "name": "10 演示登录",       "url": "http://127.0.0.1:8791/web/studio-login.html",             "settle": 2000, "shot": "tools/shots-k/k10-studio-login.png" },
+    { "name": "11 创建空间",       "url": "http://127.0.0.1:8791/app/create.html",                   "settle": 2200, "shot": "tools/shots-k/k11-create.png" },
+    { "name": "12 邀请共创",       "url": "http://127.0.0.1:8791/app/invite.html",                   "settle": 2200, "shot": "tools/shots-k/k12-invite.png" },
+    { "name": "13 场景详情",       "url": "http://127.0.0.1:8791/app/scene.html",                    "settle": 2200, "shot": "tools/shots-k/k13-scene.png" }
+  ]
+}
