@@ -58,11 +58,11 @@ var FRAG_SRC = [
   "}"
 ].join("\n");
 
-// 本地测试贴图：任务1把 s4 真实节点(n1/宴会厅)的云端全景降到 2048 后存在这里。
-// 云端原图是 4096，已知在真机上加载失败率接近 100%，明知故犯是任务书里点名的
-// 失败条件，绝不接：
-// var PANO_SRC = "https://psm-advx-2026.oss-cn-hangzhou.aliyuncs.com/spaces/s4/nodes/n1/pano.jpg";
-var PANO_SRC = "/assets/panos/s4-n1.jpg";
+// 批次K：这张打包进小程序的图【降级成 s4 专用的离线兜底】，不再是所有空间的
+// 贴图来源。正常路径是服务端为每个节点发的 2048x1024 降档图(space.json 的
+// node.panoMini，见 server/publish.py 的 _ensure_pano_mini)，按当前空间和节点取。
+// 云端原图是 4096，真机加载失败率接近 100%，任何情况下都不去拉它。
+// 兜底地址现在统一登记在 utils/util.js 的 OFFLINE_PANO 表里，这里不再写常量。
 
 var FOV_DEG = 78;
 // 批次I调参:原值0.28在本机模拟器(390px宽)算出来拖一屏只转102°，任务要求~120°。
@@ -130,7 +130,13 @@ Page({
     // ?sid=stressexp1 进来，老的婚礼入口不带 sid，兜底 s4，行为不变)。
     sid: "s4",
     uploadBarVisible: false,
-    uploadStatusText: ""
+    uploadStatusText: "",
+    // 批次K:贴图是不是真的上去了。加这两个字段是因为【模拟器截图拍不到 WebGL
+    // 画布】——批次J 贴的是本地打包图，截出来同样是一片占位色，所以"截图看着是空的"
+    // 完全没法区分"图没加载"和"截图拍不到"。把结果落进 data，验收脚本就能断言，
+    // 不用再靠肉眼猜。顺带也让页面有东西可以挂加载态。
+    panoReady: false,
+    panoSrcInUse: ""
   },
 
   onLoad: function (query) {
@@ -169,9 +175,11 @@ Page({
       }
     }
 
-    // 批次J新增:sid 贯穿三页。带 sid 就用它(体验空间卡传的是 stressexp1)，
-    // 没带就兜底 util.DEFAULT_SPACE_ID(=s4，老的婚礼入口不受影响)。
-    this.sid = (query && query.sid) || util.DEFAULT_SPACE_ID;
+    // 批次K:sid 统一走 util.resolveSid()，没带会打一句警告——线上再出现
+    // "怎么又回到 s4 了"时，那句日志是唯一线索。nodeId 同样从 query 拿，
+    // 多节点空间从照片页点回来时要落回原来那个节点，不能一律跳回第一个。
+    this.sid = util.resolveSid(query);
+    this.nodeId = (query && query.nodeId) || null;
     this.setData({ sid: this.sid });
 
     this.loadSpace();
@@ -208,10 +216,17 @@ Page({
         self.setData({ loadError: true });
         return;
       }
-      var node = (space.nodes && space.nodes[0]) || null;
-      var photos = (space.photos || []).slice().sort(function (a, b) {
+      // 批次K(P0-3 的两半):
+      //   ① 节点跟着 nodeId 走，不再永远 nodes[0]——多节点空间以前全挤在第一个节点上。
+      //   ② 照片按 nodeId 过滤。以前是把【整个空间】的照片放进同一条缩略带，
+      //      于是二号节点的照片会挂在一号节点的全景上，方向全是错的。
+      var node = util.pickNode(space, self.nodeId);
+      self.nodeId = node ? node.id : null;
+      var photos = util.photosOfNode(space, self.nodeId).slice().sort(function (a, b) {
         return (Number(a.yaw) || 0) - (Number(b.yaw) || 0);
       });
+      // ③ 全景贴图跟着当前空间+节点走，不再写死打包进来的那张 s4 背景。
+      self.applyPanoSource(util.panoSourceFor(self.sid, node));
 
       var activeIndex = 0;
       if (focusYaw !== null && photos.length) {
@@ -228,12 +243,67 @@ Page({
         spaceTitle: space.title || "这段记忆",
         spaceCouple: space.couple || "",
         nodeName: node ? node.name : "",
+        nodeCount: (space.nodes || []).length,
         photos: photos,
         photoCount: photos.length,
         activeIndex: activeIndex
       });
       self.updateCurrentDirLabel();
     });
+  },
+
+  // 批次K:全景贴图的来源。空间数据回来才知道该贴哪张图，而 GL 是 onReady 就
+  // 初始化好的——两边谁先到都有可能，所以两头都调这个函数，它自己判断另一半
+  // 就绪没有。src 没变就不重贴(换节点/重进页面时避免白白重下一张 500KB 的图)。
+  applyPanoSource: function (source) {
+    var src = source && source.src;
+    if (!src) {
+      // 这个空间既没有降档全景，也没有可用的离线兜底。诚实报错，绝不拿
+      // 别的空间的背景冒充——"其他空间的照片方向 + s4 的背景"正是 P0-3。
+      console.error("[pano] 空间 " + this.sid + " 没有可用的全景(缺 panoMini)");
+      this.setData({ loadError: true });
+      return;
+    }
+    if (this._panoSrc === src) return;
+    this._panoSrc = src;
+    this._panoIsOffline = !!source.offline;
+    this.setData({ panoReady: false, panoSrcInUse: src });
+    if (this.gl && this.canvasNode) this.bindPanoTexture();
+  },
+
+  bindPanoTexture: function () {
+    var self = this;
+    var gl = this.gl;
+    if (!gl || !this.tex || !this.canvasNode || !this._panoSrc) return;
+    if (!this.canvasNode.createImage) {
+      console.error("[pano] canvas.createImage 不可用");
+      this.setData({ loadError: true });
+      return;
+    }
+    var wanted = this._panoSrc;
+    var img = this.canvasNode.createImage();
+    img.onload = function () {
+      // 慢请求回来时可能已经换到别的节点了，过期的那张不许覆盖当前贴图。
+      if (self._panoSrc !== wanted) return;
+      gl.bindTexture(gl.TEXTURE_2D, self.tex);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
+      self.setData({ loadError: false, panoReady: true, panoSrcInUse: wanted });
+    };
+    img.onerror = function (e) {
+      console.error("[pano] 全景贴图加载失败", wanted, e);
+      // 云图拉不动时，只有【这个空间自己】有离线兜底才退回去。别的空间宁可空着。
+      var fallback = util.panoSourceFor(self.sid, null);
+      if (!self._panoIsOffline && fallback.src) {
+        console.warn("[pano] 退回离线兜底:" + fallback.src);
+        self._panoSrc = fallback.src;
+        self._panoIsOffline = true;
+        self.setData({ panoSrcInUse: fallback.src });
+        self.bindPanoTexture();
+        return;
+      }
+      self.setData({ loadError: true, panoReady: false });
+    };
+    img.src = wanted;
   },
 
   updateCurrentDirLabel: function () {
@@ -349,21 +419,9 @@ Page({
     );
     this.tex = tex;
 
-    if (!canvasNode.createImage) {
-      console.error("[pano] canvas.createImage 不可用");
-      self.setData({ loadError: true });
-      return;
-    }
-    var img = canvasNode.createImage();
-    img.onload = function () {
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img);
-    };
-    img.onerror = function (e) {
-      console.error("[pano] 全景贴图加载失败", e);
-      self.setData({ loadError: true });
-    };
-    img.src = PANO_SRC;
+    // 批次K:贴图地址不再写死。GL 就绪时空间数据可能还没回来(反之亦然)，
+    // 谁后到谁负责触发一次绑定，具体逻辑在 applyPanoSource/bindPanoTexture。
+    if (this._panoSrc) this.bindPanoTexture();
   },
 
   startRenderLoop: function () {
@@ -575,7 +633,8 @@ Page({
   goPhotos: function () {
     // 批次J修:带上 sid，让 photos 页知道读哪个空间(之前没带参数，隐式兜底
     // s4；现在体验空间的照片方位屏也得看得到体验空间自己的照片)。
-    wx.navigateTo({ url: "/pages/photos/photos?sid=" + encodeURIComponent(this.sid) });
+    // 批次K:带上 nodeId——照片页要跟这一页看的是同一个节点的同一批照片。
+    wx.navigateTo({ url: util.pageUrl("photos", this.sid, { nodeId: this.nodeId }) });
   },
 
   // ================================================================
@@ -611,12 +670,21 @@ Page({
     this.refreshUploadStatus();
   },
 
+  // 批次K:状态条如实转述服务器给的终态。以前只有"回到方位了"一种好结局，
+  // 待审/被拒/隔离/名额满全被上一版归进"还在排队"，宾客等三分钟等到一句谎话。
+  // 现在 settled 的照片直接读 upload.statusLabel()(口径同源自 web/join.html)。
   computeBatchStatusText: function (batch) {
     var total = batch.length;
     var uploading = batch.filter(function (i) { return i.status === "uploading"; }).length;
     if (uploading > 0) return "上传中 " + (total - uploading) + "/" + total;
     if (batch.some(function (i) { return i.status === "localizing"; })) return "AI 正在定位…";
-    if (batch.some(function (i) { return i.status === "done"; })) return "回到方位了";
+    var settled = batch.filter(function (i) { return i.status === "settled"; })[0];
+    if (settled) {
+      // 进空间了就说得高兴点，其余终态一律用同源文案原样说，不粉饰。
+      return (settled.serverState === "auto_ok" || settled.serverState === "approved")
+        ? "回到方位了"
+        : upload.statusLabel(settled);
+    }
     if (batch.some(function (i) { return i.status === "timeout"; })) return "AI 还在排队,稍后回来看";
     var errItem = batch.filter(function (i) { return i.status === "error"; })[0];
     return errItem ? errItem.error : "";
@@ -628,7 +696,12 @@ Page({
     this.setData({ uploadBarVisible: true, uploadStatusText: this.computeBatchStatusText(batch) });
 
     if (!this._uploadBatchFocused) {
-      var justDone = batch.filter(function (i) { return i.status === "done"; })[0];
+      // 只有真的进了空间(拿得到 yaw)才转视角。待审/被拒的照片没有方位，
+      // 转过去看一片空地比不转更让人困惑。
+      var justDone = batch.filter(function (i) {
+        return i.status === "settled" &&
+          (i.serverState === "auto_ok" || i.serverState === "approved");
+      })[0];
       if (justDone) {
         this._uploadBatchFocused = true;
         this.focusOnNewPhoto(justDone.yaw);
@@ -636,7 +709,7 @@ Page({
     }
 
     var allSettled = batch.every(function (i) {
-      return i.status === "done" || i.status === "timeout" || i.status === "error";
+      return i.status === "settled" || i.status === "timeout" || i.status === "error";
     });
     if (allSettled) {
       clearInterval(this._uploadTicker);

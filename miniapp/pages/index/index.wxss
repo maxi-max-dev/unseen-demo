@@ -286,3 +286,20 @@
   font-size: 28rpx;
   color: var(--u-pink-hot);
 }
+
+/* 批次K：「选个空间看看」预设区。卡片本身沿用批次J的 .experience-card 样式
+   （不重复造一套），这里只补一个区块标题和多张卡之间的间距。 */
+.preset-section {
+  width: 100%;
+  margin-top: 36rpx;
+}
+.preset-head {
+  display: block;
+  margin: 0 0 16rpx 8rpx;
+  font-size: 24rpx;
+  letter-spacing: 2rpx;
+  color: rgba(62, 36, 48, 0.5);
+}
+.preset-section .experience-card + .experience-card {
+  margin-top: 16rpx;
+}

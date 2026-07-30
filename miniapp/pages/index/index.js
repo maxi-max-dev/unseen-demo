@@ -16,7 +16,10 @@ Page({
     loadError: false,
     space: null,
     photoCount: 0,
-    contributorCount: 0
+    contributorCount: 0,
+    // 批次K:「选个空间看看」预设区。清单在 utils/util.js 的 PRESET_SPACES，
+    // 加空间只改那一处，不用动页面。
+    presets: []
   },
 
   onLoad: function () {
@@ -26,7 +29,8 @@ Page({
       statusBarHeight: app.globalData.statusBarHeight || 20,
       navBarTop: nav.barTop != null ? nav.barTop : (app.globalData.statusBarHeight || 20),
       navBarHeight: nav.barHeight != null ? nav.barHeight : 44,
-      navKeepoutRight: nav.keepoutRight != null ? nav.keepoutRight : 100
+      navKeepoutRight: nav.keepoutRight != null ? nav.keepoutRight : 100,
+      presets: util.PRESET_SPACES
     });
     this.fetchSpace();
   },
@@ -59,14 +63,18 @@ Page({
     this.fetchSpace();
   },
 
+  // 批次K:这一跳以前【不带 sid】，pano 页只能"兜底"回 s4——不管你从哪进来，
+  // 看到的都是 s4。sid 从此由 util.pageUrl() 统一挂上，三页之间不会再丢。
   onEnter: function () {
-    wx.navigateTo({ url: "/pages/pano/pano" });
+    wx.navigateTo({ url: util.pageUrl("pano", util.DEFAULT_SPACE_ID) });
   },
 
-  // 批次J新增:体验空间入口卡的点击。固定带 sid=EXPERIENCE_SPACE_ID(stressexp1)，
-  // 跟上面 onEnter()(不带 sid，pano 页自己兜底成 s4)是两条独立的路，互不影响。
-  onEnterExperience: function () {
-    wx.navigateTo({ url: "/pages/pano/pano?sid=" + util.EXPERIENCE_SPACE_ID });
+  // 批次K:「选个空间看看」里的卡片。sid 从 data-sid 来，同一个处理器管所有预设，
+  // 加一个空间不用再加一个方法。
+  onEnterPreset: function (e) {
+    var sid = e.currentTarget.dataset.sid;
+    if (!sid) return;
+    wx.navigateTo({ url: util.pageUrl("pano", sid) });
   },
 
   onCopyUploadLink: function () {

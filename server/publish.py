@@ -30,6 +30,7 @@ OSS 目录约定(定死, 全组按这个来):
     .venv/bin/python -m server.publish <sid>
     .venv/bin/python -m server.publish <sid> --force      # 忽略增量, 全部重传
 """
+import hashlib
 import json
 import os
 import sys
@@ -107,8 +108,66 @@ def inbox_prefix(sid, space=None):
     return _space_inbox_prefix(sid, space or {})
 
 
-def _public_resource_rels(space):
-    """不碰网络，只列出当前真值仍可能公开引用的本地素材路径。"""
+# ---------------------------------------------------------------- 降档全景(给小程序看的)
+# 微信小程序真机加载 >2000px 的图失败率接近 100%(开发工具里测不出来, 只有真机会挂),
+# 而云端全景是 4096 宽。所以每个节点额外发一张 2048x1024 的降档图 —— 这不是可选优化,
+# 是小程序能不能看到全景的前提。等距柱状投影必须保持 2:1, 所以宽高一起写死。
+PANO_MINI_W, PANO_MINI_H = 2048, 1024
+PANO_MINI_QUALITY = 86
+
+
+def _pano_mini_rel(root, node):
+    """这个节点的降档全景【应该叫什么】(只算名字, 不生成)。
+
+    文件名里带的是【源全景内容的哈希】, 不是节点 id 或时间戳。理由: 路演背景可以在
+    保留同一个 n1 的前提下换图, 名字不跟着内容变的话, 客户端本地缓存和 CDN 都会拿
+    旧图冒充新图 —— 而全景恰恰是"换了就必须立刻生效"的东西(照片方位全挂在它上面)。
+    """
+    rel = str(node.get("panorama") or "").replace("\\", "/").lstrip("/")
+    if not rel.startswith("nodes/") or ".." in rel.split("/"):
+        return None
+    src = os.path.join(root, rel.replace("/", os.sep))
+    if not os.path.exists(src):
+        return None
+    h = hashlib.sha256()
+    with open(src, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return f"{os.path.dirname(rel)}/pano-mini-{h.hexdigest()[:12]}.jpg"
+
+
+def _ensure_pano_mini(root, node):
+    """按需生成降档全景, 返回相对路径。生成不了就返回 None —— 绝不因此挡住发布,
+    小程序那头有离线兜底, 大不了这一版看不到新背景, 但展览本身不该受影响。"""
+    rel = _pano_mini_rel(root, node)
+    if not rel:
+        return None
+    dst = os.path.join(root, rel.replace("/", os.sep))
+    if os.path.exists(dst):
+        return rel                      # 名字带内容哈希, 存在即等于内容对得上
+    src_rel = str(node.get("panorama")).replace("\\", "/").lstrip("/")
+    src = os.path.join(root, src_rel.replace("/", os.sep))
+    try:
+        from PIL import Image           # 延迟导入: 发布路径本身不该强依赖 Pillow
+        with Image.open(src) as im:
+            small = im.convert("RGB").resize((PANO_MINI_W, PANO_MINI_H), Image.LANCZOS)
+        os.makedirs(os.path.dirname(dst), exist_ok=True)
+        tmp = dst + ".tmp"
+        small.save(tmp, "JPEG", quality=PANO_MINI_QUALITY, optimize=True)
+        os.replace(tmp, dst)            # 半张图绝不能留在那个名字上(名字=内容承诺)
+    except Exception as e:
+        print(f"   (降档全景没生成成功, 小程序会退回离线兜底: {type(e).__name__}: {e})", flush=True)
+        return None
+    return rel
+
+
+def _public_resource_rels(space, root=None):
+    """不碰网络，只列出当前真值仍可能公开引用的本地素材路径。
+
+    root 给了才把降档全景算进来(要读源文件算哈希)。不给就退回老行为，
+    调用方只是少认一个 key，不会误删——降档图和全景在同一个 nodes/ 前缀下，
+    当前清单里有它时永远在 wanted_keys 里。
+    """
     rels = set()
 
     def add(raw, prefix):
@@ -122,6 +181,8 @@ def _public_resource_rels(space):
         add(node.get("panorama"), "nodes/")
         add(node.get("depth"), "nodes/")
         add(node.get("depthJson"), "nodes/")
+        if root:
+            add(_pano_mini_rel(root, node), "nodes/")
     for photo in space.get("photos") or []:
         if photo.get("state") in SELECTED_STATES:
             add(photo.get("src"), "photos/")
@@ -196,6 +257,10 @@ def build_public_space(conf, sid, space, upload_expire_s=UPLOAD_EXPIRE_S):
             "initialPitch": n.get("initialPitch"),
             "initialFov": n.get("initialFov"),
             "panorama": pano,
+            # 小程序专用的 2048x1024 降档图。文件名带源全景的内容哈希, 换了背景图
+            # 名字就变, 旧缓存不可能命中(见 _pano_mini_rel)。生成失败时是 None,
+            # 小程序那头会退回离线兜底, 不会白屏。
+            "panoMini": take(_ensure_pano_mini(root, n)),
             "depth": take(n.get("depth")),
             "depthJson": take(n.get("depthJson")),
         })
@@ -664,7 +729,7 @@ def _publish_space_locked(sid, conf=None, progress=None, force=False):
         # 可等 60 秒，绝不能把所有空间的上传和审核一起锁住。
         with space_txn(sid) as latest:
             latest_wanted_keys = {
-                oss_key(sid, rel) for rel in _public_resource_rels(latest)
+                oss_key(sid, rel) for rel in _public_resource_rels(latest, space_dir(sid))
             }
             orphan_keys = sorted(wanted_keys - latest_wanted_keys)
             pending = set(latest.get("_pendingCloudDeletes") or [])
@@ -698,7 +763,7 @@ def _publish_space_locked(sid, conf=None, progress=None, force=False):
         if deleted_or_missing:
             with space_txn(sid) as latest:
                 active_now = {
-                    oss_key(sid, rel) for rel in _public_resource_rels(latest)
+                    oss_key(sid, rel) for rel in _public_resource_rels(latest, space_dir(sid))
                 }
                 # 若删除期间照片又被主办方重新批准，保留 pending。下一轮会先重传
                 # 当前文件，再把这条保护性队列清掉。

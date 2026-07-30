@@ -83,15 +83,19 @@
       </view>
     </block>
 
-    <!-- 批次J新增:体验空间入口卡。跟上面的婚礼流程(s4,原样保留不动)分开，
-         固定指向公共体验空间 stressexp1——这条是"上传链路能不能跑通"的专用
-         入口，不混进真实婚礼相册。只加这一张卡，app-bar/标题区一个字没动。 -->
-    <view class="experience-card" bindtap="onEnterExperience">
-      <view class="experience-copy">
-        <text class="experience-title">体验空间</text>
-        <text class="experience-sub">传张照片试试，看它回到方位</text>
+    <!-- 批次K:「选个空间看看」预设区，取代批次J那张单独的体验空间卡。
+         每张卡自己带 sid，点进去 sid 一路跟到底(pano→photos→再跳回来都带着)。
+         清单在 utils/util.js 的 PRESET_SPACES，加空间只改那一处。 -->
+    <view class="preset-section">
+      <text class="preset-head">选个空间看看</text>
+      <view class="experience-card" wx:for="{{presets}}" wx:key="sid"
+            data-sid="{{item.sid}}" bindtap="onEnterPreset">
+        <view class="experience-copy">
+          <text class="experience-title">{{item.name}}</text>
+          <text class="experience-sub">{{item.sub}}</text>
+        </view>
+        <text class="experience-arrow">→</text>
       </view>
-      <text class="experience-arrow">→</text>
     </view>
 
     <button class="upload-link" bindtap="onCopyUploadLink">传照片 · 复制上传链接</button>

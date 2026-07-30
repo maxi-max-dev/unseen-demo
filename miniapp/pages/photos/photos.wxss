@@ -204,3 +204,23 @@
   margin-right: 8rpx;
 }
 .mine-status { font-size: 21rpx; color: var(--u-ink-2); }
+
+/* 批次K：「我传的」补两样——重传入口和后端给的人话备注。 */
+.mine-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.mine-retry {
+  font-size: 24rpx;
+  color: #C2185B;
+  padding: 6rpx 18rpx;
+  border: 1rpx solid rgba(194, 24, 91, 0.35);
+  border-radius: 999rpx;
+}
+.mine-note {
+  margin-top: 4rpx;
+  font-size: 22rpx;
+  line-height: 1.5;
+  color: rgba(62, 36, 48, 0.55);
+}

@@ -77,6 +77,114 @@ function fetchSpaceFresh(sid, cb) {
   });
 }
 
+// ============================================================
+// 批次K：sid 贯穿三页，不许中途丢
+// ============================================================
+// 以前每一页各写一句 `(query && query.sid) || DEFAULT_SPACE_ID`。看着没问题，
+// 真正的坑在【跳转那一头】：index 的「走进这段记忆」跳 pano 时压根没带 sid，
+// 于是不管你从哪个空间进来，pano 都"兜底"回 s4——数据是别的空间的，背景是 s4 的，
+// 正是 P0-3 那条。所以现在统一：读用 resolveSid()，跳用 pageUrl()，谁都别再手拼。
+function resolveSid(query) {
+  var raw = query && query.sid;
+  var sid = String(raw || "").trim();
+  if (!sid) {
+    // 兜底本身是合法的（用户直接从小程序历史入口进来，确实没有 sid），
+    // 但要留一句日志——线上真出现"怎么又是 s4"的时候，这句是唯一的线索。
+    console.warn("[unseen] 这一跳没带 sid，兜底成 " + DEFAULT_SPACE_ID + "。若不是从首页直接进来，就是某处跳转漏了 sid。");
+    return DEFAULT_SPACE_ID;
+  }
+  return sid;
+}
+
+// 页面间跳转统一从这里拼 url，sid 永远在。
+function pageUrl(page, sid, extra) {
+  var url = "/pages/" + page + "/" + page + "?sid=" + encodeURIComponent(sid || DEFAULT_SPACE_ID);
+  if (extra) {
+    Object.keys(extra).forEach(function (k) {
+      if (extra[k] !== undefined && extra[k] !== null && extra[k] !== "") {
+        url += "&" + k + "=" + encodeURIComponent(extra[k]);
+      }
+    });
+  }
+  return url;
+}
+
+// ============================================================
+// 批次K：全景取图。动态跟着空间和节点走，不再写死 s4
+// ============================================================
+// 服务端(server/publish.py 的 _ensure_pano_mini)现在每个节点都发一张 2048x1024
+// 的降档图，字段 panoMini，文件名带源图内容哈希。真机加载 >2000px 的图失败率
+// 接近 100%（开发者工具测不出来），所以【优先取 panoMini】；没有它宁可退回本地
+// 兜底也不去拉 4096 的原图——拉了大概率就是白屏。
+var OFFLINE_PANO = { s4: "/assets/panos/s4-n1.jpg" };
+
+function panoSourceFor(sid, node) {
+  if (node && node.panoMini) return { src: node.panoMini, offline: false };
+  // 这个空间还没发过降档图（老快照/生成失败）。只有打包进小程序的那个空间
+  // 才有离线兜底可用，其余空间诚实报没有，页面去显示空态，绝不拿 s4 的背景
+  // 冒充别人的空间。
+  if (OFFLINE_PANO[sid]) return { src: OFFLINE_PANO[sid], offline: true };
+  return { src: null, offline: false };
+}
+
+// 当前该看哪个节点：带了 nodeId 就找它，找不到或没带就用第一个。
+function pickNode(space, nodeId) {
+  var nodes = (space && space.nodes) || [];
+  if (!nodes.length) return null;
+  if (nodeId) {
+    for (var i = 0; i < nodes.length; i++) {
+      if (String(nodes[i].id) === String(nodeId)) return nodes[i];
+    }
+  }
+  return nodes[0];
+}
+
+// 照片按 nodeId 过滤。老快照里的照片可能没有 nodeId 字段——那种情况下整个空间
+// 也只可能有一个节点（多节点是后来才有的），所以缺字段时归给当前节点，不丢照片。
+function photosOfNode(space, nodeId) {
+  var all = (space && space.photos) || [];
+  if (!nodeId) return all.slice();
+  return all.filter(function (p) {
+    return !p.nodeId || String(p.nodeId) === String(nodeId);
+  });
+}
+
+// ============================================================
+// 批次K：投稿状态文案。【唯一真源在 web/join.html 的 stateLabel()】
+// ============================================================
+// 契约要求两端同源(app/contract.md)。这张表是从 web/join.html:1466-1476 逐条抄的，
+// 改任何一条都必须两边一起改，不然同一张照片在 H5 和小程序里会有两个说法。
+var STATE_LABELS = {
+  auto_ok: "已进空间",
+  approved: "主办方通过",
+  needs_review: "等主办方确认",
+  rejected: "没被选上",
+  quarantined: "放错地方了",
+  scene_updated: "场景已更新",
+  quota_full: "名额已满",
+  uploaded: "AI 正在定位"
+};
+
+function stateLabel(state) {
+  return STATE_LABELS[state] || "AI 处理中";
+}
+
+// 这些是【终态】：到这一步就别再说"排队中"了，也不用继续轮询。
+// needs_review 不在里面是故意的——主办方随时可能通过它，下次打开小程序还要再看一眼。
+var TERMINAL_STATES = ["auto_ok", "approved", "rejected", "quarantined", "scene_updated", "quota_full"];
+
+function isTerminalState(state) {
+  return TERMINAL_STATES.indexOf(state) >= 0;
+}
+
+// ============================================================
+// 批次K：进入页的「选个空间看看」预设区
+// ============================================================
+var PRESET_SPACES = [
+  { sid: "s4", name: "陈屹 ♥ 林沐", sub: "真实婚礼空间，只看不传" },
+  { sid: "stressexp1", name: "体验空间 · 宴会厅", sub: "随便传张照片试试，看它回到方位" }
+];
+
 module.exports = {
   dirWord: dirWord,
   SPACE_ID: SPACE_ID,
@@ -87,5 +195,13 @@ module.exports = {
   EXPERIENCE_SPACE_ID: EXPERIENCE_SPACE_ID,
   spaceJsonUrl: spaceJsonUrl,
   ensureSpace: ensureSpace,
-  fetchSpaceFresh: fetchSpaceFresh
+  fetchSpaceFresh: fetchSpaceFresh,
+  resolveSid: resolveSid,
+  pageUrl: pageUrl,
+  panoSourceFor: panoSourceFor,
+  pickNode: pickNode,
+  photosOfNode: photosOfNode,
+  stateLabel: stateLabel,
+  isTerminalState: isTerminalState,
+  PRESET_SPACES: PRESET_SPACES
 };

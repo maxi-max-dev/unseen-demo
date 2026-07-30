@@ -35,7 +35,8 @@ Page({
     loadError: false,
     // 批次J新增:sid 贯穿三页 + 本次会话"我传的"记录。
     sid: "s4",
-    myUploads: []
+    myUploads: [],
+    retryCount: 0
   },
 
   onLoad: function (options) {
@@ -47,20 +48,24 @@ Page({
       navBarHeight: nav.barHeight != null ? nav.barHeight : 44,
       navSideMargin: nav.sideMargin != null ? nav.sideMargin : 12
     });
-    // 批次J新增:带 sid 就用它(从 pano 页的"N 张"按钮点进来时带的)，没带就
-    // 兜底 util.DEFAULT_SPACE_ID(=s4，直接进这页的老路径不受影响)。
-    this.sid = (options && options.sid) || util.DEFAULT_SPACE_ID;
+    // 批次K:sid/nodeId 统一从 util.resolveSid 拿(没带会打警告)。nodeId 必须跟着，
+    // 不然从二号节点点进来会看到整个空间的照片，跟全景页对不上。
+    this.sid = util.resolveSid(options);
+    this.nodeId = (options && options.nodeId) || null;
     this.setData({ sid: this.sid });
     this.fetchData();
   },
 
   onShow: function () {
-    // 批次J新增:每次这页变可见都刷新一次"我传的"(onLoad后紧跟着onShow也会
-    // 走到这里，首次加载不用再单独调一次)，覆盖"在 pano 页传完照片，切回这页
-    // 看结果"这条路径。轻量的本地读取(读 utils/upload.js 的内存数组)，不发
-    // 网络请求。
-    this.refreshMyUploads();
+    // 每次这页变可见都刷新一次"我传的"。
+    // 批次K:除了读本地记录，还去服务器核一次。回执现在存在 wx 本地存储里，
+    // 杀进程重开也在——但存的是【当时】的状态，主办方可能在这期间把待审的
+    // 那张点通过了。不核对就是拿旧结论冒充新结论，跟"一律显示排队中"是同一种谎。
     var self = this;
+    this.refreshMyUploads();
+    upload.refreshFromServer(this.sid, function (changed) {
+      if (changed) self.refreshMyUploads();
+    });
     if (this._mineTimer) clearInterval(this._mineTimer);
     this._mineTimer = setInterval(function () { self.refreshMyUploads(); }, 3000);
   },
@@ -73,16 +78,40 @@ Page({
     if (this._mineTimer) { clearInterval(this._mineTimer); this._mineTimer = null; }
   },
 
-  // 批次J新增:"我传的"区——本次会话在当前 sid 下传过的照片，标状态。
+  // "我传的"区——当前 sid 下传过的照片，标状态。
+  // 批次K:不再只有"本次会话"。记录落 wx 本地存储，杀进程重开还在；状态文案
+  // 走 upload.statusLabel()，待审/被拒/隔离/名额满各说各的(口径同源自 web/join.html)，
+  // 不再一律"排队中"。
   refreshMyUploads: function () {
     var mine = upload.getMyUploads(this.sid).map(function (item) {
       return {
         key: item.key,
         thumb: item.thumb,
-        statusText: upload.statusLabel(item)
+        statusText: upload.statusLabel(item),
+        note: item.note || "",
+        // 传失败又留着持久副本的，才是真能重传的那些
+        canRetry: item.status === "error" && !!item.retryFilePath
       };
     });
-    this.setData({ myUploads: mine });
+    this.setData({
+      myUploads: mine,
+      retryCount: upload.retryQueue(this.sid).length
+    });
+  },
+
+  // 批次K:待重传队列。压缩后的文件在失败时被 saveFile 存成了持久路径，
+  // 所以这颗按钮杀进程重开之后照样能按。
+  onRetryUploads: function () {
+    var self = this;
+    wx.showToast({ title: "正在重传…", icon: "none" });
+    upload.retryFailed(this.sid, function (n, err) {
+      self.refreshMyUploads();
+      if (err) {
+        wx.showToast({ title: err.message || "重传没成功", icon: "none" });
+      } else if (!n) {
+        wx.showToast({ title: "没有可重传的照片", icon: "none" });
+      }
+    });
   },
 
   onRetry: function () {
@@ -104,7 +133,8 @@ Page({
         taskMap[t.id] = t;
       });
 
-      var photos = (space.photos || [])
+      // 批次K:按 nodeId 过滤，跟全景页看的是同一批照片(P0-3)。
+      var photos = util.photosOfNode(space, self.nodeId)
         .slice()
         .sort(function (a, b) {
           return (Number(a.yaw) || 0) - (Number(b.yaw) || 0);
@@ -143,11 +173,10 @@ Page({
   onTapCard: function (e) {
     var yaw = e.currentTarget.dataset.yaw;
     // 批次J修:带上 sid，不然从体验空间的照片方位屏点回全景屏会静默掉回 s4。
-    var url = "/pages/pano/pano?sid=" + encodeURIComponent(this.sid);
-    if (yaw !== "" && yaw !== undefined && yaw !== null && !isNaN(yaw)) {
-      url += "&yaw=" + encodeURIComponent(yaw);
-    }
-    wx.navigateTo({ url: url });
+    // 批次K:sid 和 nodeId 一起带回去，回到的是同一个节点的同一个方向。
+    var extra = { nodeId: this.nodeId };
+    if (yaw !== "" && yaw !== undefined && yaw !== null && !isNaN(yaw)) extra.yaw = yaw;
+    wx.navigateTo({ url: util.pageUrl("pano", this.sid, extra) });
   },
 
   onBack: function () {

@@ -32,13 +32,19 @@
        loading/error 判断之外——网慢的时候也能看到自己刚传的这几张在什么状态。
        只加这一块，.position-top/.native-nav(返回钮/导航布局)一个字没动。 -->
   <view class="mine-section" wx:if="{{myUploads.length}}">
-    <text class="mine-head">我传的</text>
+    <view class="mine-head-row">
+      <text class="mine-head">我传的</text>
+      <!-- 批次K:待重传队列。失败照片的压缩副本被存成了持久文件，杀进程重开还能按。 -->
+      <text class="mine-retry" wx:if="{{retryCount}}" bindtap="onRetryUploads">重传 {{retryCount}} 张</text>
+    </view>
     <view class="mine-row" wx:for="{{myUploads}}" wx:key="key">
       <image wx:if="{{item.thumb}}" class="mine-thumb" src="{{item.thumb}}" mode="aspectFill" />
       <view wx:else class="mine-thumb mine-thumb--placeholder"></view>
       <view class="mine-meta">
         <text class="mine-tag">我传的</text>
         <text class="mine-status">{{item.statusText}}</text>
+        <!-- 后端在 pending 回执里给的人话(publish.py)，有就照实显示，不自己编原因 -->
+        <text class="mine-note" wx:if="{{item.note}}">{{item.note}}</text>
       </view>
     </view>
   </view>
