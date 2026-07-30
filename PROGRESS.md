@@ -1970,3 +1970,74 @@ TOTAL 1.1 MB (1172042 Byte)      ← 微信自己的编译器过了，比 node -
 chooseMedia 原生选图、真机大图加载、弱网、杀进程重开的真实体感、Policy 过期真机复现、与 ECS worker 的真实端到端。全部如实留在 BLOCKED.md。
 
 **三条基线**：sweep **13/13 全绿** ｜ s4 photos = **28** ｜ 密钥 grep = **0**（另查 AccessKeySecret/LTAI/secret_key 也是 0）。第 2、3 件的回归重跑仍 ✅。
+
+## 施工 7 · 收尾 ✅
+
+**技术总纲第六章账本已回标**（vault `🚀项目/AdventureX-2026/UNSEEN-技术总纲-2026-07-30.md`）：
+
+| 编号 | 回标 |
+|---|---|
+| P0-2 Policy 无续签 | ✅已修 2026-07-30 |
+| P0-3 小程序全景写死+不按 nodeId 过滤 | ✅已修 2026-07-30 |
+| P1-4 私密空间可发成 public-read | ✅已修 2026-07-30 |
+| P1-5 yaw 插值拖偏 | ✅已修 2026-07-30 |
+| P1-8 小程序不消费 pending[] | ✅已修 2026-07-30 |
+| P2-1 导航树混排 | ✅已修 2026-07-30 |
+| P0-1 主办闭环 | 🟡**部分**已修：v0.9 那半（藏/标演示 + 断死循环）做完，登录契约互斥和失败放行仍是 v1.1 |
+| P1-12 第三方外发截图 | **没标**。不在本批次施工顺序里；复查 `judge.py:344` 确认没 key 就走 local 不外发，"v0.9 默认关"这个状态本来就满足，但空间级开关那个完整解仍然没有，所以不算修完 |
+
+第五行的平台纪律（任务墙内容心愿口径）也标了「✅已落地」，并在签认行下面加了一句施工回标，指回本文件和 BLOCKED.md。
+
+---
+
+# 批次 K 总结（2026-07-30）
+
+## 七件事都做完了
+
+| # | 件 | 结果 |
+|---|---|---|
+| 0 | 开工核对 | ✅ HEAD=011ca68、`acceptance.mjs` 打印四命令，两项都对上 |
+| 1 | 上传许可自动续签 | ✅ 含缩短 TTL 的反向验证（阈值以上 6 轮不动手，跌破即续，两轮都对） |
+| 2 | 删假插值 | ✅ 夹具回归 yaw=150（旧算法 165.0），置信度口径没变所以阈值不用重标 |
+| 3 | 私密空间堵漏 | ✅ 三个用例含对照组，判据是"零 OSS 写入"不是"报了个错" |
+| 4 | 假入口治理 | ✅ sweep 13/13 全绿，portal 全部链接 16/16 通，死循环已断 |
+| 5 | 任务墙改口径 | ✅ 生成端+展示端两层，判定逻辑零改动 |
+| 6 | 小程序达标 | ✅ 六条可自动化的全做，34 条断言 + 跨空间交叉核对 |
+| 7 | 收尾 | ✅ 账本回标 + 本段 |
+
+## 三条不可退的基线，收工复核
+
+| 基线 | 开工 | 收工 |
+|---|---|---|
+| acceptance sweep 通过数 | （本批次建立）13/13 | **13/13** ✅ |
+| s4 照片数 | 28 | **28** ✅ |
+| 密钥 grep `8c87b064` | 0 | **0** ✅（另查 AccessKeySecret/LTAI/secret_key/`.config/psm` 引用，也全是 0） |
+
+s4 全程只做了两件事：**续期上传许可**、**生成并发布它自己那张 2048 降档全景**。没塞过任何测试数据，所有测试上传都走 stress 前缀的空间。
+
+## 收工时可复跑的全部验收
+
+```bash
+# 静态站（先另开 .venv/bin/python -m http.server 8791 --bind 127.0.0.1）
+node tools/acceptance.mjs sweep tools/sweep-public.json     # 13 页全绿
+node tools/acceptance.mjs walk tools/walk-host-loop.json    # 死循环已断
+# 后端
+.venv/bin/python -m tools.test_yaw_peak                     # 夹具 yaw=150
+.venv/bin/python -m tools.test_private_publish              # 私密空间零 OSS 写入
+.venv/bin/python -m server.repair server/sessions/fixture   # 跑完仓库仍干净
+# 小程序
+node tools/test_miniapp_contract.js                         # 34 条断言
+NODE_PATH=/opt/homebrew/lib/node_modules node tools/shots-k.js   # 跨空间交叉核对
+```
+⚠️ `tools/shots-k.js` 要 `NODE_PATH`：`miniprogram-automator` 装在
+`/opt/homebrew/lib/node_modules`（全局），node 默认不解析全局模块。
+
+## 这一批里最值得记住的三件事
+
+1. **"只改生成端"不够**。第 5 件改完 `server/space.py` 的文案生成，s4 的任务卡**照样**显示旧文案，因为那是换口径之前就写进 space.json 的字符串。**不去浏览器里真看一眼就会以为改完了**。
+2. **日志绿≠画面对，但截图空也≠画面错**。小程序全景截图是一片纯色，我差点当成自己写坏了；回头翻批次J 的同一张截图一模一样，而那时贴的还是本地图 —— 模拟器根本拍不到 WebGL 画布。既然截图两个方向都不可信，就把结论落成可断言的字段（`panoReady`/`panoSrcInUse`）。
+3. **动手前先看清楚现状**。第 1 件本来打算在 publish 里加一个记到期时刻的字段，动手才发现 `publish.py:623` 早就写了，位置还比我想加的更好。撤掉自己那条，publish.py 本次零改动。
+
+## 交给主会话的（BLOCKED.md 批次 K 段，K-1 到 K-10）
+
+最要紧的两条：**K-1 腾讯云站点同步**（改了 6 个公开页，只提交了仓库没推线上，走增量发版、以线上 md5 为唯一裁决）、**K-9 真机待验清单**（含一条硬缺口：s4 和 stressexp1 **都只有 1 个节点**，达标七条要求的"其一多节点"交叉测试只在构造数据上验过，真实多节点空间还没有）。
