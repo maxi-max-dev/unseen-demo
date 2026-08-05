@@ -14,7 +14,15 @@
 <meta name="twitter:title" content="UNSEEN · 产品入口">
 <meta name="twitter:description" content="让照片回到它当时朝着的方向。">
 <meta name="twitter:image" content="https://unseen-d3gtp0sxh53bbef61-1316841054.tcloudbaseapp.com/assets/portal/og.png">
+<script>
+  // 静态托管把未知路径回落到 portal.html；把干净路径 /pano-capture 转给拍摄页。
+  // __pano_test 只接受显式 URL 参数，正常入口从不生成、也不展示这个参数。
+  if (/\/pano-capture\/?$/.test(location.pathname)) {
+    location.replace("/web/pano-capture.html" + location.search + location.hash);
+  }
+</script>
 <title>UNSEEN · 产品入口</title>
+<link rel="icon" href="data:,">
 <link rel="stylesheet" href="app/theme.css">
 <link rel="stylesheet" href="app/product-ui.css">
 <style>
@@ -812,12 +820,14 @@
           打开产品入口 <span aria-hidden="true">↓</span>
         </a>
         <a class="secondary-cta" href="#showcase">看作品演示 <span aria-hidden="true">↓</span></a>
+        <a class="secondary-cta" href="web/pano-capture.html">拍摄 360° 全景 <span aria-hidden="true">→</span></a>
       </div>
       <div class="hero-proof" aria-label="当前能力">
         <span class="proof"><span class="dot"></span>三个角色界面</span>
         <span class="proof">世界锚定照片</span>
         <span class="proof">真实数据展览</span>
         <span class="proof">4 个 AI 全景场景</span>
+        <span class="proof">边拍边成形</span>
       </div>
     </div>
 
